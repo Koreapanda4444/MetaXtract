@@ -6,13 +6,15 @@ import sys
 from typing import Callable, Iterable, Optional
 
 import config
+import engine
+import extract_common
 import utils
 
 ExitCode = int
 
 
 class _MetaXtractArgumentParser(argparse.ArgumentParser):
-    def error(self, message: str) -> None:  # argparse API
+    def error(self, message: str) -> None:
         raise utils.UsageError(message)
 
 
@@ -53,7 +55,38 @@ def _get_subparser(parser: argparse.ArgumentParser, command: str) -> Optional[ar
     return None
 
 def _cmd_scan(_: argparse.Namespace) -> ExitCode:
-    return utils.not_implemented("scan")
+    args = _
+    include_exts = extract_common.parse_include_extensions(getattr(args, "include", None))
+    exclude_patterns = extract_common.split_patterns(getattr(args, "exclude", []) or [])
+
+    try:
+        result = engine.enumerate_files(
+            str(args.path),
+            recursive=bool(getattr(args, "recursive", False)),
+            include_exts=include_exts,
+            exclude_patterns=exclude_patterns,
+        )
+    except FileNotFoundError as e:
+        raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.FAILURE, cause=e)
+    except OSError as e:
+        raise utils.ProcessingError(f"스캔 중 오류가 발생했습니다: {e}", exit_code=utils.ExitCodes.FAILURE, cause=e)
+
+    sys.stdout.write(f"found={result.found}\n")
+    sys.stdout.write(f"excluded={result.excluded}\n")
+    sys.stdout.write(f"errors={result.errors}\n")
+    for path in result.files:
+        sys.stdout.write(path + "\n")
+
+    if result.errors:
+        max_lines = 20
+        for msg in result.error_messages[:max_lines]:
+            utils.error(msg)
+        remaining = result.errors - min(result.errors, max_lines)
+        if remaining > 0:
+            utils.error(f"오류 메시지 {remaining}건은 생략되었습니다")
+        return utils.ExitCodes.FAILURE
+
+    return utils.ExitCodes.SUCCESS
 
 def _cmd_report(_: argparse.Namespace) -> ExitCode:
     return utils.not_implemented("report")
@@ -102,6 +135,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("scan")
     sp.add_argument("path")
     sp.add_argument("--recursive", action="store_true")
+    sp.add_argument("--include", default=None)
+    sp.add_argument("--exclude", action="append", default=[])
     sp.set_defaults(_handler=_cmd_scan)
 
     sp = sub.add_parser("report")

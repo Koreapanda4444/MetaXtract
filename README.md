@@ -41,13 +41,34 @@
 
 | 명령 | 목적 | 예시 | 상태 |
 |---|---|---|---|
-| `scan` | 경로를 스캔해 인덱스 생성 | `python -m metaxtract scan . --recursive` | 예정 |
+| `scan` | 경로를 스캔해 파일을 열거(현재는 열거/필터/집계만) | `python -m metaxtract scan . --recursive --include .jpg,.png,.pdf --exclude "node_modules" --exclude ".git"` | 부분 지원 |
 | `report` | 인덱스를 사람이 읽기 좋은 형태로 출력 | `python -m metaxtract report index.json` | 예정 |
 | `diff` | 두 인덱스/스캔 결과 비교 | `python -m metaxtract diff before.json after.json` | 예정 |
 | `sanitize` | 입력에서 민감정보 마스킹/정리 | `python -m metaxtract sanitize input/ --outdir out/` | 예정 |
 | `verify` | 인덱스 무결성/규칙 검증 | `python -m metaxtract verify index.json` | 예정 |
 | `gui` | GUI 실행(옵션) | `python -m metaxtract gui` | 예정 |
 | `version` | 버전 정보를 JSON으로 출력 | `python -m metaxtract version` | 지원 |
+
+## scan (현재 지원: 파일 열거)
+
+현재 `scan`은 메타 추출 없이 파일 열거 + 필터 + 집계만 출력합니다.
+
+옵션:
+
+- `--recursive`: 하위 폴더까지 재귀 탐색
+- `--include .jpg,.png,.pdf`: 확장자 allowlist(쉼표로 구분). 지정하지 않으면 모든 확장자를 허용
+- `--exclude pattern`: 제외 패턴(여러 번 지정 가능). `*`/`?`/`[]`가 있으면 glob처럼, 없으면 부분 문자열 매칭
+
+예시:
+
+- `python -m metaxtract scan . --recursive --exclude ".git" --exclude "__pycache__"`
+
+출력:
+
+- `found=<개수>`
+- `excluded=<개수>`
+- `errors=<개수>`
+- 이후 줄마다 발견된 파일 경로
 
 ## 다음 작업(예정)
 

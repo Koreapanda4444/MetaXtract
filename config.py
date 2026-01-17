@@ -8,3 +8,6 @@ class Settings:
     hash_algo: str = "sha256"
     save_raw: bool = False
     redact: bool = False
+    scan_recursive: bool = False
+    scan_include: str | None = None
+    scan_exclude: tuple[str, ...] = ()
