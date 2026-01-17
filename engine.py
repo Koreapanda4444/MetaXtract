@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 import extract_common
+import normalize
 
 
 @dataclass(frozen=True)
@@ -122,8 +123,8 @@ def scan(
 
     for p in enum.files:
         try:
-            record = extract_common.make_record(Path(p), hash_algo=hash_algo)
-            records.append(record)
+            raw_record = extract_common.make_record(Path(p), hash_algo=hash_algo)
+            records.append(normalize.normalize_record(raw_record))
         except OSError as e:
             errors.append(f"메타 수집 실패: {p} ({e})")
         except ValueError as e:

@@ -69,6 +69,22 @@
 - stdout에 JSON 레코드가 줄 단위로 출력됩니다(JSONL)
 - 단일 파일 입력 시 JSON 1개 레코드가 출력됩니다
 
+## Normalized schema v1
+
+스캔/추출 결과는 어떤 파일이든 최상위 키셋이 동일하도록 유지합니다.
+
+최상위 키:
+
+- `file`, `os_times`, `hashes`, `meta_times`, `identity`, `capture`, `geo`, `media`, `signals`, `raw`
+
+현재 매핑(일부만 채움):
+
+- `file`: `path`, `name`, `ext`, `size_bytes`
+- `os_times`: `atime`, `mtime`, `ctime`
+- `hashes`: `{algo: hex}` 형태(옵션)
+- 나머지(`meta_times`/`identity`/`capture`/`geo`/`media`/`signals`)는 v1에서 빈 오브젝트로 시작
+- `raw`: 정규화 이전 레코드 원본
+
 레코드 필드(현재):
 
 - `path`, `name`, `ext`, `size_bytes`
