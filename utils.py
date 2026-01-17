@@ -3,10 +3,32 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import traceback
 from typing import Optional
 
 _VERSION = "0.0.0"
 _LOGGER_NAME = "metaxtract"
+
+
+class ExitCodes:
+    SUCCESS: int = 0
+    INTERNAL_ERROR: int = 1
+    USAGE: int = 2
+    FAILURE: int = 3
+
+
+class UsageError(Exception):
+    def __init__(self, user_message: str):
+        super().__init__(user_message)
+        self.user_message = user_message
+
+
+class ProcessingError(Exception):
+    def __init__(self, user_message: str, *, exit_code: int = ExitCodes.FAILURE, cause: Optional[BaseException] = None):
+        super().__init__(user_message)
+        self.user_message = user_message
+        self.exit_code = int(exit_code)
+        self.cause = cause
 
 class _PlainFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -37,6 +59,31 @@ def get_version() -> str:
 
 def get_logger() -> logging.Logger:
     return logging.getLogger(_LOGGER_NAME)
+
+
+def error(user_message: str, *, exc: Optional[BaseException] = None) -> None:
+    logger = get_logger()
+    logger.error(user_message)
+
+    if exc is None:
+        return
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("details: %s", repr(exc))
+        if isinstance(exc, ProcessingError) and exc.cause is not None:
+            logger.debug("cause: %s", repr(exc.cause))
+        tb = traceback.format_exc()
+        if tb and tb.strip() and "Traceback" in tb:
+            logger.debug(tb.rstrip())
+
+
+def fail(user_message: str, *, code: int, exc: Optional[BaseException] = None) -> int:
+    error(user_message, exc=exc)
+    return int(code)
+
+
+def not_implemented(feature: str) -> int:
+    return fail(f"{feature}: 아직 지원되지 않습니다(예정).", code=ExitCodes.USAGE)
 
 def configure_logging(verbosity: int = 0, no_color: bool = False) -> None:
     logger = get_logger()

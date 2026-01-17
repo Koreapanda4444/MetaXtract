@@ -10,29 +10,65 @@ import utils
 
 ExitCode = int
 
+
+class _MetaXtractArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:  # argparse API
+        raise utils.UsageError(message)
+
+
+def _extract_global_flags(argv: list[str]) -> tuple[int, bool]:
+    verbosity = 0
+    no_color = False
+    for token in argv:
+        if token == "--no-color":
+            no_color = True
+            continue
+        if token == "--verbose" or token == "-v":
+            verbosity += 1
+            continue
+        if token.startswith("-v") and len(token) > 2 and set(token[1:]) == {"v"}:
+            verbosity += (len(token) - 1)
+            continue
+    return verbosity, no_color
+
+
+def _extract_command_token(argv: list[str]) -> Optional[str]:
+    for token in argv:
+        if token == "--no-color":
+            continue
+        if token in {"--verbose", "-v"}:
+            continue
+        if token.startswith("-v") and len(token) > 2 and set(token[1:]) == {"v"}:
+            continue
+        if token.startswith("-"):
+            continue
+        return token
+    return None
+
+
+def _get_subparser(parser: argparse.ArgumentParser, command: str) -> Optional[argparse.ArgumentParser]:
+    for action in getattr(parser, "_actions", []):
+        if isinstance(action, argparse._SubParsersAction):
+            return action.choices.get(command)
+    return None
+
 def _cmd_scan(_: argparse.Namespace) -> ExitCode:
-    utils.get_logger().error("scan: not implemented in commit0")
-    return 2
+    return utils.not_implemented("scan")
 
 def _cmd_report(_: argparse.Namespace) -> ExitCode:
-    utils.get_logger().error("report: not implemented in commit0")
-    return 2
+    return utils.not_implemented("report")
 
 def _cmd_diff(_: argparse.Namespace) -> ExitCode:
-    utils.get_logger().error("diff: not implemented in commit0")
-    return 2
+    return utils.not_implemented("diff")
 
 def _cmd_sanitize(_: argparse.Namespace) -> ExitCode:
-    utils.get_logger().error("sanitize: not implemented in commit0")
-    return 2
+    return utils.not_implemented("sanitize")
 
 def _cmd_verify(_: argparse.Namespace) -> ExitCode:
-    utils.get_logger().error("verify: not implemented in commit0")
-    return 2
+    return utils.not_implemented("verify")
 
 def _cmd_gui(_: argparse.Namespace) -> ExitCode:
-    utils.get_logger().error("gui: not implemented in commit0")
-    return 2
+    return utils.not_implemented("gui")
 
 def _cmd_version(_: argparse.Namespace) -> ExitCode:
     payload = {
@@ -44,9 +80,23 @@ def _cmd_version(_: argparse.Namespace) -> ExitCode:
     return 0
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="metaxtract", add_help=True)
-    p.add_argument("-v", "--verbose", action="count", default=0)
-    p.add_argument("--no-color", action="store_true")
+    p = _MetaXtractArgumentParser(
+        prog="metaxtract",
+        add_help=True,
+        description="MetaXtract CLI (WIP)",
+        epilog=(
+            "Exit codes: 0=success, 2=usage/not-implemented, 3=processing failure. "
+            "Verbose: -v=INFO, -vv(2+)=DEBUG"
+        ),
+    )
+    p.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity (0=WARNING, 1=INFO, 2+=DEBUG).",
+    )
+    p.add_argument("--no-color", action="store_true", help="Disable ANSI colors on stderr.")
     sub = p.add_subparsers(dest="command", required=True)
 
     sp = sub.add_parser("scan")
@@ -81,8 +131,33 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 def main(argv: Optional[Iterable[str]] = None) -> ExitCode:
-    args = build_parser().parse_args(list(argv) if argv is not None else None)
+    argv_list = list(argv) if argv is not None else sys.argv[1:]
+
+    pre_verbose, pre_no_color = _extract_global_flags(argv_list)
+    utils.configure_logging(pre_verbose, pre_no_color)
+
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv_list)
+    except utils.UsageError as e:
+        utils.error(e.user_message)
+        cmd = _extract_command_token(argv_list)
+        subparser = _get_subparser(parser, cmd) if cmd else None
+        (subparser or parser).print_help(file=sys.stderr)
+        return utils.ExitCodes.USAGE
+    except SystemExit as e:
+        try:
+            return int(e.code)
+        except Exception:
+            return utils.ExitCodes.USAGE
+
     utils.configure_logging(int(args.verbose), bool(getattr(args, "no_color", False)))
     _ = config.Settings()
     handler: Callable[[argparse.Namespace], ExitCode] = getattr(args, "_handler")
-    return int(handler(args))
+
+    try:
+        return int(handler(args))
+    except utils.ProcessingError as e:
+        return utils.fail(e.user_message, code=e.exit_code, exc=e)
+    except Exception as e:
+        return utils.fail("예기치 못한 내부 오류가 발생했습니다.", code=utils.ExitCodes.INTERNAL_ERROR, exc=e)

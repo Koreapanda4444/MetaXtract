@@ -1,0 +1,58 @@
+
+# MetaXtract (WIP)
+
+텍스트/파일에서 메타데이터를 추출하고(Extract), 비교(Diff), 정리(Sanitize), 검증(Verify)하는 도구를 목표로 하는 CLI 프로젝트입니다.
+
+현재는 CLI UX/정책을 먼저 고정하는 단계이며, 대부분의 명령은 아직 미구현입니다.
+
+## 실행
+
+- 권장: `python -m metaxtract <command> [args...]`
+
+예시:
+
+- `python -m metaxtract version`
+- `python -m metaxtract -v version`
+
+## 전역 옵션
+
+- `-v/--verbose`: 로그 상세도 증가
+	- `0` (기본): WARNING 이상
+	- `1` (`-v`): INFO 이상
+	- `2+` (`-vv`, `-vvv`...): DEBUG 이상
+- `--no-color`: stderr ANSI 컬러 비활성화
+
+## 종료 코드 규약
+
+| 코드 | 의미 |
+|---:|---|
+| 0 | 성공 |
+| 2 | 사용법 오류 / 미구현 기능 (예: 잘못된 인자, 지원되지 않는 명령) |
+| 3 | 처리 실패 (예: 파일 처리/검증 실패 등) |
+| 1 | 내부 오류 (예기치 못한 예외) |
+
+## 에러 출력 정책
+
+- 사용자에게 보여줄 메시지는 항상 `ERROR: <메시지>` 형태로 stderr에 출력합니다.
+- 내부 상세(예외 repr/traceback 등)는 `-vv`(DEBUG) 이상에서만 stderr에 출력합니다.
+- `version` 같은 성공 출력은 stdout을 사용합니다.
+
+## 명령 목록 (목적/예시/지원 상태)
+
+| 명령 | 목적 | 예시 | 상태 |
+|---|---|---|---|
+| `scan` | 경로를 스캔해 인덱스 생성 | `python -m metaxtract scan . --recursive` | 예정 |
+| `report` | 인덱스를 사람이 읽기 좋은 형태로 출력 | `python -m metaxtract report index.json` | 예정 |
+| `diff` | 두 인덱스/스캔 결과 비교 | `python -m metaxtract diff before.json after.json` | 예정 |
+| `sanitize` | 입력에서 민감정보 마스킹/정리 | `python -m metaxtract sanitize input/ --outdir out/` | 예정 |
+| `verify` | 인덱스 무결성/규칙 검증 | `python -m metaxtract verify index.json` | 예정 |
+| `gui` | GUI 실행(옵션) | `python -m metaxtract gui` | 예정 |
+| `version` | 버전 정보를 JSON으로 출력 | `python -m metaxtract version` | 지원 |
+
+## 다음 작업(예정)
+
+- `scan`: 인덱스 스키마 정의 + 최소 스캐너 구현
+- `report`: 인덱스 요약/필터 출력
+- `diff`: 변경 요약(추가/삭제/수정) 출력
+- `sanitize`/`verify`: 정책(룰) 정의 후 단계적으로 구현
+
