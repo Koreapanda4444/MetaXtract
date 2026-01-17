@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import os
 from pathlib import Path
 from typing import Iterable, Optional
@@ -80,3 +81,47 @@ def match_exclude(path_text: str, patterns: Iterable[str]) -> bool:
             if pat.startswith("*/") and pat[2:] in text:
                 return True
     return False
+
+
+def collect_stat(path: Path) -> dict:
+    st = path.stat()
+    return {
+        "size_bytes": int(st.st_size),
+        "os_times": {
+            "atime": float(st.st_atime),
+            "mtime": float(st.st_mtime),
+            "ctime": float(st.st_ctime),
+        },
+    }
+
+
+def compute_hash(path: Path, algo: str) -> Optional[str]:
+    a = (algo or "").strip().lower()
+    if a in {"", "none"}:
+        return None
+    if a not in {"sha256", "md5"}:
+        raise ValueError(f"지원되지 않는 해시 알고리즘: {algo}")
+
+    h = hashlib.new(a)
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(1024 * 1024)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def make_record(path: Path, *, hash_algo: str = "none") -> dict:
+    ext = path.suffix.lower()
+    record: dict = {
+        "path": str(path),
+        "name": path.name,
+        "ext": ext,
+    }
+    record.update(collect_stat(path))
+    hh = compute_hash(path, hash_algo)
+    if hh is not None:
+        record["hash_algo"] = hash_algo
+        record["hash_hex"] = hh
+    return record

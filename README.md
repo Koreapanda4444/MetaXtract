@@ -51,13 +51,14 @@
 
 ## scan (현재 지원: 파일 열거)
 
-현재 `scan`은 메타 추출 없이 파일 열거 + 필터 + 집계만 출력합니다.
+현재 `scan`은 메타 추출 없이 공통 메타(stat) + (옵션) 해시만 출력합니다.
 
 옵션:
 
 - `--recursive`: 하위 폴더까지 재귀 탐색
 - `--include .jpg,.png,.pdf`: 확장자 allowlist(쉼표로 구분). 지정하지 않으면 모든 확장자를 허용
 - `--exclude pattern`: 제외 패턴(여러 번 지정 가능). `*`/`?`/`[]`가 있으면 glob처럼, 없으면 부분 문자열 매칭
+- `--hash sha256|md5|none`: 해시 계산(기본 `none`)
 
 예시:
 
@@ -65,10 +66,18 @@
 
 출력:
 
-- `found=<개수>`
-- `excluded=<개수>`
-- `errors=<개수>`
-- 이후 줄마다 발견된 파일 경로
+- stdout에 JSON 레코드가 줄 단위로 출력됩니다(JSONL)
+- 단일 파일 입력 시 JSON 1개 레코드가 출력됩니다
+
+레코드 필드(현재):
+
+- `path`, `name`, `ext`, `size_bytes`
+- `os_times.atime|mtime|ctime`
+- `hash_algo`, `hash_hex` (해시 옵션 사용 시)
+
+주의:
+
+- `ctime`은 OS/파일시스템에 따라 의미가 다를 수 있습니다(Windows: 생성 시간, Unix 계열: 상태 변경 시간).
 
 ## 다음 작업(예정)
 

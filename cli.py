@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 import config
@@ -54,28 +56,58 @@ def _get_subparser(parser: argparse.ArgumentParser, command: str) -> Optional[ar
             return action.choices.get(command)
     return None
 
+
+def _stdout_write(text: str) -> None:
+    try:
+        sys.stdout.write(text)
+    except BrokenPipeError:
+        try:
+            sys.stdout.close()
+        except Exception:
+            pass
+        os._exit(0)
+
 def _cmd_scan(_: argparse.Namespace) -> ExitCode:
     args = _
     include_exts = extract_common.parse_include_extensions(getattr(args, "include", None))
     exclude_patterns = extract_common.split_patterns(getattr(args, "exclude", []) or [])
+    hash_algo = str(getattr(args, "hash", "none") or "none")
 
     try:
-        result = engine.enumerate_files(
+        result = engine.scan(
             str(args.path),
             recursive=bool(getattr(args, "recursive", False)),
             include_exts=include_exts,
             exclude_patterns=exclude_patterns,
+            hash_algo=hash_algo,
         )
     except FileNotFoundError as e:
         raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.FAILURE, cause=e)
     except OSError as e:
         raise utils.ProcessingError(f"스캔 중 오류가 발생했습니다: {e}", exit_code=utils.ExitCodes.FAILURE, cause=e)
 
-    sys.stdout.write(f"found={result.found}\n")
-    sys.stdout.write(f"excluded={result.excluded}\n")
-    sys.stdout.write(f"errors={result.errors}\n")
-    for path in result.files:
-        sys.stdout.write(path + "\n")
+    is_single_file = False
+    try:
+        is_single_file = Path(str(args.path)).is_file()
+    except Exception:
+        is_single_file = False
+
+    if is_single_file:
+        if result.errors:
+            max_lines = 20
+            for msg in result.error_messages[:max_lines]:
+                utils.error(msg)
+            remaining = result.errors - min(result.errors, max_lines)
+            if remaining > 0:
+                utils.error(f"오류 메시지 {remaining}건은 생략되었습니다")
+            return utils.ExitCodes.FAILURE
+        if len(result.records) != 1:
+            return utils.ExitCodes.FAILURE
+        _stdout_write(json.dumps(result.records[0], ensure_ascii=False) + "\n")
+        return utils.ExitCodes.SUCCESS
+
+    for record in result.records:
+        _stdout_write(json.dumps(record, ensure_ascii=False) + "\n")
 
     if result.errors:
         max_lines = 20
@@ -137,6 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--recursive", action="store_true")
     sp.add_argument("--include", default=None)
     sp.add_argument("--exclude", action="append", default=[])
+    sp.add_argument("--hash", choices=["sha256", "md5", "none"], default="none")
     sp.set_defaults(_handler=_cmd_scan)
 
     sp = sub.add_parser("report")

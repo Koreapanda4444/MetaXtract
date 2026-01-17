@@ -17,6 +17,15 @@ class EnumerationResult:
     error_messages: list[str]
 
 
+@dataclass(frozen=True)
+class ScanResult:
+    records: list[dict]
+    found: int
+    excluded: int
+    errors: int
+    error_messages: list[str]
+
+
 def enumerate_files(
     root: str,
     *,
@@ -88,6 +97,42 @@ def enumerate_files(
         files=found_files,
         found=len(found_files),
         excluded=excluded,
+        errors=len(errors),
+        error_messages=errors,
+    )
+
+
+def scan(
+    root: str,
+    *,
+    recursive: bool,
+    include_exts: Optional[set[str]] = None,
+    exclude_patterns: Optional[Iterable[str]] = None,
+    hash_algo: str = "none",
+) -> ScanResult:
+    enum = enumerate_files(
+        root,
+        recursive=recursive,
+        include_exts=include_exts,
+        exclude_patterns=exclude_patterns,
+    )
+
+    records: list[dict] = []
+    errors: list[str] = list(enum.error_messages)
+
+    for p in enum.files:
+        try:
+            record = extract_common.make_record(Path(p), hash_algo=hash_algo)
+            records.append(record)
+        except OSError as e:
+            errors.append(f"메타 수집 실패: {p} ({e})")
+        except ValueError as e:
+            errors.append(str(e))
+
+    return ScanResult(
+        records=records,
+        found=enum.found,
+        excluded=enum.excluded,
         errors=len(errors),
         error_messages=errors,
     )

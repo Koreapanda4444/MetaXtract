@@ -11,3 +11,4 @@ class Settings:
     scan_recursive: bool = False
     scan_include: str | None = None
     scan_exclude: tuple[str, ...] = ()
+    scan_hash: str = "none"
