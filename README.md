@@ -59,6 +59,7 @@
 - `--include .jpg,.png,.pdf`: 확장자 allowlist(쉼표로 구분). 지정하지 않으면 모든 확장자를 허용
 - `--exclude pattern`: 제외 패턴(여러 번 지정 가능). `*`/`?`/`[]`가 있으면 glob처럼, 없으면 부분 문자열 매칭
 - `--hash sha256|md5|none`: 해시 계산(기본 `none`)
+- `--out <path>.jsonl`: 결과를 JSONL 인덱스 파일로 저장(기본은 stdout 출력)
 
 예시:
 
@@ -68,6 +69,18 @@
 
 - stdout에 JSON 레코드가 줄 단위로 출력됩니다(JSONL)
 - 단일 파일 입력 시 JSON 1개 레코드가 출력됩니다
+
+`--out` 사용 시:
+
+- 지정한 JSONL 파일이 생성됩니다
+- 첫 줄은 세션 헤더 레코드입니다
+- 이후 줄은 파일별 정규화 레코드가 append 됩니다
+
+세션 헤더 예시(필드):
+
+- `type=session`
+- `tool.version`, `timestamp`, `platform.*`
+- `scan.root`, `scan.recursive`, `scan.include`, `scan.exclude`, `scan.hash`
 
 ## Normalized schema v1
 

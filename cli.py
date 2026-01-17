@@ -10,6 +10,7 @@ from typing import Callable, Iterable, Optional
 import config
 import engine
 import extract_common
+import index_store
 import utils
 
 ExitCode = int
@@ -72,6 +73,7 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
     include_exts = extract_common.parse_include_extensions(getattr(args, "include", None))
     exclude_patterns = extract_common.split_patterns(getattr(args, "exclude", []) or [])
     hash_algo = str(getattr(args, "hash", "none") or "none")
+    out_path = getattr(args, "out", None)
 
     try:
         result = engine.scan(
@@ -103,11 +105,32 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
             return utils.ExitCodes.FAILURE
         if len(result.records) != 1:
             return utils.ExitCodes.FAILURE
-        _stdout_write(json.dumps(result.records[0], ensure_ascii=False) + "\n")
+        if out_path:
+            header = engine.make_session_header(
+                root=str(args.path),
+                recursive=bool(getattr(args, "recursive", False)),
+                include=getattr(args, "include", None),
+                exclude=exclude_patterns,
+                hash_algo=hash_algo,
+            )
+            index_store.write_jsonl(str(out_path), [header, result.records[0]], append=False)
+        else:
+            _stdout_write(json.dumps(result.records[0], ensure_ascii=False) + "\n")
         return utils.ExitCodes.SUCCESS
 
-    for record in result.records:
-        _stdout_write(json.dumps(record, ensure_ascii=False) + "\n")
+    if out_path:
+        header = engine.make_session_header(
+            root=str(args.path),
+            recursive=bool(getattr(args, "recursive", False)),
+            include=getattr(args, "include", None),
+            exclude=exclude_patterns,
+            hash_algo=hash_algo,
+        )
+        index_store.write_jsonl(str(out_path), [header], append=False)
+        index_store.write_jsonl(str(out_path), result.records, append=True)
+    else:
+        for record in result.records:
+            _stdout_write(json.dumps(record, ensure_ascii=False) + "\n")
 
     if result.errors:
         max_lines = 20
@@ -170,6 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--include", default=None)
     sp.add_argument("--exclude", action="append", default=[])
     sp.add_argument("--hash", choices=["sha256", "md5", "none"], default="none")
+    sp.add_argument("--out", default=None)
     sp.set_defaults(_handler=_cmd_scan)
 
     sp = sub.add_parser("report")

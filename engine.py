@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+import platform
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
 
 import extract_common
 import normalize
+import utils
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,35 @@ class ScanResult:
     excluded: int
     errors: int
     error_messages: list[str]
+
+
+def make_session_header(
+    *,
+    root: str,
+    recursive: bool,
+    include: Optional[str],
+    exclude: list[str],
+    hash_algo: str,
+) -> dict:
+    return {
+        "type": "session",
+        "tool": {"name": "metaxtract", "version": utils.get_version()},
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "version": platform.version(),
+            "machine": platform.machine(),
+            "python": platform.python_version(),
+        },
+        "scan": {
+            "root": root,
+            "recursive": bool(recursive),
+            "include": include,
+            "exclude": list(exclude),
+            "hash": str(hash_algo),
+        },
+    }
 
 
 def enumerate_files(
