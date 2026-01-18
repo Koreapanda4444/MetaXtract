@@ -23,6 +23,8 @@ def iter_jsonl(path: str | Path) -> Iterator[dict]:
     with p.open("r", encoding="utf-8") as f:
         for line in f:
             s = line.strip()
+            if s and s[0] == "\ufeff":
+                s = s.lstrip("\ufeff")
             if not s:
                 continue
             yield json.loads(s)
@@ -43,3 +45,14 @@ def get_session_header(path: str | Path) -> dict[str, Any]:
     if not isinstance(first, dict):
         raise ValueError("invalid session header")
     return first
+
+
+def split_session_and_records(path: str | Path) -> tuple[dict[str, Any] | None, list[dict]]:
+    items = load_jsonl(path)
+    if not items:
+        return None, []
+
+    first = items[0]
+    if isinstance(first, dict) and first.get("type") == "session":
+        return first, [r for r in items[1:] if isinstance(r, dict)]
+    return None, [r for r in items if isinstance(r, dict)]

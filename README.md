@@ -77,6 +77,24 @@
 - 첫 줄은 세션 헤더 레코드입니다
 - 이후 줄은 파일별 정규화 레코드가 append 됩니다
 
+## report
+
+JSONL 인덱스에서 리포트를 생성합니다.
+
+형식:
+
+- `python -m metaxtract report <index.jsonl> --format json|csv|txt --template privacy|forensics|content`
+
+옵션:
+
+- `--format`: 출력 포맷
+- `--template`: 템플릿
+- `--redact`: 출력에서 GPS/author 등 일부 민감 메타 마스킹
+
+CSV 평탄화 규칙:
+
+- 중첩 키를 `a.b.c` 형태로 펼칩니다.
+
 세션 헤더 예시(필드):
 
 - `type=session`

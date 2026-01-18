@@ -11,6 +11,7 @@ import config
 import engine
 import extract_common
 import index_store
+import report
 import utils
 
 ExitCode = int
@@ -146,7 +147,23 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
     return utils.ExitCodes.SUCCESS
 
 def _cmd_report(_: argparse.Namespace) -> ExitCode:
-    return utils.not_implemented("report")
+    args = _
+    fmt = str(getattr(args, "format", "txt") or "txt").lower()
+    template = str(getattr(args, "template", "privacy") or "privacy").lower()
+    redact = bool(getattr(args, "redact", False))
+    index_path = str(getattr(args, "index"))
+
+    try:
+        out = report.generate(index_path, fmt=fmt, template=template, redact=redact)
+    except FileNotFoundError as e:
+        raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.FAILURE, cause=e)
+    except ValueError as e:
+        raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.USAGE, cause=e)
+    except OSError as e:
+        raise utils.ProcessingError(f"리포트 생성 중 오류가 발생했습니다: {e}", exit_code=utils.ExitCodes.FAILURE, cause=e)
+
+    _stdout_write(out)
+    return utils.ExitCodes.SUCCESS
 
 def _cmd_diff(_: argparse.Namespace) -> ExitCode:
     return utils.not_implemented("diff")
@@ -201,6 +218,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("report")
     sp.add_argument("index")
+    sp.add_argument("--format", choices=["json", "csv", "txt"], default="txt")
+    sp.add_argument("--template", choices=["privacy", "forensics", "content"], default="privacy")
+    sp.add_argument("--redact", action="store_true")
     sp.set_defaults(_handler=_cmd_report)
 
     sp = sub.add_parser("diff")
