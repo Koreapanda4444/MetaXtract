@@ -74,6 +74,7 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
     exclude_patterns = extract_common.split_patterns(getattr(args, "exclude", []) or [])
     hash_algo = str(getattr(args, "hash", "none") or "none")
     out_path = getattr(args, "out", None)
+    redact = bool(getattr(args, "redact", False))
 
     try:
         result = engine.scan(
@@ -82,6 +83,7 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
             include_exts=include_exts,
             exclude_patterns=exclude_patterns,
             hash_algo=hash_algo,
+            redact=redact,
         )
     except FileNotFoundError as e:
         raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.FAILURE, cause=e)
@@ -193,6 +195,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--include", default=None)
     sp.add_argument("--exclude", action="append", default=[])
     sp.add_argument("--hash", choices=["sha256", "md5", "none"], default="none")
+    sp.add_argument("--redact", action="store_true")
     sp.add_argument("--out", default=None)
     sp.set_defaults(_handler=_cmd_scan)
 

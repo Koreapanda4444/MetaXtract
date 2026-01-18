@@ -59,6 +59,7 @@
 - `--include .jpg,.png,.pdf`: 확장자 allowlist(쉼표로 구분). 지정하지 않으면 모든 확장자를 허용
 - `--exclude pattern`: 제외 패턴(여러 번 지정 가능). `*`/`?`/`[]`가 있으면 glob처럼, 없으면 부분 문자열 매칭
 - `--hash sha256|md5|none`: 해시 계산(기본 `none`)
+- `--redact`: 출력에서 일부 민감 메타(GPS/author)를 마스킹
 - `--out <path>.jsonl`: 결과를 JSONL 인덱스 파일로 저장(기본은 stdout 출력)
 
 예시:
@@ -98,6 +99,22 @@
 - 이미지(JPEG/PNG)인 경우 일부 필드가 채워질 수 있음(아래 참고)
 - 나머지(`identity`/`media`/`signals`)는 v1에서 빈 오브젝트로 시작
 - `raw`: 정규화 이전 레코드 원본
+
+### Privacy intelligence v1
+
+모든 레코드에서 `signals.privacy_flags`와 `signals.risk_summary`를 생성합니다.
+
+flags:
+
+- `has_gps`
+- `has_author`
+- `has_device_model`
+- `has_software_trace`
+- `has_precise_time`
+
+`signals.risk_summary`는 사람이 읽는 2~4줄 요약 문자열이며, 예를 들어 GPS가 있으면 “위치 노출” 문구가 포함됩니다.
+
+`--redact` 옵션을 사용하면 출력 레코드의 `geo.lat/lon/alt_m`과 `identity.author`를 마스킹합니다. `raw`는 그대로 유지됩니다.
 
 ### Image extractor v1 (JPEG/PNG)
 

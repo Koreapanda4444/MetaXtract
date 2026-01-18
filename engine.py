@@ -13,6 +13,7 @@ import extract_image
 import extract_pdf
 import extract_video
 import normalize
+import rules_privacy
 import utils
 
 
@@ -146,6 +147,7 @@ def scan(
     include_exts: Optional[set[str]] = None,
     exclude_patterns: Optional[Iterable[str]] = None,
     hash_algo: str = "none",
+    redact: bool = False,
 ) -> ScanResult:
     enum = enumerate_files(
         root,
@@ -186,7 +188,9 @@ def scan(
                 if not v_res.ok and v_res.error_code:
                     raw_record["extract_error"] = v_res.error_code
 
-            records.append(normalize.normalize_record(raw_record))
+            normalized = normalize.normalize_record(raw_record)
+            rules_privacy.apply_privacy_intelligence(normalized, redact=bool(redact))
+            records.append(normalized)
         except OSError as e:
             errors.append(f"메타 수집 실패: {p} ({e})")
         except ValueError as e:

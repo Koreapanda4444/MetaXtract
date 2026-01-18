@@ -24,7 +24,7 @@ def empty_record() -> dict:
         "capture": {},
         "geo": {},
         "media": {},
-        "signals": {},
+        "signals": {"privacy_flags": {}, "risk_summary": ""},
         "raw": {},
     }
 
