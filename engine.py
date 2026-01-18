@@ -11,6 +11,7 @@ import extract_common
 import extract_docx
 import extract_image
 import extract_pdf
+import extract_video
 import normalize
 import utils
 
@@ -178,6 +179,12 @@ def scan(
                 raw_record.update(docx_res.data)
                 if not docx_res.ok and docx_res.error_code:
                     raw_record["extract_error"] = docx_res.error_code
+
+            if ext in {".mp4", ".m4v", ".mov"}:
+                v_res = extract_video.extract_video_metadata(Path(p))
+                raw_record.update(v_res.data)
+                if not v_res.ok and v_res.error_code:
+                    raw_record["extract_error"] = v_res.error_code
 
             records.append(normalize.normalize_record(raw_record))
         except OSError as e:

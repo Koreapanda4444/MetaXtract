@@ -141,6 +141,33 @@ def normalize_record(raw_record: dict) -> dict:
             if isinstance(modified, str) and modified:
                 out["meta_times"].setdefault("modified", modified)
 
+    video = raw_record.get("video")
+    if isinstance(video, dict):
+        media: dict[str, Any] = {}
+
+        duration_sec = video.get("duration_sec")
+        width = video.get("width")
+        height = video.get("height")
+        codec = video.get("codec")
+        container = video.get("container")
+        container_created = video.get("container_created")
+
+        if isinstance(duration_sec, (int, float)):
+            media["duration_sec"] = float(duration_sec)
+        if isinstance(width, int) and width > 0:
+            media["width"] = width
+        if isinstance(height, int) and height > 0:
+            media["height"] = height
+        if isinstance(codec, str) and codec.strip():
+            media["codec"] = codec.strip()
+        if isinstance(container, str) and container.strip():
+            media["container"] = container.strip()
+        if isinstance(container_created, str) and container_created:
+            media["container_created"] = container_created
+
+        if media:
+            out["media"].update(media)
+
     out["raw"] = raw_record
     return out
 
