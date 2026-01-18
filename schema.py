@@ -24,7 +24,11 @@ def empty_record() -> dict:
         "capture": {},
         "geo": {},
         "media": {},
-        "signals": {"privacy_flags": {}, "risk_summary": ""},
+        "signals": {
+            "privacy_flags": {},
+            "risk_summary": "",
+            "timeline_flags": {"time_mismatch": False, "reason_codes": [], "short_explain": ""},
+        },
         "raw": {},
     }
 

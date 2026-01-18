@@ -116,6 +116,16 @@ flags:
 
 `--redact` 옵션을 사용하면 출력 레코드의 `geo.lat/lon/alt_m`과 `identity.author`를 마스킹합니다. `raw`는 그대로 유지됩니다.
 
+### Timeline consistency v1
+
+OS 시간(`os_times`)과 메타 시간(`meta_times.created/modified/digitized`)을 비교해 불일치/역전 징후를 감지합니다.
+
+결과는 `signals.timeline_flags`에 기록됩니다:
+
+- `time_mismatch`: 불일치 감지 여부
+- `reason_codes`: 감지 사유 코드 리스트
+- `short_explain`: 짧은 요약 문자열
+
 ### Image extractor v1 (JPEG/PNG)
 
 가능한 경우 EXIF/GPS를 추출하고, 정규화 레코드에 다음 필드를 채웁니다:

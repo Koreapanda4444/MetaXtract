@@ -14,6 +14,7 @@ import extract_pdf
 import extract_video
 import normalize
 import rules_privacy
+import rules_timeline
 import utils
 
 
@@ -190,6 +191,7 @@ def scan(
 
             normalized = normalize.normalize_record(raw_record)
             rules_privacy.apply_privacy_intelligence(normalized, redact=bool(redact))
+            rules_timeline.apply_timeline_checks(normalized)
             records.append(normalized)
         except OSError as e:
             errors.append(f"메타 수집 실패: {p} ({e})")
