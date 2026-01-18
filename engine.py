@@ -9,6 +9,7 @@ from typing import Iterable, Optional
 
 import extract_common
 import extract_image
+import extract_pdf
 import normalize
 import utils
 
@@ -164,6 +165,12 @@ def scan(
                 raw_record.update(img_res.data)
                 if not img_res.ok and img_res.error_code:
                     raw_record["extract_error"] = img_res.error_code
+
+            if ext == ".pdf":
+                pdf_res = extract_pdf.extract_pdf_metadata(Path(p))
+                raw_record.update(pdf_res.data)
+                if not pdf_res.ok and pdf_res.error_code:
+                    raw_record["extract_error"] = pdf_res.error_code
 
             records.append(normalize.normalize_record(raw_record))
         except OSError as e:

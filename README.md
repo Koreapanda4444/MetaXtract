@@ -111,6 +111,17 @@
 
 EXIF가 없거나 파싱 실패 시 `raw.extract_error`에 간단한 에러 코드가 들어갈 수 있습니다(예: `no_exif`).
 
+### PDF extractor v1
+
+가능한 경우 PDF 속성(문서 프로퍼티)을 추출하고, 정규화 레코드에 다음 필드를 채웁니다:
+
+- `identity.author` (PDF `Author`)
+- `capture.software` (PDF `Creator`/`Producer`를 결합)
+- `meta_times.created` (PDF `CreationDate`)
+- `meta_times.modified` (PDF `ModDate`)
+
+PDF 메타가 없거나 읽기 실패 시 `raw.extract_error`에 에러 코드가 들어갈 수 있습니다(예: `no_pdf_meta`).
+
 레코드 필드(현재):
 
 - `path`, `name`, `ext`, `size_bytes`

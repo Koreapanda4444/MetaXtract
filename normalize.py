@@ -48,7 +48,7 @@ def normalize_record(raw_record: dict) -> dict:
                 out["meta_times"]["digitized"] = dtd
 
         if capture:
-            out["capture"] = capture
+            out["capture"].update(capture)
 
     gps_norm = raw_record.get("gps_norm")
     if isinstance(gps_norm, dict):
@@ -66,7 +66,6 @@ def normalize_record(raw_record: dict) -> dict:
         if isinstance(alt_m, (int, float)):
             geo["alt_m"] = float(alt_m)
 
-        # Precision flag: DOP presence is a useful, common indicator
         if isinstance(dop, (int, float)):
             geo["gps_dop"] = float(dop)
             geo["precision_flag"] = "dop"
@@ -74,7 +73,41 @@ def normalize_record(raw_record: dict) -> dict:
             geo["precision_flag"] = "unknown"
 
         if geo:
-            out["geo"] = geo
+            out["geo"].update(geo)
+
+    pdf = raw_record.get("pdf")
+    if isinstance(pdf, dict):
+        identity: dict[str, Any] = {}
+
+        author = pdf.get("Author")
+        if isinstance(author, str) and author.strip():
+            identity["author"] = author.strip()
+        if identity:
+            out["identity"].update(identity)
+
+        capture: dict[str, Any] = {}
+        creator = pdf.get("Creator")
+        producer = pdf.get("Producer")
+
+        parts: list[str] = []
+        if isinstance(creator, str) and creator.strip():
+            parts.append(creator.strip())
+        if isinstance(producer, str) and producer.strip():
+            if producer.strip() not in parts:
+                parts.append(producer.strip())
+        if parts:
+            capture["software"] = "; ".join(parts)
+        if capture:
+            out["capture"].update(capture)
+
+        times = raw_record.get("pdf_times")
+        if isinstance(times, dict):
+            created = times.get("CreationDate")
+            modified = times.get("ModDate")
+            if isinstance(created, str) and created:
+                out["meta_times"]["created"] = created
+            if isinstance(modified, str) and modified:
+                out["meta_times"]["modified"] = modified
 
     out["raw"] = raw_record
     return out
