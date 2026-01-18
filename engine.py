@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 import extract_common
+import extract_docx
 import extract_image
 import extract_pdf
 import normalize
@@ -171,6 +172,12 @@ def scan(
                 raw_record.update(pdf_res.data)
                 if not pdf_res.ok and pdf_res.error_code:
                     raw_record["extract_error"] = pdf_res.error_code
+
+            if ext == ".docx":
+                docx_res = extract_docx.extract_docx_metadata(Path(p))
+                raw_record.update(docx_res.data)
+                if not docx_res.ok and docx_res.error_code:
+                    raw_record["extract_error"] = docx_res.error_code
 
             records.append(normalize.normalize_record(raw_record))
         except OSError as e:

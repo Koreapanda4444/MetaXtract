@@ -109,6 +109,38 @@ def normalize_record(raw_record: dict) -> dict:
             if isinstance(modified, str) and modified:
                 out["meta_times"]["modified"] = modified
 
+    docx = raw_record.get("docx")
+    if isinstance(docx, dict):
+        identity: dict[str, Any] = {}
+
+        creator = docx.get("creator")
+        last_modified_by = docx.get("lastModifiedBy")
+        title = docx.get("title")
+
+        if isinstance(creator, str) and creator.strip():
+            identity["author"] = creator.strip()
+        if isinstance(last_modified_by, str) and last_modified_by.strip():
+            identity["last_modified_by"] = last_modified_by.strip()
+        if isinstance(title, str) and title.strip():
+            identity["title"] = title.strip()
+        if identity:
+            out["identity"].update(identity)
+
+        capture: dict[str, Any] = {}
+        if "docx" not in str(out["capture"].get("software") or "").lower():
+            capture["software"] = "docx"
+        if capture:
+            out["capture"].update(capture)
+
+        times = raw_record.get("docx_times")
+        if isinstance(times, dict):
+            created = times.get("created")
+            modified = times.get("modified")
+            if isinstance(created, str) and created:
+                out["meta_times"].setdefault("created", created)
+            if isinstance(modified, str) and modified:
+                out["meta_times"].setdefault("modified", modified)
+
     out["raw"] = raw_record
     return out
 
