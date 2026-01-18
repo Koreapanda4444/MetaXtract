@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 import extract_common
+import extract_image
 import normalize
 import utils
 
@@ -156,6 +157,14 @@ def scan(
     for p in enum.files:
         try:
             raw_record = extract_common.make_record(Path(p), hash_algo=hash_algo)
+
+            ext = str(raw_record.get("ext") or "").lower()
+            if ext in {".jpg", ".jpeg", ".png"}:
+                img_res = extract_image.extract_image_metadata(Path(p))
+                raw_record.update(img_res.data)
+                if not img_res.ok and img_res.error_code:
+                    raw_record["extract_error"] = img_res.error_code
+
             records.append(normalize.normalize_record(raw_record))
         except OSError as e:
             errors.append(f"메타 수집 실패: {p} ({e})")

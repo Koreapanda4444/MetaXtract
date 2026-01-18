@@ -51,7 +51,7 @@
 
 ## scan (현재 지원: 파일 열거)
 
-현재 `scan`은 메타 추출 없이 공통 메타(stat) + (옵션) 해시만 출력합니다.
+현재 `scan`은 공통 메타(stat) + (옵션) 해시 + 일부 파일 타입(이미지)의 최소 메타(EXIF/GPS)를 추출합니다.
 
 옵션:
 
@@ -95,8 +95,21 @@
 - `file`: `path`, `name`, `ext`, `size_bytes`
 - `os_times`: `atime`, `mtime`, `ctime`
 - `hashes`: `{algo: hex}` 형태(옵션)
-- 나머지(`meta_times`/`identity`/`capture`/`geo`/`media`/`signals`)는 v1에서 빈 오브젝트로 시작
+- 이미지(JPEG/PNG)인 경우 일부 필드가 채워질 수 있음(아래 참고)
+- 나머지(`identity`/`media`/`signals`)는 v1에서 빈 오브젝트로 시작
 - `raw`: 정규화 이전 레코드 원본
+
+### Image extractor v1 (JPEG/PNG)
+
+가능한 경우 EXIF/GPS를 추출하고, 정규화 레코드에 다음 필드를 채웁니다:
+
+- `capture.make`, `capture.model`, `capture.software`
+- `capture.datetime_original` (EXIF `DateTimeOriginal` 파싱 성공 시)
+- `meta_times.digitized` (EXIF `DateTimeDigitized` 파싱 성공 시)
+- `geo.lat`, `geo.lon`, `geo.alt_m` (EXIF GPS가 있는 경우)
+- `geo.precision_flag`: `"dop"`(GPSDOP 존재) 또는 `"unknown"`
+
+EXIF가 없거나 파싱 실패 시 `raw.extract_error`에 간단한 에러 코드가 들어갈 수 있습니다(예: `no_exif`).
 
 레코드 필드(현재):
 
