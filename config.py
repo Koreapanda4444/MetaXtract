@@ -12,3 +12,5 @@ class Settings:
     scan_include: str | None = None
     scan_exclude: tuple[str, ...] = ()
     scan_hash: str = "none"
+
+    sanitize_mode: str = "redact"

@@ -44,7 +44,7 @@
 | `scan` | 경로를 스캔해 파일을 열거(현재는 열거/필터/집계만) | `python -m metaxtract scan . --recursive --include .jpg,.png,.pdf --exclude "node_modules" --exclude ".git"` | 부분 지원 |
 | `report` | 인덱스를 사람이 읽기 좋은 형태로 출력 | `python -m metaxtract report index.json` | 지원 |
 | `diff` | 두 인덱스/스캔 결과 비교 | `python -m metaxtract diff before.jsonl after.jsonl --key path` | 지원 |
-| `sanitize` | 입력에서 민감정보 마스킹/정리 | `python -m metaxtract sanitize input/ --outdir out/` | 예정 |
+| `sanitize` | 입력에서 민감정보 마스킹/정리 | `python -m metaxtract sanitize input/ --outdir out/ --mode redact` | 부분 지원 |
 | `verify` | 인덱스 무결성/규칙 검증 | `python -m metaxtract verify index.json` | 예정 |
 | `gui` | GUI 실행(옵션) | `python -m metaxtract gui` | 예정 |
 | `version` | 버전 정보를 JSON으로 출력 | `python -m metaxtract version` | 지원 |
@@ -148,6 +148,38 @@ CSV 평탄화 규칙:
 - `type=session`
 - `tool.version`, `timestamp`, `platform.*`
 - `scan.root`, `scan.recursive`, `scan.include`, `scan.exclude`, `scan.hash`
+
+## sanitize (pipeline v1)
+
+입력 파일을 `--outdir`로 복사/가공하여 **민감 메타데이터를 제거/축소**합니다.
+
+형식:
+
+- `python -m metaxtract sanitize <path> --outdir <outdir> --mode redact|minimal`
+
+모드:
+
+- `redact` (기본): 이미지에서 GPS/Author/Software 흔적을 우선 제거(가능한 범위부터)
+- `minimal`: 이미지 메타데이터를 가능한 한 제거(픽셀은 유지하려고 시도)
+
+현재 적용 범위(v1):
+
+- JPEG/PNG 이미지부터 단계 적용
+- 그 외 포맷은 **그대로 복사**(no-op)
+
+처리 로그(파일별):
+
+- `--outdir` 내부에 `__metaxtract_logs/sanitize/` 아래로 파일별 로그가 생성됩니다.
+- 포함 내용: 입력/출력 경로, 제거/마스킹 액션 목록, 전/후 SHA256
+
+예시 워크플로우(스캔→sanitize→재스캔→diff):
+
+```bash
+python -m metaxtract scan input/ --recursive --hash sha256 --out before.jsonl
+python -m metaxtract sanitize input/ --outdir out/ --mode redact
+python -m metaxtract scan out/ --recursive --hash sha256 --exclude "__metaxtract_logs" --out after.jsonl
+python -m metaxtract diff before.jsonl after.jsonl --key path --out diff.txt
+```
 
 ## Normalized schema v1
 

@@ -150,6 +150,9 @@ def scan(
     hash_algo: str = "none",
     redact: bool = False,
 ) -> ScanResult:
+    root_path = Path(root)
+    base_for_rel = root_path if root_path.is_dir() else root_path.parent
+
     enum = enumerate_files(
         root,
         recursive=recursive,
@@ -162,29 +165,38 @@ def scan(
 
     for p in enum.files:
         try:
-            raw_record = extract_common.make_record(Path(p), hash_algo=hash_algo)
+            p_obj = Path(p)
+            raw_record = extract_common.make_record(p_obj, hash_algo=hash_algo)
+
+            # 디렉터리 스캔의 경우 path 키를 root 기준 상대경로로 고정합니다.
+            # (sanitize로 outdir가 바뀌어도 diff --key path가 매칭되도록)
+            try:
+                rel = str(p_obj.relative_to(base_for_rel)).replace("\\", "/")
+                raw_record["path"] = rel
+            except Exception:
+                raw_record["path"] = str(p_obj).replace("\\", "/")
 
             ext = str(raw_record.get("ext") or "").lower()
             if ext in {".jpg", ".jpeg", ".png"}:
-                img_res = extract_image.extract_image_metadata(Path(p))
+                img_res = extract_image.extract_image_metadata(p_obj)
                 raw_record.update(img_res.data)
                 if not img_res.ok and img_res.error_code:
                     raw_record["extract_error"] = img_res.error_code
 
             if ext == ".pdf":
-                pdf_res = extract_pdf.extract_pdf_metadata(Path(p))
+                pdf_res = extract_pdf.extract_pdf_metadata(p_obj)
                 raw_record.update(pdf_res.data)
                 if not pdf_res.ok and pdf_res.error_code:
                     raw_record["extract_error"] = pdf_res.error_code
 
             if ext == ".docx":
-                docx_res = extract_docx.extract_docx_metadata(Path(p))
+                docx_res = extract_docx.extract_docx_metadata(p_obj)
                 raw_record.update(docx_res.data)
                 if not docx_res.ok and docx_res.error_code:
                     raw_record["extract_error"] = docx_res.error_code
 
             if ext in {".mp4", ".m4v", ".mov"}:
-                v_res = extract_video.extract_video_metadata(Path(p))
+                v_res = extract_video.extract_video_metadata(p_obj)
                 raw_record.update(v_res.data)
                 if not v_res.ok and v_res.error_code:
                     raw_record["extract_error"] = v_res.error_code

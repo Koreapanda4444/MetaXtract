@@ -13,6 +13,7 @@ import engine
 import extract_common
 import index_store
 import report
+import sanitize
 import utils
 
 ExitCode = int
@@ -211,7 +212,32 @@ def _cmd_diff(_: argparse.Namespace) -> ExitCode:
     return utils.ExitCodes.SUCCESS
 
 def _cmd_sanitize(_: argparse.Namespace) -> ExitCode:
-    return utils.not_implemented("sanitize")
+    args = _
+    in_path = str(getattr(args, "path"))
+    outdir = str(getattr(args, "outdir"))
+    mode = str(getattr(args, "mode", "redact") or "redact").lower()
+
+    if mode not in {"redact", "minimal"}:
+        raise utils.ProcessingError(
+            f"잘못된 mode 옵션입니다: {mode} (가능한 값: redact, minimal)",
+            exit_code=utils.ExitCodes.USAGE,
+        )
+
+    try:
+        summary = sanitize.sanitize_path(in_path, outdir, mode=mode)  # type: ignore[arg-type]
+    except FileNotFoundError as e:
+        raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.FAILURE, cause=e)
+    except OSError as e:
+        raise utils.ProcessingError(f"sanitize 처리 중 오류가 발생했습니다: {e}", exit_code=utils.ExitCodes.FAILURE, cause=e)
+
+    utils.get_logger().info(
+        "sanitize done: processed=%s copied=%s errors=%s outdir=%s",
+        summary.processed,
+        summary.copied,
+        summary.errors,
+        outdir,
+    )
+    return utils.ExitCodes.SUCCESS
 
 def _cmd_verify(_: argparse.Namespace) -> ExitCode:
     return utils.not_implemented("verify")
@@ -277,6 +303,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("sanitize")
     sp.add_argument("path")
     sp.add_argument("--outdir", required=True)
+    sp.add_argument("--mode", choices=["redact", "minimal"], default="redact")
     sp.set_defaults(_handler=_cmd_sanitize)
 
     sp = sub.add_parser("verify")
