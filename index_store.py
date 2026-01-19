@@ -6,13 +6,35 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional
 
 
+class JsonlWriter:
+    def __init__(self, path: str | Path, *, append: bool = False) -> None:
+        self._path = Path(path)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        mode = "a" if append else "w"
+        self._fp = self._path.open(mode, encoding="utf-8", newline="\n")
+
+    def write(self, record: dict) -> None:
+        # 한 레코드 = 한 write 호출로 끝내서(개행 포함) 중단 시 JSONL 손상 가능성을 줄입니다.
+        self._fp.write(json.dumps(record, ensure_ascii=False) + "\n")
+        self._fp.flush()
+
+    def close(self) -> None:
+        try:
+            self._fp.flush()
+        finally:
+            self._fp.close()
+
+    def __enter__(self) -> "JsonlWriter":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+
 def write_jsonl(path: str | Path, records: Iterable[dict], *, append: bool = False) -> None:
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    mode = "a" if append else "w"
-    with p.open(mode, encoding="utf-8", newline="\n") as f:
+    with JsonlWriter(path, append=append) as w:
         for rec in records:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            w.write(rec)
 
 
 def append_jsonl(path: str | Path, record: dict) -> None:

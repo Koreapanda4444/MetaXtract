@@ -12,6 +12,19 @@ class PdfExtractResult:
     ok: bool
     data: dict[str, Any]
     error_code: Optional[str] = None
+    message_short: Optional[str] = None
+
+
+def _short_message(text: Any, *, limit: int = 160) -> str:
+    try:
+        msg = str(text).strip()
+    except Exception:
+        msg = ""
+    if not msg:
+        msg = "error"
+    if len(msg) > limit:
+        msg = msg[: max(0, limit - 1)] + "…"
+    return msg
 
 
 _PDF_DATE_RE = re.compile(
@@ -65,7 +78,7 @@ def extract_pdf_metadata(path: Path) -> PdfExtractResult:
     try:
         from pypdf import PdfReader
     except Exception:
-        return PdfExtractResult(ok=False, data={}, error_code="missing_dependency")
+        return PdfExtractResult(ok=False, data={}, error_code="missing_dependency", message_short="pypdf가 필요합니다")
 
     try:
         reader = PdfReader(str(path))
@@ -84,7 +97,7 @@ def extract_pdf_metadata(path: Path) -> PdfExtractResult:
                     pdf_out[key.lstrip("/")] = v
 
         if not pdf_out:
-            return PdfExtractResult(ok=False, data=data, error_code="no_pdf_meta")
+            return PdfExtractResult(ok=False, data=data, error_code="no_pdf_meta", message_short="PDF 메타 없음")
 
         data["pdf"] = pdf_out
 
@@ -100,6 +113,6 @@ def extract_pdf_metadata(path: Path) -> PdfExtractResult:
 
         return PdfExtractResult(ok=True, data=data)
     except OSError:
-        return PdfExtractResult(ok=False, data={}, error_code="read_error")
-    except Exception:
-        return PdfExtractResult(ok=False, data={}, error_code="extract_error")
+        return PdfExtractResult(ok=False, data={}, error_code="read_error", message_short="읽기 실패")
+    except Exception as e:
+        return PdfExtractResult(ok=False, data={}, error_code="extract_error", message_short=_short_message(e))

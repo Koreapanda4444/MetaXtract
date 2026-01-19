@@ -11,6 +11,19 @@ class VideoExtractResult:
     ok: bool
     data: dict[str, Any]
     error_code: Optional[str] = None
+    message_short: Optional[str] = None
+
+
+def _short_message(text: Any, *, limit: int = 160) -> str:
+    try:
+        msg = str(text).strip()
+    except Exception:
+        msg = ""
+    if not msg:
+        msg = "error"
+    if len(msg) > limit:
+        msg = msg[: max(0, limit - 1)] + "…"
+    return msg
 
 
 _EPOCH_1904 = datetime(1904, 1, 1, tzinfo=timezone.utc)
@@ -245,13 +258,13 @@ def extract_video_metadata(path: Path) -> VideoExtractResult:
     try:
         size = path.stat().st_size
     except Exception:
-        return VideoExtractResult(ok=False, data={}, error_code="read_error")
+        return VideoExtractResult(ok=False, data={}, error_code="read_error", message_short="stat 실패")
 
     try:
         with path.open("rb") as f:
             moov = _find_moov(f, int(size))
             if not moov:
-                return VideoExtractResult(ok=False, data={}, error_code="no_moov")
+                return VideoExtractResult(ok=False, data={}, error_code="no_moov", message_short="moov 박스 없음")
 
             moov_pos, moov_size, moov_hdr = moov
             moov_start = moov_pos + moov_hdr
@@ -276,11 +289,11 @@ def extract_video_metadata(path: Path) -> VideoExtractResult:
                     video["codec"] = codec.strip()
 
             if len(video.keys()) <= 1:
-                return VideoExtractResult(ok=False, data={}, error_code="no_video_meta")
+                return VideoExtractResult(ok=False, data={}, error_code="no_video_meta", message_short="비디오 메타 없음")
 
             return VideoExtractResult(ok=True, data={"video": video})
 
     except OSError:
-        return VideoExtractResult(ok=False, data={}, error_code="read_error")
-    except Exception:
-        return VideoExtractResult(ok=False, data={}, error_code="extract_error")
+        return VideoExtractResult(ok=False, data={}, error_code="read_error", message_short="읽기 실패")
+    except Exception as e:
+        return VideoExtractResult(ok=False, data={}, error_code="extract_error", message_short=_short_message(e))

@@ -11,6 +11,19 @@ class DocxExtractResult:
     ok: bool
     data: dict[str, Any]
     error_code: Optional[str] = None
+    message_short: Optional[str] = None
+
+
+def _short_message(text: Any, *, limit: int = 160) -> str:
+    try:
+        msg = str(text).strip()
+    except Exception:
+        msg = ""
+    if not msg:
+        msg = "error"
+    if len(msg) > limit:
+        msg = msg[: max(0, limit - 1)] + "…"
+    return msg
 
 
 def _to_iso(dt: Any) -> Optional[str]:
@@ -31,13 +44,13 @@ def extract_docx_metadata(path: Path) -> DocxExtractResult:
     try:
         from docx import Document
     except Exception:
-        return DocxExtractResult(ok=False, data={}, error_code="missing_dependency")
+        return DocxExtractResult(ok=False, data={}, error_code="missing_dependency", message_short="python-docx가 필요합니다")
 
     try:
         doc = Document(str(path))
         cp = getattr(doc, "core_properties", None)
         if cp is None:
-            return DocxExtractResult(ok=False, data={}, error_code="no_docx_meta")
+            return DocxExtractResult(ok=False, data={}, error_code="no_docx_meta", message_short="DOCX 메타 없음")
 
         docx_out: dict[str, Any] = {}
 
@@ -59,7 +72,7 @@ def extract_docx_metadata(path: Path) -> DocxExtractResult:
             docx_out["modified"] = modified
 
         if not docx_out:
-            return DocxExtractResult(ok=False, data={}, error_code="no_docx_meta")
+            return DocxExtractResult(ok=False, data={}, error_code="no_docx_meta", message_short="DOCX 메타 없음")
 
         data: dict[str, Any] = {"docx": docx_out}
 
@@ -76,6 +89,6 @@ def extract_docx_metadata(path: Path) -> DocxExtractResult:
         return DocxExtractResult(ok=True, data=data)
 
     except OSError:
-        return DocxExtractResult(ok=False, data={}, error_code="read_error")
-    except Exception:
-        return DocxExtractResult(ok=False, data={}, error_code="extract_error")
+        return DocxExtractResult(ok=False, data={}, error_code="read_error", message_short="읽기 실패")
+    except Exception as e:
+        return DocxExtractResult(ok=False, data={}, error_code="extract_error", message_short=_short_message(e))

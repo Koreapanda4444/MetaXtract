@@ -4,7 +4,7 @@ import fnmatch
 import hashlib
 import os
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 
 def normalize_extension(ext: str) -> str:
@@ -118,6 +118,8 @@ def make_record(path: Path, *, hash_algo: str = "none") -> dict:
         "path": str(path),
         "name": path.name,
         "ext": ext,
+        # structured error ledger (v2)
+        "errors": [],
     }
     record.update(collect_stat(path))
     hh = compute_hash(path, hash_algo)
@@ -125,3 +127,30 @@ def make_record(path: Path, *, hash_algo: str = "none") -> dict:
         record["hash_algo"] = hash_algo
         record["hash_hex"] = hh
     return record
+
+
+def add_error(
+    raw_record: dict,
+    *,
+    error_code: str,
+    stage: str,
+    message_short: str,
+) -> None:
+    """raw.errors[]에 구조화된 에러를 추가합니다.
+
+    스택트레이스는 남기지 않고, 짧은 요약만 기록합니다.
+    """
+
+    if not isinstance(raw_record, dict):
+        return
+    errors = raw_record.get("errors")
+    if not isinstance(errors, list):
+        errors = []
+        raw_record["errors"] = errors
+
+    item: dict[str, Any] = {
+        "error_code": str(error_code or "unknown"),
+        "stage": str(stage or "unknown"),
+        "message_short": str(message_short or ""),
+    }
+    errors.append(item)

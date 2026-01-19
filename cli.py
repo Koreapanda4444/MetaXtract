@@ -80,15 +80,36 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
     hash_algo = str(getattr(args, "hash", "none") or "none")
     out_path = getattr(args, "out", None)
     redact = bool(getattr(args, "redact", False))
+    threads = int(getattr(args, "threads", 1) or 1)
+    if threads < 1:
+        threads = 1
 
-    try:
-        result = engine.scan(
+    cancel = utils.CancelToken()
+
+    def _scan_records() -> Iterable[dict]:
+        return engine.scan_iter(
             str(args.path),
             recursive=bool(getattr(args, "recursive", False)),
             include_exts=include_exts,
             exclude_patterns=exclude_patterns,
             hash_algo=hash_algo,
             redact=redact,
+            threads=threads,
+            cancel=cancel,
+        )
+
+    cancelled = False
+    total = 0
+    file_error_files = 0
+    error_code_counts: dict[str, int] = {}
+
+    try:
+        # enumerate 에러는 레코드로 만들 수 없으므로 먼저 수집
+        enum = engine.enumerate_files(
+            str(args.path),
+            recursive=bool(getattr(args, "recursive", False)),
+            include_exts=include_exts,
+            exclude_patterns=exclude_patterns,
         )
     except FileNotFoundError as e:
         raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.FAILURE, cause=e)
@@ -102,16 +123,16 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
         is_single_file = False
 
     if is_single_file:
-        if result.errors:
-            max_lines = 20
-            for msg in result.error_messages[:max_lines]:
-                utils.error(msg)
-            remaining = result.errors - min(result.errors, max_lines)
-            if remaining > 0:
-                utils.error(f"오류 메시지 {remaining}건은 생략되었습니다")
-            return utils.ExitCodes.FAILURE
-        if len(result.records) != 1:
-            return utils.ExitCodes.FAILURE
+        # 단일 파일은 1개만 출력
+        try:
+            rec = next(iter(_scan_records()))
+        except StopIteration:
+            raise utils.ProcessingError("스캔 결과가 비어 있습니다.", exit_code=utils.ExitCodes.FAILURE)
+        except KeyboardInterrupt:
+            cancel.cancel()
+            cancelled = True
+            raise utils.ProcessingError("사용자에 의해 중단되었습니다.", exit_code=utils.ExitCodes.FAILURE)
+
         if out_path:
             header = engine.make_session_header(
                 root=str(args.path),
@@ -119,10 +140,16 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
                 include=getattr(args, "include", None),
                 exclude=exclude_patterns,
                 hash_algo=hash_algo,
+                threads=threads,
             )
-            index_store.write_jsonl(str(out_path), [header, result.records[0]], append=False)
+            index_store.write_jsonl(str(out_path), [header, rec], append=False)
         else:
-            _stdout_write(json.dumps(result.records[0], ensure_ascii=False) + "\n")
+            _stdout_write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+        raw = rec.get("raw") if isinstance(rec, dict) else None
+        errs = raw.get("errors") if isinstance(raw, dict) else None
+        if isinstance(errs, list) and errs:
+            return utils.ExitCodes.FAILURE
         return utils.ExitCodes.SUCCESS
 
     if out_path:
@@ -132,22 +159,99 @@ def _cmd_scan(_: argparse.Namespace) -> ExitCode:
             include=getattr(args, "include", None),
             exclude=exclude_patterns,
             hash_algo=hash_algo,
+            threads=threads,
         )
-        index_store.write_jsonl(str(out_path), [header], append=False)
-        index_store.write_jsonl(str(out_path), result.records, append=True)
-    else:
-        for record in result.records:
-            _stdout_write(json.dumps(record, ensure_ascii=False) + "\n")
+        try:
+            with index_store.JsonlWriter(str(out_path), append=False) as w:
+                w.write(header)
 
-    if result.errors:
+                gen = _scan_records()
+                try:
+                    for rec in gen:
+                        total += 1
+                        raw = rec.get("raw") if isinstance(rec, dict) else None
+                        errs = raw.get("errors") if isinstance(raw, dict) else None
+                        if isinstance(errs, list) and errs:
+                            file_error_files += 1
+                            for it in errs:
+                                if isinstance(it, dict):
+                                    code = str(it.get("error_code") or "unknown")
+                                    error_code_counts[code] = error_code_counts.get(code, 0) + 1
+
+                        w.write(rec)
+                except KeyboardInterrupt:
+                    cancel.cancel()
+                    cancelled = True
+                    try:
+                        if hasattr(gen, "close"):
+                            gen.close()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+        except OSError as e:
+            raise utils.ProcessingError(f"인덱스 저장 중 오류가 발생했습니다: {e}", exit_code=utils.ExitCodes.FAILURE, cause=e)
+    else:
+        gen = _scan_records()
+        try:
+            for rec in gen:
+                total += 1
+                raw = rec.get("raw") if isinstance(rec, dict) else None
+                errs = raw.get("errors") if isinstance(raw, dict) else None
+                if isinstance(errs, list) and errs:
+                    file_error_files += 1
+                    for it in errs:
+                        if isinstance(it, dict):
+                            code = str(it.get("error_code") or "unknown")
+                            error_code_counts[code] = error_code_counts.get(code, 0) + 1
+                _stdout_write(json.dumps(rec, ensure_ascii=False) + "\n")
+        except KeyboardInterrupt:
+            cancel.cancel()
+            cancelled = True
+            try:
+                if hasattr(gen, "close"):
+                    gen.close()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+    # enumerate 단계 오류는 stderr로
+    if enum.errors:
         max_lines = 20
-        for msg in result.error_messages[:max_lines]:
+        for msg in enum.error_messages[:max_lines]:
             utils.error(msg)
-        remaining = result.errors - min(result.errors, max_lines)
+        remaining = enum.errors - min(enum.errors, max_lines)
         if remaining > 0:
             utils.error(f"오류 메시지 {remaining}건은 생략되었습니다")
-        return utils.ExitCodes.FAILURE
 
+    # 최종 요약(구조화)
+    if error_code_counts:
+        top = sorted(error_code_counts.items(), key=lambda x: (-x[1], x[0]))
+        top_text = ", ".join([f"{k}={v}" for k, v in top[:10]])
+    else:
+        top_text = ""
+
+    utils.get_logger().info(
+        "scan summary: files=%s file_errors=%s enum_errors=%s cancelled=%s threads=%s %s",
+        total,
+        file_error_files,
+        int(enum.errors),
+        bool(cancelled),
+        threads,
+        ("codes=" + top_text) if top_text else "",
+    )
+
+    if cancelled or enum.errors or file_error_files:
+        utils.get_logger().warning(
+            "scan finished with issues: files=%s failed_files=%s enum_errors=%s cancelled=%s %s",
+            total,
+            file_error_files,
+            int(enum.errors),
+            bool(cancelled),
+            ("codes=" + top_text) if top_text else "",
+        )
+
+    if cancelled:
+        return utils.ExitCodes.FAILURE
+    if enum.errors or file_error_files:
+        return utils.ExitCodes.FAILURE
     return utils.ExitCodes.SUCCESS
 
 def _cmd_report(_: argparse.Namespace) -> ExitCode:
@@ -320,6 +424,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--include", default=None)
     sp.add_argument("--exclude", action="append", default=[])
     sp.add_argument("--hash", choices=["sha256", "md5", "none"], default="none")
+    sp.add_argument("--threads", type=int, default=config.Settings().threads, help="스캔 병렬 스레드 수")
     sp.add_argument("--redact", action="store_true")
     sp.add_argument("--out", default=None)
     sp.set_defaults(_handler=_cmd_scan)

@@ -4,6 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+import queue
+import threading
+
+import config
+import engine
 import index_store
 import report
 import utils
@@ -77,7 +82,7 @@ def load_index(index_path: str) -> tuple[dict[str, Any] | None, list[IndexModel]
 def launch(index_path: Optional[str] = None) -> None:
     try:
         import tkinter as tk
-        from tkinter import filedialog, ttk
+        from tkinter import filedialog, messagebox, simpledialog, ttk
     except Exception as e:
         raise utils.ProcessingError(
             "GUI 실행에 필요한 tkinter를 불러올 수 없습니다(Windows Python에 기본 포함).",
@@ -97,6 +102,9 @@ def launch(index_path: Optional[str] = None) -> None:
         "iid_to_model": {},
         "sort": {"col": "path", "desc": False},
         "thumb": None,
+        "scan_thread": None,
+        "scan_cancel": None,
+        "scan_queue": None,
     }
 
     # Controls
@@ -130,8 +138,143 @@ def launch(index_path: Optional[str] = None) -> None:
         path_var.set(p)
         _load_index(p)
 
+    def _start_scan() -> None:
+        if state.get("scan_thread") is not None:
+            _set_status("이미 스캔이 실행 중입니다.")
+            return
+
+        root_dir = filedialog.askdirectory(title="Select folder to scan")
+        if not root_dir:
+            return
+
+        out_path = filedialog.asksaveasfilename(
+            title="Save index.jsonl",
+            defaultextension=".jsonl",
+            filetypes=[("JSONL index", "*.jsonl"), ("All files", "*")],
+        )
+        if not out_path:
+            return
+
+        recursive = bool(messagebox.askyesno("Scan", "재귀적으로(하위 폴더 포함) 스캔할까요?"))
+        default_threads = config.Settings().threads
+        threads = simpledialog.askinteger(
+            "Scan",
+            "스레드 수 (--threads)",
+            initialvalue=int(default_threads),
+            minvalue=1,
+            maxvalue=64,
+        )
+        if threads is None:
+            return
+
+        cancel = utils.CancelToken()
+        q: queue.Queue[tuple[str, Any]] = queue.Queue()
+        state["scan_cancel"] = cancel
+        state["scan_queue"] = q
+
+        scan_btn.configure(state="disabled")
+        stop_btn.configure(state="normal")
+        _set_status(f"Scanning… root={root_dir} threads={threads}")
+
+        def _worker() -> None:
+            processed = 0
+            file_error_files = 0
+            try:
+                exclude: list[str] = []
+                header = engine.make_session_header(
+                    root=str(root_dir),
+                    recursive=recursive,
+                    include=None,
+                    exclude=exclude,
+                    hash_algo="none",
+                    threads=int(threads),
+                )
+
+                with index_store.JsonlWriter(out_path, append=False) as w:
+                    w.write(header)
+
+                    for rec in engine.scan_iter(
+                        str(root_dir),
+                        recursive=recursive,
+                        include_exts=None,
+                        exclude_patterns=exclude,
+                        hash_algo="none",
+                        redact=False,
+                        threads=int(threads),
+                        cancel=cancel,
+                    ):
+                        processed += 1
+                        raw = rec.get("raw") if isinstance(rec, dict) else None
+                        errs = raw.get("errors") if isinstance(raw, dict) else None
+                        if isinstance(errs, list) and errs:
+                            file_error_files += 1
+
+                        w.write(rec)
+
+                        if processed % 20 == 0:
+                            q.put(("progress", (processed, file_error_files)))
+
+                q.put(("done", (processed, file_error_files, bool(cancel.is_cancelled()))))
+            except Exception as e:
+                q.put(("error", str(e)))
+
+        th = threading.Thread(target=_worker, daemon=True)
+        state["scan_thread"] = th
+        th.start()
+
+        def _poll() -> None:
+            q2 = state.get("scan_queue")
+            if q2 is None:
+                return
+            try:
+                while True:
+                    kind, payload = q2.get_nowait()
+                    if kind == "progress":
+                        p, fe = payload
+                        _set_status(f"Scanning… processed={p} failed_files={fe}")
+                    elif kind == "done":
+                        p, fe, was_cancelled = payload
+                        _set_status(
+                            f"Scan {'cancelled' if was_cancelled else 'done'}: processed={p} failed_files={fe} → {out_path}"
+                        )
+                        # 완료 시 생성된 인덱스를 자동 로드
+                        path_var.set(out_path)
+                        _load_index(out_path)
+                        state["scan_thread"] = None
+                        state["scan_cancel"] = None
+                        state["scan_queue"] = None
+                        scan_btn.configure(state="normal")
+                        stop_btn.configure(state="disabled")
+                    elif kind == "error":
+                        _set_status(f"scan failed: {payload}")
+                        state["scan_thread"] = None
+                        state["scan_cancel"] = None
+                        state["scan_queue"] = None
+                        scan_btn.configure(state="normal")
+                        stop_btn.configure(state="disabled")
+            except queue.Empty:
+                pass
+
+            if state.get("scan_thread") is not None:
+                root.after(150, _poll)
+
+        root.after(150, _poll)
+
+    def _stop_scan() -> None:
+        cancel = state.get("scan_cancel")
+        if cancel is None:
+            return
+        cancel.cancel()
+        _set_status("Cancel requested…")
+        stop_btn.configure(state="disabled")
+
     ttk.Button(top, text="Open…", command=_open_file).pack(side=tk.LEFT)
     ttk.Entry(top, textvariable=path_var, width=60).pack(side=tk.LEFT, padx=(8, 12))
+
+    scan_btn = ttk.Button(top, text="Scan…", command=_start_scan)
+    scan_btn.pack(side=tk.LEFT, padx=(0, 6))
+    stop_btn = ttk.Button(top, text="Stop", command=_stop_scan, state="disabled")
+    stop_btn.pack(side=tk.LEFT, padx=(0, 12))
 
     ttk.Label(top, text="Type").pack(side=tk.LEFT)
     type_cb = ttk.Combobox(top, textvariable=type_var, width=12, state="readonly")
@@ -440,6 +583,21 @@ def launch(index_path: Optional[str] = None) -> None:
                     ]
                 )
             )
+
+        # structured errors
+        raw = r.get("raw") if isinstance(r.get("raw"), dict) else {}
+        errs = raw.get("errors") if isinstance(raw.get("errors"), list) else []
+        if errs:
+            lines.append("errors:")
+            for it in errs[:10]:
+                if not isinstance(it, dict):
+                    continue
+                stage = str(it.get("stage") or "")
+                code = str(it.get("error_code") or "")
+                msg = str(it.get("message_short") or "")
+                lines.append(f"- [{stage}] {code}: {msg}".strip())
+            if len(errs) > 10:
+                lines.append(f"(+{len(errs) - 10} more)")
 
         _set_preview_text("\n".join(lines) + "\n")
 

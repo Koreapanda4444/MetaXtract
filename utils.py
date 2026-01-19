@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 import traceback
 from typing import Optional
 
@@ -116,3 +117,31 @@ def _stdout_supports_color() -> bool:
     if term.lower() in {"", "dumb"}:
         return False
     return True
+
+
+class CancelToken:
+    """스캔/추출 등 장시간 작업을 안전하게 중단하기 위한 취소 토큰."""
+
+    def __init__(self) -> None:
+        self._event = threading.Event()
+
+    def cancel(self) -> None:
+        self._event.set()
+
+    def is_cancelled(self) -> bool:
+        return self._event.is_set()
+
+
+def short_exc_message(exc: BaseException, *, limit: int = 160) -> str:
+    """로그/레코드에 남길 짧은 에러 메시지를 생성합니다."""
+
+    try:
+        msg = str(exc).strip()
+    except Exception:
+        msg = ""
+
+    if not msg:
+        msg = exc.__class__.__name__
+    if len(msg) > limit:
+        msg = msg[: max(0, limit - 1)] + "…"
+    return msg

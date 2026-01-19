@@ -11,6 +11,19 @@ class ImageExtractResult:
     ok: bool
     data: dict[str, Any]
     error_code: Optional[str] = None
+    message_short: Optional[str] = None
+
+
+def _short_message(text: Any, *, limit: int = 160) -> str:
+    try:
+        msg = str(text).strip()
+    except Exception:
+        msg = ""
+    if not msg:
+        msg = "error"
+    if len(msg) > limit:
+        msg = msg[: max(0, limit - 1)] + "…"
+    return msg
 
 
 def _as_float_rational(value: Any) -> Optional[float]:
@@ -74,7 +87,7 @@ def extract_image_metadata(path: Path) -> ImageExtractResult:
     try:
                 from PIL import Image, ExifTags
     except Exception:
-        return ImageExtractResult(ok=False, data={}, error_code="missing_dependency")
+        return ImageExtractResult(ok=False, data={}, error_code="missing_dependency", message_short="Pillow가 필요합니다")
 
     try:
         with Image.open(path) as img:
@@ -94,7 +107,7 @@ def extract_image_metadata(path: Path) -> ImageExtractResult:
                 exif_obj = None
 
             if not exif_obj:
-                return ImageExtractResult(ok=False, data=data, error_code="no_exif")
+                return ImageExtractResult(ok=False, data=data, error_code="no_exif", message_short="EXIF 없음")
             tags = getattr(ExifTags, "TAGS", {})
             gps_tags = getattr(ExifTags, "GPSTAGS", {})
 
@@ -163,6 +176,6 @@ def extract_image_metadata(path: Path) -> ImageExtractResult:
             return ImageExtractResult(ok=True, data=data)
 
     except OSError:
-        return ImageExtractResult(ok=False, data={}, error_code="read_error")
-    except Exception:
-        return ImageExtractResult(ok=False, data={}, error_code="extract_error")
+        return ImageExtractResult(ok=False, data={}, error_code="read_error", message_short="읽기 실패")
+    except Exception as e:
+        return ImageExtractResult(ok=False, data={}, error_code="extract_error", message_short=_short_message(e))
