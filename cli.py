@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 import config
+import diff_report
 import engine
 import extract_common
 import index_store
@@ -166,7 +167,48 @@ def _cmd_report(_: argparse.Namespace) -> ExitCode:
     return utils.ExitCodes.SUCCESS
 
 def _cmd_diff(_: argparse.Namespace) -> ExitCode:
-    return utils.not_implemented("diff")
+    args = _
+    before_path = str(getattr(args, "before"))
+    after_path = str(getattr(args, "after"))
+    key_field = str(getattr(args, "key", "path") or "path")
+    out_path = getattr(args, "out", None)
+    
+    # key_field 검증
+    if key_field not in ["path", "sha256"]:
+        raise utils.ProcessingError(
+            f"잘못된 key 옵션입니다: {key_field} (가능한 값: path, sha256)",
+            exit_code=utils.ExitCodes.USAGE,
+        )
+    
+    try:
+        # 출력 형식 결정
+        fmt = "txt"
+        if out_path:
+            if out_path.endswith(".json"):
+                fmt = "json"
+            elif out_path.endswith(".txt"):
+                fmt = "txt"
+        
+        out = diff_report.generate(
+            before_path,
+            after_path,
+            key_field=key_field,
+            fmt=fmt,
+        )
+    except FileNotFoundError as e:
+        raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.FAILURE, cause=e)
+    except ValueError as e:
+        raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.USAGE, cause=e)
+    except OSError as e:
+        raise utils.ProcessingError(f"Diff 생성 중 오류가 발생했습니다: {e}", exit_code=utils.ExitCodes.FAILURE, cause=e)
+    
+    # 출력
+    if out_path:
+        Path(out_path).write_text(out, encoding="utf-8")
+    else:
+        _stdout_write(out)
+    
+    return utils.ExitCodes.SUCCESS
 
 def _cmd_sanitize(_: argparse.Namespace) -> ExitCode:
     return utils.not_implemented("sanitize")
@@ -224,8 +266,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(_handler=_cmd_report)
 
     sp = sub.add_parser("diff")
-    sp.add_argument("before")
-    sp.add_argument("after")
+    sp.add_argument("before", help="비교 기준 인덱스 파일 (before)")
+    sp.add_argument("after", help="비교 대상 인덱스 파일 (after)")
+    sp.add_argument("--key", choices=["path", "sha256"], default="path", 
+                    help="비교 키 필드 (기본: path)")
+    sp.add_argument("--out", default=None, 
+                    help="출력 파일 (.txt 또는 .json). 미지정 시 stdout")
     sp.set_defaults(_handler=_cmd_diff)
 
     sp = sub.add_parser("sanitize")
