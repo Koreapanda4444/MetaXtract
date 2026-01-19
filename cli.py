@@ -11,6 +11,7 @@ import config
 import diff_report
 import engine
 import extract_common
+import gui
 import index_store
 import report
 import sanitize
@@ -274,7 +275,15 @@ def _cmd_verify(_: argparse.Namespace) -> ExitCode:
     return utils.ExitCodes.SUCCESS
 
 def _cmd_gui(_: argparse.Namespace) -> ExitCode:
-    return utils.not_implemented("gui")
+    args = _
+    index_path = getattr(args, "index", None)
+    try:
+        gui.launch(str(index_path) if index_path else None)
+    except utils.ProcessingError:
+        raise
+    except Exception as e:
+        raise utils.ProcessingError("GUI 실행 중 오류가 발생했습니다.", exit_code=utils.ExitCodes.FAILURE, cause=e)
+    return utils.ExitCodes.SUCCESS
 
 def _cmd_version(_: argparse.Namespace) -> ExitCode:
     payload = {
@@ -344,6 +353,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(_handler=_cmd_verify)
 
     sp = sub.add_parser("gui")
+    sp.add_argument("index", nargs="?", default=None, help="로드할 JSONL 인덱스 파일(미지정 시 파일 선택)")
     sp.set_defaults(_handler=_cmd_gui)
 
     sp = sub.add_parser("version")

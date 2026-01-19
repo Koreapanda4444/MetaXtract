@@ -46,7 +46,7 @@
 | `diff` | 두 인덱스/스캔 결과 비교 | `python -m metaxtract diff before.jsonl after.jsonl --key path` | 지원 |
 | `sanitize` | 입력에서 민감정보 마스킹/정리 | `python -m metaxtract sanitize input/ --outdir out/ --mode redact` | 부분 지원 |
 | `verify` | 인덱스 무결성/체인 오브 커스터디 검증 | `python -m metaxtract verify index.jsonl --summary` | 지원 |
-| `gui` | GUI 실행(옵션) | `python -m metaxtract gui` | 예정 |
+| `gui` | GUI로 인덱스 보기/필터링 | `python -m metaxtract gui index.jsonl` | 지원 |
 | `version` | 버전 정보를 JSON으로 출력 | `python -m metaxtract version` | 지원 |
 
 ## scan (현재 지원: 파일 열거)
@@ -204,6 +204,29 @@ JSONL 인덱스의 무결성을 검증합니다.
 완료 기준 예시(고의 변조):
 
 - JSONL의 일부 레코드에서 키를 삭제하거나 잘못된 형식으로 바꾸면 `verify`가 실패(종료 코드 3)합니다.
+
+## gui (index viewer v1)
+
+JSONL 인덱스를 로드해서 테이블로 보고, 기본 필터를 적용할 수 있습니다.
+
+형식:
+
+- `python -m metaxtract gui <index.jsonl>`
+- `python -m metaxtract gui` (파일 선택 다이얼로그)
+
+표시 컬럼(v1):
+
+- `path`, `type(ext)`, `has_gps`, `author`, `software`
+
+필터(v1):
+
+- 파일 타입(ext) 선택
+- 키워드 검색: `path/author/software` 대상
+- `has_gps` 토글, `has_author` 토글
+
+완료 기준 예시:
+
+- `has_gps` 토글을 켜면 **GPS 포함 파일만 보기**가 동작합니다.
 
 ## Normalized schema v1
 
