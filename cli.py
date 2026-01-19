@@ -15,6 +15,7 @@ import index_store
 import report
 import sanitize
 import utils
+import verify
 
 ExitCode = int
 
@@ -240,7 +241,37 @@ def _cmd_sanitize(_: argparse.Namespace) -> ExitCode:
     return utils.ExitCodes.SUCCESS
 
 def _cmd_verify(_: argparse.Namespace) -> ExitCode:
-    return utils.not_implemented("verify")
+    args = _
+    index_path = str(getattr(args, "index"))
+    summary = bool(getattr(args, "summary", False))
+    summary_out = getattr(args, "summary_out", None)
+
+    try:
+        res = verify.verify_index(index_path, summary=summary)
+    except FileNotFoundError as e:
+        raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.FAILURE, cause=e)
+    except ValueError as e:
+        raise utils.ProcessingError(str(e), exit_code=utils.ExitCodes.USAGE, cause=e)
+    except OSError as e:
+        raise utils.ProcessingError(f"verify 처리 중 오류가 발생했습니다: {e}", exit_code=utils.ExitCodes.FAILURE, cause=e)
+
+    if not res.ok:
+        max_lines = 40
+        for issue in res.issues[:max_lines]:
+            line_part = f"L{issue.line}" if issue.line > 0 else "(header)"
+            utils.error(f"{index_path}:{line_part} {issue.code}: {issue.message}")
+        remaining = len(res.issues) - min(len(res.issues), max_lines)
+        if remaining > 0:
+            utils.error(f"검증 이슈 {remaining}건은 생략되었습니다")
+        return utils.ExitCodes.FAILURE
+
+    if summary:
+        out = verify.format_summary_json(res) + "\n"
+        if summary_out:
+            Path(str(summary_out)).write_text(out, encoding="utf-8")
+        else:
+            _stdout_write(out)
+    return utils.ExitCodes.SUCCESS
 
 def _cmd_gui(_: argparse.Namespace) -> ExitCode:
     return utils.not_implemented("gui")
@@ -308,6 +339,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("verify")
     sp.add_argument("index")
+    sp.add_argument("--summary", action="store_true", help="인덱스 digest/요약을 JSON으로 출력")
+    sp.add_argument("--summary-out", default=None, help="summary JSON을 파일로 저장")
     sp.set_defaults(_handler=_cmd_verify)
 
     sp = sub.add_parser("gui")

@@ -45,7 +45,7 @@
 | `report` | 인덱스를 사람이 읽기 좋은 형태로 출력 | `python -m metaxtract report index.json` | 지원 |
 | `diff` | 두 인덱스/스캔 결과 비교 | `python -m metaxtract diff before.jsonl after.jsonl --key path` | 지원 |
 | `sanitize` | 입력에서 민감정보 마스킹/정리 | `python -m metaxtract sanitize input/ --outdir out/ --mode redact` | 부분 지원 |
-| `verify` | 인덱스 무결성/규칙 검증 | `python -m metaxtract verify index.json` | 예정 |
+| `verify` | 인덱스 무결성/체인 오브 커스터디 검증 | `python -m metaxtract verify index.jsonl --summary` | 지원 |
 | `gui` | GUI 실행(옵션) | `python -m metaxtract gui` | 예정 |
 | `version` | 버전 정보를 JSON으로 출력 | `python -m metaxtract version` | 지원 |
 
@@ -180,6 +180,30 @@ python -m metaxtract sanitize input/ --outdir out/ --mode redact
 python -m metaxtract scan out/ --recursive --hash sha256 --exclude "__metaxtract_logs" --out after.jsonl
 python -m metaxtract diff before.jsonl after.jsonl --key path --out diff.txt
 ```
+
+## verify (chain-of-custody v1)
+
+JSONL 인덱스의 무결성을 검증합니다.
+
+형식:
+
+- `python -m metaxtract verify <index.jsonl>`
+
+검증 항목:
+
+- **세션 헤더 존재/형식**: 첫 레코드가 `type=session`인지, `tool/timestamp/platform/scan` 형태가 맞는지
+- **레코드 스키마**: 최상위 키가 스키마 v1(`file/os_times/hashes/meta_times/identity/capture/geo/media/signals/raw`)와 일치하는지
+- **해시 필드 존재**: 세션에서 `scan.hash`가 `sha256`/`md5`라면 각 레코드의 `hashes.<algo>`가 존재하는지
+- **변조/누락 탐지**: JSON 파싱 실패, 레코드 타입 불일치, 필수 키 누락 등
+
+옵션:
+
+- `--summary`: 인덱스 전체 digest(sha256) + 결과를 JSON으로 출력
+- `--summary-out <path>`: summary JSON을 파일로 저장
+
+완료 기준 예시(고의 변조):
+
+- JSONL의 일부 레코드에서 키를 삭제하거나 잘못된 형식으로 바꾸면 `verify`가 실패(종료 코드 3)합니다.
 
 ## Normalized schema v1
 
