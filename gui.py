@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Optional
 
 import index_store
+import report
 import utils
 
 
@@ -15,6 +17,7 @@ class IndexModel:
     has_author: bool
     author: str
     software: str
+    record: dict[str, Any]
 
 
 def _get_bool(d: Any, *keys: str) -> bool:
@@ -64,6 +67,7 @@ def load_index(index_path: str) -> tuple[dict[str, Any] | None, list[IndexModel]
                 has_author=bool(has_author),
                 author=author,
                 software=software,
+                record=r if isinstance(r, dict) else {},
             )
         )
 
@@ -83,11 +87,16 @@ def launch(index_path: Optional[str] = None) -> None:
 
     root = tk.Tk()
     root.title("MetaXtract — Index Viewer")
-    root.geometry("1100x650")
+    root.geometry("1200x700")
 
     state: dict[str, Any] = {
         "index_path": index_path or "",
+        "session": None,
         "all": [],
+        "filtered": [],
+        "iid_to_model": {},
+        "sort": {"col": "path", "desc": False},
+        "thumb": None,
     }
 
     # Controls
@@ -99,6 +108,17 @@ def launch(index_path: Optional[str] = None) -> None:
     type_var = tk.StringVar(value="(all)")
     only_gps_var = tk.BooleanVar(value=False)
     only_author_var = tk.BooleanVar(value=False)
+    template_var = tk.StringVar(value="privacy")
+    redact_var = tk.BooleanVar(value=False)
+
+    # column visibility
+    show_col: dict[str, tk.BooleanVar] = {
+        "path": tk.BooleanVar(value=True),
+        "type": tk.BooleanVar(value=True),
+        "has_gps": tk.BooleanVar(value=True),
+        "author": tk.BooleanVar(value=True),
+        "software": tk.BooleanVar(value=True),
+    }
 
     def _open_file() -> None:
         p = filedialog.askopenfilename(
@@ -124,17 +144,58 @@ def launch(index_path: Optional[str] = None) -> None:
     ttk.Checkbutton(top, text="has_gps", variable=only_gps_var).pack(side=tk.LEFT, padx=(0, 10))
     ttk.Checkbutton(top, text="has_author", variable=only_author_var).pack(side=tk.LEFT, padx=(0, 10))
 
-    # Table
-    mid = ttk.Frame(root, padding=(8, 0, 8, 8))
-    mid.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+    ttk.Label(top, text="Template").pack(side=tk.LEFT)
+    tpl_cb = ttk.Combobox(top, textvariable=template_var, width=10, state="readonly")
+    tpl_cb["values"] = ("privacy", "forensics", "content")
+    tpl_cb.pack(side=tk.LEFT, padx=(6, 8))
+    ttk.Checkbutton(top, text="redact", variable=redact_var).pack(side=tk.LEFT, padx=(0, 10))
 
+    def _open_columns_dialog() -> None:
+        win = tk.Toplevel(root)
+        win.title("Columns")
+        win.transient(root)
+        win.resizable(False, False)
+
+        body = ttk.Frame(win, padding=10)
+        body.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(body, text="표시할 컬럼을 선택하세요.").pack(anchor=tk.W)
+        for k in ("path", "type", "has_gps", "author", "software"):
+            ttk.Checkbutton(body, text=k, variable=show_col[k], command=lambda: _apply_column_visibility()).pack(
+                anchor=tk.W
+            )
+
+        ttk.Button(body, text="Close", command=win.destroy).pack(anchor=tk.E, pady=(8, 0))
+
+    ttk.Button(top, text="Columns…", command=_open_columns_dialog).pack(side=tk.LEFT, padx=(0, 10))
+
+    # Main split (table + preview)
+    main = ttk.Panedwindow(root, orient="horizontal")
+    main.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
+
+    left = ttk.Frame(main)
+    right = ttk.Frame(main)
+    main.add(left, weight=3)
+    main.add(right, weight=2)
+
+    # Table
     columns = ("path", "type", "has_gps", "author", "software")
-    tree = ttk.Treeview(mid, columns=columns, show="headings")
-    tree.heading("path", text="path")
-    tree.heading("type", text="type")
-    tree.heading("has_gps", text="has_gps")
-    tree.heading("author", text="author")
-    tree.heading("software", text="software")
+    tree = ttk.Treeview(left, columns=columns, show="headings")
+    def _on_sort(col: str) -> None:
+        cur = state.get("sort") or {}
+        if cur.get("col") == col:
+            cur["desc"] = not bool(cur.get("desc"))
+        else:
+            cur["col"] = col
+            cur["desc"] = False
+        state["sort"] = cur
+        _apply_filters()
+
+    tree.heading("path", text="path", command=lambda: _on_sort("path"))
+    tree.heading("type", text="type", command=lambda: _on_sort("type"))
+    tree.heading("has_gps", text="has_gps", command=lambda: _on_sort("has_gps"))
+    tree.heading("author", text="author", command=lambda: _on_sort("author"))
+    tree.heading("software", text="software", command=lambda: _on_sort("software"))
 
     tree.column("path", width=420, anchor=tk.W)
     tree.column("type", width=80, anchor=tk.W)
@@ -142,22 +203,93 @@ def launch(index_path: Optional[str] = None) -> None:
     tree.column("author", width=180, anchor=tk.W)
     tree.column("software", width=260, anchor=tk.W)
 
-    vsb = ttk.Scrollbar(mid, orient="vertical", command=tree.yview)
-    hsb = ttk.Scrollbar(mid, orient="horizontal", command=tree.xview)
+    vsb = ttk.Scrollbar(left, orient="vertical", command=tree.yview)
+    hsb = ttk.Scrollbar(left, orient="horizontal", command=tree.xview)
     tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
 
     tree.grid(row=0, column=0, sticky="nsew")
     vsb.grid(row=0, column=1, sticky="ns")
     hsb.grid(row=1, column=0, sticky="ew")
 
-    mid.grid_rowconfigure(0, weight=1)
-    mid.grid_columnconfigure(0, weight=1)
+    left.grid_rowconfigure(0, weight=1)
+    left.grid_columnconfigure(0, weight=1)
+
+    # Preview panel
+    pv = ttk.Frame(right, padding=8)
+    pv.pack(fill=tk.BOTH, expand=True)
+
+    pv_title = ttk.Label(pv, text="Preview", font=("Segoe UI", 11, "bold"))
+    pv_title.pack(anchor=tk.W)
+
+    thumb_label = ttk.Label(pv)
+    thumb_label.pack(anchor=tk.W, pady=(6, 8))
+
+    txt = tk.Text(pv, wrap="word", height=20)
+    txt.pack(fill=tk.BOTH, expand=True)
+    txt.configure(state="disabled")
+
+    export_row = ttk.Frame(pv)
+    export_row.pack(fill=tk.X, pady=(8, 0))
+
+    def _export(fmt: str) -> None:
+        selected = tree.selection()
+        if not selected:
+            _set_status("선택된 항목이 없습니다(내보내기 실패).")
+            return
+
+        models: list[IndexModel] = []
+        iid_map: dict[str, IndexModel] = state.get("iid_to_model") or {}
+        for iid in selected:
+            m = iid_map.get(iid)
+            if m is not None:
+                models.append(m)
+
+        if not models:
+            _set_status("선택된 항목을 찾지 못했습니다.")
+            return
+
+        ext = ".txt" if fmt == "txt" else ".csv"
+        out_path = filedialog.asksaveasfilename(
+            title=f"Export {fmt.upper()}",
+            defaultextension=ext,
+            filetypes=[(f"{fmt.upper()} file", f"*{ext}"), ("All files", "*")],
+        )
+        if not out_path:
+            return
+
+        session = state.get("session")
+        records = [m.record for m in models]
+        try:
+            out = report.generate_from_records(
+                session if isinstance(session, dict) else None,
+                records,
+                fmt=fmt,
+                template=template_var.get(),
+                redact=bool(redact_var.get()),
+            )
+            Path(out_path).write_text(out, encoding="utf-8")
+        except Exception as e:
+            _set_status(f"export failed: {e}")
+            return
+
+        _set_status(f"Exported {len(records)} items → {out_path}")
+
+    ttk.Button(export_row, text="Export TXT", command=lambda: _export("txt")).pack(side=tk.LEFT)
+    ttk.Button(export_row, text="Export CSV", command=lambda: _export("csv")).pack(side=tk.LEFT, padx=(8, 0))
 
     status = ttk.Label(root, padding=8, text="Ready")
     status.pack(side=tk.BOTTOM, fill=tk.X)
 
     def _set_status(text: str) -> None:
         status.configure(text=text)
+
+    def _apply_column_visibility() -> None:
+        display = [c for c in columns if bool(show_col[c].get())]
+        if not display:
+            # 최소 1개는 보여주기
+            show_col["path"].set(True)
+            display = ["path"]
+        tree["displaycolumns"] = tuple(display)
 
     def _apply_filters(*_: Any) -> None:
         items: list[IndexModel] = state.get("all") or []
@@ -180,22 +312,158 @@ def launch(index_path: Optional[str] = None) -> None:
                     continue
             filtered.append(m)
 
+        # sort
+        s = state.get("sort") or {}
+        col = str(s.get("col") or "path")
+        desc = bool(s.get("desc"))
+
+        def _sort_key(m: IndexModel) -> Any:
+            if col == "type":
+                return (m.ext or "").lower()
+            if col == "has_gps":
+                return 1 if m.has_gps else 0
+            if col == "author":
+                return (m.author or "").lower()
+            if col == "software":
+                return (m.software or "").lower()
+            return (m.path or "").lower()
+
+        filtered.sort(key=_sort_key, reverse=desc)
+        state["filtered"] = filtered
+
         # refresh
         for iid in tree.get_children():
             tree.delete(iid)
 
-        for m in filtered:
+        iid_to_model: dict[str, IndexModel] = {}
+
+        for i, m in enumerate(filtered):
+            iid = str(i)
             tree.insert(
                 "",
                 "end",
+                iid=iid,
                 values=(m.path, m.ext, "Y" if m.has_gps else "", m.author, m.software),
             )
+            iid_to_model[iid] = m
+
+        state["iid_to_model"] = iid_to_model
+
+        _apply_column_visibility()
 
         _set_status(f"Shown {len(filtered)} / Total {len(items)}")
 
+    def _resolve_file_path(session: Any, rec_path: str) -> Optional[Path]:
+        if not rec_path:
+            return None
+        # absolute Windows path or absolute unix-ish path
+        if ":\\" in rec_path or rec_path.startswith("/"):
+            return Path(rec_path)
+
+        base = None
+        try:
+            scan = session.get("scan") if isinstance(session, dict) else None
+            root = scan.get("root") if isinstance(scan, dict) else None
+            if isinstance(root, str) and root:
+                rp = Path(root)
+                if rp.is_file():
+                    base = rp.parent
+                else:
+                    base = rp
+        except Exception:
+            base = None
+
+        if base is None:
+            return None
+        return (base / rec_path)
+
+    def _set_preview_text(text_value: str) -> None:
+        txt.configure(state="normal")
+        txt.delete("1.0", tk.END)
+        txt.insert("1.0", text_value)
+        txt.configure(state="disabled")
+
+    def _update_preview(m: Optional[IndexModel]) -> None:
+        state["thumb"] = None
+        thumb_label.configure(image="")
+
+        if m is None:
+            pv_title.configure(text="Preview")
+            _set_preview_text("")
+            return
+
+        pv_title.configure(text=f"Preview — {m.path}")
+
+        r = m.record
+        identity = r.get("identity") if isinstance(r.get("identity"), dict) else {}
+        capture = r.get("capture") if isinstance(r.get("capture"), dict) else {}
+        geo = r.get("geo") if isinstance(r.get("geo"), dict) else {}
+        meta_times = r.get("meta_times") if isinstance(r.get("meta_times"), dict) else {}
+        sig = r.get("signals") if isinstance(r.get("signals"), dict) else {}
+        flags = sig.get("privacy_flags") if isinstance(sig.get("privacy_flags"), dict) else {}
+
+        lines: list[str] = []
+        lines.append(f"path: {m.path}")
+        lines.append(f"type: {m.ext}")
+        if m.author:
+            lines.append(f"author: {m.author}")
+        if m.software:
+            lines.append(f"software: {m.software}")
+        if isinstance(capture.get("make"), str) and capture.get("make"):
+            lines.append(f"make: {capture.get('make')}")
+        if isinstance(capture.get("model"), str) and capture.get("model"):
+            lines.append(f"model: {capture.get('model')}")
+        if isinstance(capture.get("datetime_original"), str) and capture.get("datetime_original"):
+            lines.append(f"datetime_original: {capture.get('datetime_original')}")
+        if isinstance(meta_times.get("created"), str) and meta_times.get("created"):
+            lines.append(f"meta.created: {meta_times.get('created')}")
+        if isinstance(meta_times.get("modified"), str) and meta_times.get("modified"):
+            lines.append(f"meta.modified: {meta_times.get('modified')}")
+        if isinstance(meta_times.get("digitized"), str) and meta_times.get("digitized"):
+            lines.append(f"meta.digitized: {meta_times.get('digitized')}")
+
+        if geo:
+            lat = geo.get("lat")
+            lon = geo.get("lon")
+            if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+                lines.append(f"gps: {lat}, {lon}")
+
+        if flags:
+            # 핵심 플래그만 요약
+            lines.append(
+                "flags: "
+                + " ".join(
+                    [
+                        f"has_gps={bool(flags.get('has_gps'))}",
+                        f"has_author={bool(flags.get('has_author'))}",
+                        f"has_software_trace={bool(flags.get('has_software_trace'))}",
+                    ]
+                )
+            )
+
+        _set_preview_text("\n".join(lines) + "\n")
+
+        # Thumbnail for images
+        if (m.ext or "").lower() in {".jpg", ".jpeg", ".png"}:
+            try:
+                session_obj = state.get("session")
+                full = _resolve_file_path(session_obj, m.path)
+                if full is None or not full.exists():
+                    return
+                from PIL import Image, ImageTk
+
+                with Image.open(full) as im:
+                    im.thumbnail((360, 360))
+                    photo = ImageTk.PhotoImage(im)
+                state["thumb"] = photo
+                thumb_label.configure(image=photo)
+            except Exception:
+                # 미리보기 실패는 치명적이지 않음
+                return
+
     def _load_index(p: str) -> None:
         try:
-            _, models = load_index(p)
+            session, models = load_index(p)
         except FileNotFoundError as e:
             _set_status(str(e))
             return
@@ -203,6 +471,7 @@ def launch(index_path: Optional[str] = None) -> None:
             _set_status(f"load failed: {e}")
             return
 
+        state["session"] = session
         state["all"] = models
 
         exts = sorted({(m.ext or "").lower() for m in models if (m.ext or "").strip()})
@@ -212,13 +481,29 @@ def launch(index_path: Optional[str] = None) -> None:
 
         _apply_filters()
 
+        # reset preview
+        _update_preview(None)
+
     # bindings
     type_cb.bind("<<ComboboxSelected>>", _apply_filters)
     keyword_var.trace_add("write", _apply_filters)
     only_gps_var.trace_add("write", _apply_filters)
     only_author_var.trace_add("write", _apply_filters)
 
+    def _on_select(_: Any) -> None:
+        sel = tree.selection()
+        if not sel:
+            _update_preview(None)
+            return
+        iid = sel[0]
+        m = (state.get("iid_to_model") or {}).get(iid)
+        _update_preview(m)
+
+    tree.bind("<<TreeviewSelect>>", _on_select)
+
     if index_path:
         _load_index(index_path)
+
+    _apply_column_visibility()
 
     root.mainloop()

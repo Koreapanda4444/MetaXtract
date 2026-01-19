@@ -253,6 +253,17 @@ def _render_csv(items: list[dict]) -> str:
 def generate(index_path: str, *, fmt: str, template: str, redact: bool = False) -> str:
     session, records = index_store.split_session_and_records(index_path)
 
+    return generate_from_records(session, records, fmt=fmt, template=template, redact=redact)
+
+
+def generate_from_records(
+    session: dict | None,
+    records: list[dict],
+    *,
+    fmt: str,
+    template: str,
+    redact: bool = False,
+) -> str:
     prepared = _apply_rules(records, redact=bool(redact))
     prepared = _sorted_records(prepared)
 
