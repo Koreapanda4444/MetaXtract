@@ -1,18 +1,30 @@
+
 import os
 import json
 import pytest
 from tests.gen_fixtures import generate
 
-FIXTURES_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
-GOLDEN_DIR = os.path.join(os.path.dirname(__file__), 'golden')
+
+HERE = os.path.dirname(__file__)
+FIXTURES_DIR = os.path.join(HERE, "fixtures")
+GOLDEN_DIR = os.path.join(HERE, "golden")
+
 
 FIXTURE_FILES = [
-    'image_gps.jpg',
-    'image_noexif.jpg',
-    'sample.pdf',
-    'sample.docx',
-    'sample.mp4',
+    "image_gps.jpg",
+    "image_noexif.jpg",
+    "sample.pdf",
+    "sample.docx",
+    "sample.mp4",
 ]
+
+# ✅ fixture 생성은 "테스트 함수 밖"에서 1번만 실행해서 안정화
+GEN_ERROR = None
+generated = {}
+try:
+    generated = generate(FIXTURES_DIR) or {}
+except Exception as e:
+    GEN_ERROR = e
 
 def canonicalize_record(rec):
     # file.path는 basename만, os_times 등은 None, risk_summary 등 자연어는 제외
@@ -31,16 +43,25 @@ def canonicalize_record(rec):
 def scan_fixture(fixture_path):
     raise NotImplementedError('scan_fixture를 실제 구현에 맞게 수정하세요.')
 
-@pytest.mark.parametrize('fixture_file', FIXTURE_FILES)
+
+@pytest.mark.parametrize("fixture_file", FIXTURE_FILES)
 def test_scan_consistency(fixture_file):
+    # ✅ 생성 단계에서 터졌으면 여기서 원인을 보여주고 실패
+    if GEN_ERROR is not None:
+        pytest.fail(f"Fixture generation failed: {GEN_ERROR!r}")
 
     fixture_path = os.path.join(FIXTURES_DIR, fixture_file)
-    golden_path = os.path.join(GOLDEN_DIR, f'scan_{fixture_file}.jsonl')
+    golden_path = os.path.join(GOLDEN_DIR, f"scan_{fixture_file}.jsonl")
 
+    # mp4는 CI에 ffmpeg 없으면 스킵 허용
     if fixture_file == "sample.mp4" and not generated.get("sample.mp4", False):
         pytest.skip("ffmpeg not available; mp4 fixture not generated")
 
-    assert os.path.exists(fixture_path), f'Fixture file missing: {fixture_path}'
+    # ✅ 생성이 끝난 뒤 존재해야 정상
+    assert os.path.exists(fixture_path), (
+        f"Fixture file missing: {fixture_path} "
+        f"(generator_status={generated})"
+    )
 
     update_golden = os.environ.get("UPDATE_GOLDEN") == "1"
     if not os.path.exists(golden_path):
@@ -49,7 +70,7 @@ def test_scan_consistency(fixture_file):
             with open(golden_path, "w", encoding="utf-8") as f:
                 f.write("")
         else:
-            assert False, f'Golden file missing: {golden_path}'
+            assert False, f"Golden file missing: {golden_path}"
 
     with open(golden_path, encoding="utf-8") as f:
         golden = [json.loads(line) for line in f if line.strip()]
