@@ -1,5 +1,6 @@
-import report_html
+
 from __future__ import annotations
+import report_html
 
 import csv
 import io

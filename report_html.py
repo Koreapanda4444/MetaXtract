@@ -1,6 +1,6 @@
+
 from __future__ import annotations
 import json
-from typing import Any
 
 def generate_html_report(session: dict, items: list[dict]) -> str:
     # 간단한 CSS/JS 포함, 위험 요약 대시보드, 표, 그룹, 상세 전환 등
@@ -17,23 +17,23 @@ def generate_html_report(session: dict, items: list[dict]) -> str:
     top_authors = top_by(author_items, ('identity', 'author'))
     top_devices = top_by(device_items, ('capture', 'model'))
     # HTML 생성
-    html = f"""
+    html = """
 <!DOCTYPE html>
 <html lang='ko'>
 <head>
 <meta charset='utf-8'>
 <title>MetaXtract Report</title>
 <style>
-body {{ font-family: sans-serif; margin: 2em; }}
-table {{ border-collapse: collapse; width: 100%; }}
-th, td {{ border: 1px solid #ccc; padding: 4px 8px; }}
-th {{ background: #f0f0f0; }}
-tr:hover {{ background: #f9f9f9; }}
-.dashboard {{ margin-bottom: 2em; }}
-.tag {{ display: inline-block; background: #eee; border-radius: 4px; padding: 0 6px; margin-right: 4px; font-size: 0.9em; }}
+body { font-family: sans-serif; margin: 2em; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ccc; padding: 4px 8px; }
+th { background: #f0f0f0; }
+tr:hover { background: #f9f9f9; }
+.dashboard { margin-bottom: 2em; }
+.tag { display: inline-block; background: #eee; border-radius: 4px; padding: 0 6px; margin-right: 4px; font-size: 0.9em; }
 </style>
 <script>
-function showDetail(idx) {{
+function showDetail(idx) {
   var rows = document.querySelectorAll('.detail');
   rows.forEach(r => r.style.display = 'none');
   var row = document.getElementById('detail-' + idx);

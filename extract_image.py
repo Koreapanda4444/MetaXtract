@@ -85,7 +85,7 @@ def _parse_exif_datetime(value: Any) -> Optional[str]:
 
 def extract_image_metadata(path: Path) -> ImageExtractResult:
     try:
-                from PIL import Image, ExifTags
+        from PIL import Image, ExifTags
     except Exception:
         return ImageExtractResult(ok=False, data={}, error_code="missing_dependency", message_short="Pillow가 필요합니다")
 

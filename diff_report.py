@@ -1,11 +1,8 @@
+
 from __future__ import annotations
-
 import json
-from pathlib import Path
-from typing import Any, Literal, Optional
-
+from typing import Literal, Optional
 import index_store
-import utils
 
 
 DiffFormat = Literal["txt", "json"]
@@ -13,6 +10,7 @@ KeyField = Literal["path", "sha256"]
 
 
 class DiffResult:
+
     def __init__(self) -> None:
         self.added: list[dict] = []
         self.removed: list[dict] = []
@@ -139,20 +137,17 @@ def _detect_metadata_changes(before: dict, after: dict) -> dict[str, Any]:
 
 def _build_change_record(before: dict, after: dict, key_field: KeyField) -> dict:
     """변경 레코드를 구축합니다."""
+
     key_value = _get_key(before, key_field) or _get_key(after, key_field)
-    
     before_flags = _extract_privacy_flags(before)
     after_flags = _extract_privacy_flags(after)
     privacy_changes = _detect_privacy_changes(before_flags, after_flags)
-    
     metadata_changes = _detect_metadata_changes(before, after)
-    
     change_record = {
         key_field: key_value,
         "privacy_changes": privacy_changes,
         "metadata_changes": metadata_changes,
     }
-    
     return change_record
 
 

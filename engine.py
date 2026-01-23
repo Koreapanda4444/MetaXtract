@@ -1,14 +1,12 @@
-from __future__ import annotations
 
+from __future__ import annotations
 import concurrent.futures
 import os
 import platform
-import threading
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, Optional
-
+from typing import Iterable, Iterator, Optional
 import extract_common
 import extract_docx
 import extract_image
