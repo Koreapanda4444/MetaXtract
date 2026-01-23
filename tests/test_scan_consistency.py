@@ -4,11 +4,9 @@ import json
 import pytest
 from tests.gen_fixtures import generate
 
-
 HERE = os.path.dirname(__file__)
 FIXTURES_DIR = os.path.join(HERE, "fixtures")
 GOLDEN_DIR = os.path.join(HERE, "golden")
-
 
 FIXTURE_FILES = [
     "image_gps.jpg",
@@ -18,13 +16,13 @@ FIXTURE_FILES = [
     "sample.mp4",
 ]
 
-# ✅ fixture 생성은 "테스트 함수 밖"에서 1번만 실행해서 안정화
-GEN_ERROR = None
-generated = {}
-try:
-    generated = generate(FIXTURES_DIR) or {}
-except Exception as e:
-    GEN_ERROR = e
+def ensure_fixtures():
+    try:
+        generate(FIXTURES_DIR)
+    except Exception as e:
+        pytest.fail(f"Fixture generation failed: {e!r}")
+
+ensure_fixtures()
 
 def canonicalize_record(rec):
     # file.path는 basename만, os_times 등은 None, risk_summary 등 자연어는 제외
@@ -44,24 +42,18 @@ def scan_fixture(fixture_path):
     raise NotImplementedError('scan_fixture를 실제 구현에 맞게 수정하세요.')
 
 
+
 @pytest.mark.parametrize("fixture_file", FIXTURE_FILES)
 def test_scan_consistency(fixture_file):
-    # ✅ 생성 단계에서 터졌으면 여기서 원인을 보여주고 실패
-    if GEN_ERROR is not None:
-        pytest.fail(f"Fixture generation failed: {GEN_ERROR!r}")
-
     fixture_path = os.path.join(FIXTURES_DIR, fixture_file)
     golden_path = os.path.join(GOLDEN_DIR, f"scan_{fixture_file}.jsonl")
 
-    # mp4는 CI에 ffmpeg 없으면 스킵 허용
-    if fixture_file == "sample.mp4" and not generated.get("sample.mp4", False):
+    # mp4는 CI에 ffmpeg 없으면 스킵 허용 (파일 존재 기준)
+    if fixture_file == "sample.mp4" and not os.path.exists(fixture_path):
         pytest.skip("ffmpeg not available; mp4 fixture not generated")
 
     # ✅ 생성이 끝난 뒤 존재해야 정상
-    assert os.path.exists(fixture_path), (
-        f"Fixture file missing: {fixture_path} "
-        f"(generator_status={generated})"
-    )
+    assert os.path.exists(fixture_path), f"Fixture file missing: {fixture_path}"
 
     update_golden = os.environ.get("UPDATE_GOLDEN") == "1"
     if not os.path.exists(golden_path):
