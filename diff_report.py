@@ -189,10 +189,16 @@ def diff(before_path: str, after_path: str, key_field: KeyField = "path") -> Dif
             after_rec = after_map[key]
             
             # 레코드가 다른지 확인 (file, os_times, hashes 제외)
-            before_compare = {k: v for k, v in before_rec.items() 
-                            if k not in ["file", "os_times", "hashes"]}
-            after_compare = {k: v for k, v in after_rec.items() 
-                           if k not in ["file", "os_times", "hashes"]}
+            before_compare = {
+                k: v
+                for k, v in before_rec.items()
+                if k not in ["file", "os_times", "hashes"]
+            }
+            after_compare = {
+                k: v
+                for k, v in after_rec.items()
+                if k not in ["file", "os_times", "hashes"]
+            }
             
             if before_compare != after_compare:
                 change_record = _build_change_record(before_rec, after_rec, key_field)

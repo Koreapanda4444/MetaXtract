@@ -1,5 +1,29 @@
-import bundle_export
+
 from __future__ import annotations
+import bundle_export
+import inspect
+
+def _call_with_matching_kwargs(fn, ns):
+    sig = inspect.signature(fn)
+    kwargs = {k: v for k, v in vars(ns).items() if k in sig.parameters}
+    return fn(**kwargs)
+
+def _cmd_export_case(args) -> int:
+    candidates = [
+        "export_case_bundle",
+        "export_case",
+        "export",
+        "main",
+    ]
+    for name in candidates:
+        fn = getattr(bundle_export, name, None)
+        if callable(fn):
+            try:
+                result = _call_with_matching_kwargs(fn, args)
+            except TypeError:
+                result = fn()
+            return 0 if result is None else int(result)
+    raise SystemExit("bundle_export: no export function found")
 
 import argparse
 import json

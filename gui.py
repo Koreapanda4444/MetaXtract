@@ -60,7 +60,7 @@ def load_index(index_path: str) -> tuple[dict[str, Any] | None, list[IndexModel]
             ext = path[dot:] if dot >= 0 else ""
 
         author = _get_str(r, "identity", "author")
-        _identity = author  # F841 처리
+            _ = author  # F841 미사용 변수 소비
         software = _get_str(r, "capture", "software")
         has_gps = _get_bool(r, "signals", "privacy_flags", "has_gps")
         has_author = _get_bool(r, "signals", "privacy_flags", "has_author") or bool(author.strip())

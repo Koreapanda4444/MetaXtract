@@ -17,9 +17,7 @@ def generate_html_report(session: dict, items: list[dict]) -> str:
     top_authors = top_by(author_items, ('identity', 'author'))
     top_devices = top_by(device_items, ('capture', 'model'))
     # F841 처리 (미사용 변수)
-    _top_gps = top_gps
-    _top_authors = top_authors
-    _top_devices = top_devices
+    _ = (top_gps, top_authors, top_devices)  # F841 미사용 변수 소비
     # HTML 생성
     html = """
 <!DOCTYPE html>
