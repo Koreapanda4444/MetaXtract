@@ -1,6 +1,19 @@
 
 # MetaXtract (WIP)
 
+## 지원 기능 매트릭스
+
+| 기능         | 지원 상태   | 비고 |
+|--------------|------------|------|
+| scan         | 부분 지원   | 파일 열거/필터/집계, 일부 메타 추출 |
+| report       | 지원        | 다양한 포맷(JSON/CSV/TXT) 리포트 |
+| diff         | 지원        | 인덱스 비교, 변화 요약 |
+| sanitize     | 부분 지원   | 이미지 메타 마스킹/제거, 일부 포맷만 |
+| verify       | 지원        | 인덱스 무결성/체인 검증 |
+| gui          | 지원        | 인덱스 테이블/필터링 |
+| version      | 지원        | 버전 정보 출력 |
+
+
 텍스트/파일에서 메타데이터를 추출하고(Extract), 비교(Diff), 정리(Sanitize), 검증(Verify)하는 도구를 목표로 하는 CLI 프로젝트입니다.
 
 현재는 CLI UX/정책을 먼저 고정하는 단계이며, 대부분의 명령은 아직 미구현입니다.
@@ -50,6 +63,34 @@
 | `version` | 버전 정보를 JSON으로 출력 | `python -m metaxtract version` | 지원 |
 
 ## scan (현재 지원: 파일 열거)
+
+### 샘플 출력(JSONL)
+
+```
+{"type": "session", "tool": {"version": "0.1.0"}, "timestamp": "2026-01-23T12:34:56Z", "platform": {"os": "Windows"}, "scan": {"root": "./", "recursive": true, "include": [".jpg"], "hash": "sha256"}}
+{"file": {"path": "fixtures/image_gps.jpg", "name": "image_gps.jpg", "ext": ".jpg", "size_bytes": 12345}, "os_times": {"atime": 1700000000, "mtime": 1700000000, "ctime": 1700000000}, "hashes": {"sha256": "abc123..."}, "meta_times": {"created": "2023-01-01T12:00:00", "modified": "2023-01-01T12:00:00"}, "identity": {"author": "홍길동"}, "capture": {"make": "Canon", "model": "EOS", "software": "PhotoApp"}, "geo": {"lat": 37.5, "lon": 127.0, "alt_m": 50.0, "precision_flag": "dop"}, "media": {}, "signals": {"privacy_flags": ["has_gps", "has_author"], "risk_summary": "위치 노출, 저자 있음"}, "raw": {}}
+```
+
+### 샘플 출력(TXT)
+
+```
+파일: fixtures/image_gps.jpg
+	- 크기: 12345 bytes
+	- 해시(sha256): abc123...
+	- GPS: 37.5, 127.0
+	- 저자: 홍길동
+	- 소프트웨어: PhotoApp
+	- 위험: 위치 노출, 저자 있음
+```
+
+### 샘플 출력(CSV)
+
+```
+file.path,file.size_bytes,identity.author,geo.lat,geo.lon,signals.privacy_flags
+fixtures/image_gps.jpg,12345,홍길동,37.5,127.0,"['has_gps','has_author']"
+```
+
+---
 
 현재 `scan`은 공통 메타(stat) + (옵션) 해시 + 일부 파일 타입(이미지)의 최소 메타(EXIF/GPS)를 추출합니다.
 
@@ -151,6 +192,26 @@ CSV 평탄화 규칙:
 
 ## sanitize (pipeline v1)
 
+### 워크플로우 예시
+
+1. 원본 스캔 및 인덱스 생성
+	```bash
+	python -m metaxtract scan input/ --recursive --hash sha256 --out before.jsonl
+	```
+2. 민감정보 마스킹/제거
+	```bash
+	python -m metaxtract sanitize input/ --outdir out/ --mode redact
+	```
+3. 결과 재스캔
+	```bash
+	python -m metaxtract scan out/ --recursive --hash sha256 --exclude "__metaxtract_logs" --out after.jsonl
+	```
+4. diff로 변화 검증
+	```bash
+	python -m metaxtract diff before.jsonl after.jsonl --key path --out diff.txt
+	```
+
+
 입력 파일을 `--outdir`로 복사/가공하여 **민감 메타데이터를 제거/축소**합니다.
 
 형식:
@@ -249,6 +310,23 @@ JSONL 인덱스를 로드해서 테이블로 보고, 기본 필터를 적용할 
 - `has_gps` 토글을 켜면 **GPS 포함 파일만 보기**가 동작합니다.
 
 ## Normalized schema v1
+
+### JSON 구조 예시
+
+```json
+{
+	"file": {"path": "fixtures/image_gps.jpg", "name": "image_gps.jpg", "ext": ".jpg", "size_bytes": 12345},
+	"os_times": {"atime": 1700000000, "mtime": 1700000000, "ctime": 1700000000},
+	"hashes": {"sha256": "abc123..."},
+	"meta_times": {"created": "2023-01-01T12:00:00", "modified": "2023-01-01T12:00:00"},
+	"identity": {"author": "홍길동"},
+	"capture": {"make": "Canon", "model": "EOS", "software": "PhotoApp"},
+	"geo": {"lat": 37.5, "lon": 127.0, "alt_m": 50.0, "precision_flag": "dop"},
+	"media": {},
+	"signals": {"privacy_flags": ["has_gps", "has_author"], "risk_summary": "위치 노출, 저자 있음"},
+	"raw": {}
+}
+```
 
 스캔/추출 결과는 어떤 파일이든 최상위 키셋이 동일하도록 유지합니다.
 
