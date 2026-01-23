@@ -27,6 +27,8 @@ def empty_record() -> dict:
         "signals": {
             "privacy_flags": {},
             "risk_summary": "",
+            "risk_score": 0,
+            "reason_codes": [],
             "timeline_flags": {"time_mismatch": False, "reason_codes": [], "short_explain": ""},
         },
         "raw": {},

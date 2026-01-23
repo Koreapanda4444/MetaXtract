@@ -69,6 +69,7 @@ def _pick_template_item(record: dict, template: str) -> dict:
     file_obj = record.get("file") if isinstance(record.get("file"), dict) else {}
 
     if template == "privacy":
+        sig = record.get("signals") if isinstance(record.get("signals"), dict) else {}
         return {
             "file": {
                 "path": file_obj.get("path"),
@@ -87,8 +88,10 @@ def _pick_template_item(record: dict, template: str) -> dict:
             },
             "geo": record.get("geo") if isinstance(record.get("geo"), dict) else {},
             "signals": {
-                "privacy_flags": (record.get("signals") or {}).get("privacy_flags") if isinstance(record.get("signals"), dict) else {},
-                "risk_summary": (record.get("signals") or {}).get("risk_summary") if isinstance(record.get("signals"), dict) else "",
+                "privacy_flags": sig.get("privacy_flags", {}),
+                "risk_summary": sig.get("risk_summary", ""),
+                "risk_score": sig.get("risk_score", 0),
+                "reason_codes": sig.get("reason_codes", []),
             },
         }
 
@@ -178,6 +181,8 @@ def _render_txt(items: list[dict], template: str) -> str:
             sig = item.get("signals") if isinstance(item.get("signals"), dict) else {}
             flags = sig.get("privacy_flags") if isinstance(sig.get("privacy_flags"), dict) else {}
             summary = _as_text(sig.get("risk_summary"))
+            risk_score = _as_text(sig.get("risk_score"))
+            reason_codes = sig.get("reason_codes", [])
             flags_line = " ".join(
                 [
                     f"has_gps={_as_text(flags.get('has_gps'))}",
@@ -187,7 +192,13 @@ def _render_txt(items: list[dict], template: str) -> str:
                     f"has_precise_time={_as_text(flags.get('has_precise_time'))}",
                 ]
             )
-            block = "\n".join([path or name, summary.strip(), flags_line]).strip()
+            block = "\n".join([
+                path or name,
+                summary.strip(),
+                f"risk_score: {risk_score}",
+                f"reason_codes: {','.join(reason_codes)}",
+                flags_line
+            ]).strip()
             blocks.append(block)
             continue
 

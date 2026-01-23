@@ -109,6 +109,27 @@ def apply_privacy_intelligence(record: dict, *, redact: bool = False) -> dict:
     signals["privacy_flags"] = flags
     signals["risk_summary"] = build_risk_summary(flags)
 
+    # 위험 점수 및 이유 코드 계산
+    score = 0
+    reasons = []
+    if flags.get("has_gps"):
+        score += 40
+        reasons.append("GPS_PRESENT")
+    if flags.get("has_author"):
+        score += 10
+        reasons.append("AUTHOR_PRESENT")
+    if flags.get("has_software_trace"):
+        score += 5
+        reasons.append("SOFTWARE_PRESENT")
+    if flags.get("has_precise_time"):
+        score += 10
+        reasons.append("PRECISE_TIME_PRESENT")
+    if flags.get("has_device_model"):
+        score += 5
+        reasons.append("DEVICE_MODEL_PRESENT")
+    signals["risk_score"] = score
+    signals["reason_codes"] = reasons
+
     if redact:
         redact_record_view(record, flags)
 

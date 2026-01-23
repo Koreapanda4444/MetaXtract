@@ -64,12 +64,14 @@
 
 ## scan (현재 지원: 파일 열거)
 
+
 ### 샘플 출력(JSONL)
 
 ```
 {"type": "session", "tool": {"version": "0.1.0"}, "timestamp": "2026-01-23T12:34:56Z", "platform": {"os": "Windows"}, "scan": {"root": "./", "recursive": true, "include": [".jpg"], "hash": "sha256"}}
-{"file": {"path": "fixtures/image_gps.jpg", "name": "image_gps.jpg", "ext": ".jpg", "size_bytes": 12345}, "os_times": {"atime": 1700000000, "mtime": 1700000000, "ctime": 1700000000}, "hashes": {"sha256": "abc123..."}, "meta_times": {"created": "2023-01-01T12:00:00", "modified": "2023-01-01T12:00:00"}, "identity": {"author": "홍길동"}, "capture": {"make": "Canon", "model": "EOS", "software": "PhotoApp"}, "geo": {"lat": 37.5, "lon": 127.0, "alt_m": 50.0, "precision_flag": "dop"}, "media": {}, "signals": {"privacy_flags": ["has_gps", "has_author"], "risk_summary": "위치 노출, 저자 있음"}, "raw": {}}
+{"file": {"path": "fixtures/image_gps.jpg", "name": "image_gps.jpg", "ext": ".jpg", "size_bytes": 12345}, "os_times": {"atime": 1700000000, "mtime": 1700000000, "ctime": 1700000000}, "hashes": {"sha256": "abc123..."}, "meta_times": {"created": "2023-01-01T12:00:00", "modified": "2023-01-01T12:00:00"}, "identity": {"author": "홍길동"}, "capture": {"make": "Canon", "model": "EOS", "software": "PhotoApp"}, "geo": {"lat": 37.5, "lon": 127.0, "alt_m": 50.0, "precision_flag": "dop"}, "media": {}, "signals": {"privacy_flags": ["has_gps", "has_author"], "risk_summary": "위치 노출, 저자 있음", "risk_score": 50, "reason_codes": ["GPS_PRESENT", "AUTHOR_PRESENT"]}, "raw": {}}
 ```
+
 
 ### 샘플 출력(TXT)
 
@@ -81,13 +83,16 @@
 	- 저자: 홍길동
 	- 소프트웨어: PhotoApp
 	- 위험: 위치 노출, 저자 있음
+	- risk_score: 50
+	- reason_codes: GPS_PRESENT,AUTHOR_PRESENT
 ```
+
 
 ### 샘플 출력(CSV)
 
 ```
-file.path,file.size_bytes,identity.author,geo.lat,geo.lon,signals.privacy_flags
-fixtures/image_gps.jpg,12345,홍길동,37.5,127.0,"['has_gps','has_author']"
+file.path,file.size_bytes,identity.author,geo.lat,geo.lon,signals.privacy_flags,signals.risk_score,signals.reason_codes
+fixtures/image_gps.jpg,12345,홍길동,37.5,127.0,"['has_gps','has_author']",50,"['GPS_PRESENT','AUTHOR_PRESENT']"
 ```
 
 ---
@@ -311,6 +316,7 @@ JSONL 인덱스를 로드해서 테이블로 보고, 기본 필터를 적용할 
 
 ## Normalized schema v1
 
+
 ### JSON 구조 예시
 
 ```json
@@ -323,7 +329,12 @@ JSONL 인덱스를 로드해서 테이블로 보고, 기본 필터를 적용할 
 	"capture": {"make": "Canon", "model": "EOS", "software": "PhotoApp"},
 	"geo": {"lat": 37.5, "lon": 127.0, "alt_m": 50.0, "precision_flag": "dop"},
 	"media": {},
-	"signals": {"privacy_flags": ["has_gps", "has_author"], "risk_summary": "위치 노출, 저자 있음"},
+	"signals": {
+		"privacy_flags": ["has_gps", "has_author"],
+		"risk_summary": "위치 노출, 저자 있음",
+		"risk_score": 50,
+		"reason_codes": ["GPS_PRESENT", "AUTHOR_PRESENT"]
+	},
 	"raw": {}
 }
 ```
@@ -345,7 +356,8 @@ JSONL 인덱스를 로드해서 테이블로 보고, 기본 필터를 적용할 
 
 ### Privacy intelligence v1
 
-모든 레코드에서 `signals.privacy_flags`와 `signals.risk_summary`를 생성합니다.
+
+모든 레코드에서 `signals.privacy_flags`, `signals.risk_summary`, `signals.risk_score`, `signals.reason_codes`를 생성합니다.
 
 flags:
 
@@ -355,7 +367,10 @@ flags:
 - `has_software_trace`
 - `has_precise_time`
 
-`signals.risk_summary`는 사람이 읽는 2~4줄 요약 문자열이며, 예를 들어 GPS가 있으면 “위치 노출” 문구가 포함됩니다.
+
+* `signals.risk_score`: 위험 신호의 정량적 합산 점수 (예: GPS +40, author +10, software +5, precise_time +10, device_model +5)
+* `signals.reason_codes`: 위험 신호별 코드 리스트 (예: ["GPS_PRESENT", "AUTHOR_PRESENT"])
+* `signals.risk_summary`: 사람이 읽는 2~4줄 요약 문자열 (예: GPS가 있으면 “위치 노출” 문구 포함)
 
 `--redact` 옵션을 사용하면 출력 레코드의 `geo.lat/lon/alt_m`과 `identity.author`를 마스킹합니다. `raw`는 그대로 유지됩니다.
 
