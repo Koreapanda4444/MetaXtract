@@ -1,3 +1,4 @@
+import report_html
 from __future__ import annotations
 
 import csv
@@ -286,5 +287,7 @@ def generate_from_records(
         return _render_csv(items)
     if fmt == "txt":
         return _render_txt(items, template)
+    if fmt == "html":
+        return report_html.generate_html_report(session, items)
 
     raise ValueError(f"unsupported format: {fmt}")

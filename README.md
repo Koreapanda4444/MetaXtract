@@ -173,16 +173,29 @@ python -m metaxtract diff before.jsonl after.jsonl --out diff.json --key sha256
 
 ## report
 
+
 JSONL 인덱스에서 리포트를 생성합니다.
+
+### HTML 리포트
+
+- `--format html` 옵션으로 한눈에 보는 대시보드/표/상세를 HTML로 출력합니다.
+- 예시: `python -m metaxtract report index.jsonl --format html --out report.html`
+- 주요 기능: 위험 요약, Top GPS/Authors/Devices, 표/그룹, 상세 전환(클릭)
+
+샘플:
+
+![html_report_example](docs/html_report_example.png)
+
 
 형식:
 
 - `python -m metaxtract report <index.jsonl> --format json|csv|txt --template privacy|forensics|content`
 
+
 옵션:
 
-- `--format`: 출력 포맷
-- `--template`: 템플릿
+- `--format`: 출력 포맷 (json, csv, txt, html)
+- `--template`: 템플릿 (privacy, forensics, content)
 - `--redact`: 출력에서 GPS/author 등 일부 민감 메타 마스킹
 
 CSV 평탄화 규칙:
