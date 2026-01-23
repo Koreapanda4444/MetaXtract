@@ -1,3 +1,4 @@
+import bundle_export
 from __future__ import annotations
 
 import argparse
@@ -399,6 +400,27 @@ def _cmd_version(_: argparse.Namespace) -> ExitCode:
     return 0
 
 def build_parser() -> argparse.ArgumentParser:
+
+        sp = sub.add_parser("export-case")
+        sp.add_argument("index", help="스캔 결과 index.jsonl")
+        sp.add_argument("--out", required=True, help="내보낼 zip 파일 경로")
+        sp.add_argument("--include-original", action="store_true", help="원본 파일 포함")
+        sp.add_argument("--exclude-original", action="store_true", help="원본 파일 제외(기본)")
+        sp.add_argument("--sanitize-logs", default=None, help="sanitize 로그 폴더 경로 포함")
+        sp.set_defaults(_handler=_cmd_export_case)
+    def _cmd_export_case(args: argparse.Namespace) -> ExitCode:
+        try:
+            bundle_export.export_case(
+                index_path=args.index,
+                out_zip=args.out,
+                include_original=bool(args.include_original and not args.exclude_original),
+                sanitize_logs_dir=args.sanitize_logs,
+            )
+            print(f"[OK] Bundle exported: {args.out}")
+            return utils.ExitCodes.SUCCESS
+        except Exception as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return utils.ExitCodes.FAILURE
     p = _MetaXtractArgumentParser(
         prog="metaxtract",
         add_help=True,

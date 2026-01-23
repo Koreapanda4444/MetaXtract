@@ -1,3 +1,27 @@
+## export-case (증거 번들 내보내기)
+
+스캔 결과와 리포트, 로그, 해시, 메타 정보를 하나의 zip 번들로 내보냅니다.
+
+### 사용법
+
+```bash
+python -m metaxtract export-case index.jsonl --out case1.zip
+```
+
+옵션:
+- --include-original: index.jsonl에 포함된 원본 파일도 zip에 포함
+- --sanitize-logs: sanitize 로그 폴더도 포함
+
+### 번들 파일 구성 예시
+
+- index.jsonl
+- report.json / report.txt / report.html
+- hashes.txt (모든 파일 sha256)
+- meta_manifest.json (구성 요약)
+- sanitize_logs/ (옵션)
+- [원본 파일들] (옵션)
+
+이 번들은 포렌식/감사/증거 제출 등 다양한 워크플로우에 활용할 수 있습니다.
 
 # MetaXtract (WIP)
 
