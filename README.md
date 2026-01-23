@@ -183,6 +183,26 @@ python -m metaxtract diff before.jsonl after.jsonl --key path --out diff.txt
 
 ## verify (chain-of-custody v1)
 
+## 테스트(golden scan consistency)
+
+테스트 실행:
+
+```bash
+pip install -r requirements.txt
+pytest tests/
+```
+
+테스트 구조:
+- `tests/fixtures/` : 테스트용 입력 파일 (이미지, PDF, DOCX, MP4 등)
+- `tests/golden/` : 각 fixture별 scan 결과(golden output, JSONL)
+- `tests/test_scan_consistency.py` : scan 결과가 golden과 byte-to-byte로 일치하는지 검증
+
+테스트 기준:
+- 모든 fixture에 대해 scan 결과가 golden output과 완전히 동일해야 통과
+- 한 줄이라도 다르면 실패
+
+> fixture/golden 파일 추가 후 golden output 생성은 수동 또는 별도 스크립트 필요
+
 JSONL 인덱스의 무결성을 검증합니다.
 
 형식:
