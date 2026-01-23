@@ -288,11 +288,18 @@ python -m metaxtract diff before.jsonl after.jsonl --key path --out diff.txt
 
 ## 테스트(golden scan consistency)
 
+
 테스트 실행:
 
 ```bash
 pip install -r requirements.txt
 pytest tests/
+```
+
+golden 파일 자동 갱신:
+
+```bash
+UPDATE_GOLDEN=1 pytest
 ```
 
 테스트 구조:
