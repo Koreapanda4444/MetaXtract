@@ -23,7 +23,14 @@ python -m metaxtract export-case index.jsonl --out case1.zip
 
 이 번들은 포렌식/감사/증거 제출 등 다양한 워크플로우에 활용할 수 있습니다.
 
+
 # MetaXtract (WIP)
+
+## 테스트 fixture 자동 생성 안내
+
+테스트에 필요한 jpg, pdf, docx, mp4 등 바이너리 fixture 파일은 모두 `tests/gen_fixtures.py`에서 자동 생성됩니다. 레포에는 바이너리 테스트 파일이 포함되지 않으며, 테스트 실행 시 자동으로 생성됩니다.
+
+따라서 `tests/fixtures/` 폴더에는 직접 파일을 추가할 필요가 없습니다.
 
 ## 지원 기능 매트릭스
 
