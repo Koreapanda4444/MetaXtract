@@ -1,12 +1,31 @@
 
 from __future__ import annotations
-import bundle_export
+import argparse
 import inspect
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Callable, Iterable, Optional
+
+import bundle_export
+import config
+import diff_report
+import engine
+import extract_common
+import gui
+import index_store
+import report
+import sanitize
+import utils
+import verify
+
 
 def _call_with_matching_kwargs(fn, ns):
     sig = inspect.signature(fn)
     kwargs = {k: v for k, v in vars(ns).items() if k in sig.parameters}
     return fn(**kwargs)
+
 
 def _cmd_export_case(args) -> int:
     candidates = [
@@ -24,24 +43,6 @@ def _cmd_export_case(args) -> int:
                 result = fn()
             return 0 if result is None else int(result)
     raise SystemExit("bundle_export: no export function found")
-
-import argparse
-import json
-import os
-import sys
-from pathlib import Path
-from typing import Callable, Iterable, Optional
-
-import config
-import diff_report
-import engine
-import extract_common
-import gui
-import index_store
-import report
-import sanitize
-import utils
-import verify
 
 ExitCode = int
 
