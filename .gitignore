@@ -1,3 +1,14 @@
+# allow test fixtures (binary)
+!tests/fixtures/
+!tests/fixtures/*.jpg
+!tests/fixtures/*.jpeg
+!tests/fixtures/*.pdf
+!tests/fixtures/*.docx
+!tests/fixtures/*.mp4
+
+# allow golden outputs
+!tests/golden/
+!tests/golden/*.jsonl
 __pycache__/
 *.pyc
 .pytest_cache/
