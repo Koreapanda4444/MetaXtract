@@ -44,7 +44,8 @@ def make_docx(path: Path) -> None:
     doc.save(str(path))
 
 def make_mp4_with_ffmpeg(path: Path) -> bool:
-    import shutil, subprocess
+    import shutil
+    import subprocess
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         return False

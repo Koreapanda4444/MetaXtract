@@ -540,6 +540,7 @@ def launch(index_path: Optional[str] = None) -> None:
 
         r = m.record
         identity = r.get("identity") if isinstance(r.get("identity"), dict) else {}
+        _ = identity  # F841 미사용 변수 소비
         capture = r.get("capture") if isinstance(r.get("capture"), dict) else {}
         geo = r.get("geo") if isinstance(r.get("geo"), dict) else {}
         meta_times = r.get("meta_times") if isinstance(r.get("meta_times"), dict) else {}
@@ -666,3 +667,4 @@ def launch(index_path: Optional[str] = None) -> None:
     _apply_column_visibility()
 
     root.mainloop()
+    
