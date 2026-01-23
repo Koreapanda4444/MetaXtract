@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 import json
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 import index_store
 
 

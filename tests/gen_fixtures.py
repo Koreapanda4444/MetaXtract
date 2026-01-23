@@ -1,13 +1,16 @@
-import os
+
 from pathlib import Path
+
 
 def ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
+
 
 def make_jpeg_noexif(path: Path) -> None:
     from PIL import Image
     img = Image.new("RGB", (64, 64), (120, 180, 240))
     img.save(path, "JPEG", quality=85)
+
 
 def make_jpeg_with_fake_gps(path: Path) -> None:
     from PIL import Image
@@ -25,11 +28,13 @@ def make_jpeg_with_fake_gps(path: Path) -> None:
     exif_bytes = piexif.dump(exif_dict)
     img.save(path, "JPEG", quality=85, exif=exif_bytes)
 
+
 def make_pdf(path: Path) -> None:
     from reportlab.pdfgen import canvas
     c = canvas.Canvas(str(path))
     c.drawString(72, 720, "MetaXtract test PDF")
     c.save()
+
 
 def make_docx(path: Path) -> None:
     from docx import Document

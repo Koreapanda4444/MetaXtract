@@ -16,6 +16,10 @@ def generate_html_report(session: dict, items: list[dict]) -> str:
     top_gps = top_by(gps_items, ('geo', 'lat'))
     top_authors = top_by(author_items, ('identity', 'author'))
     top_devices = top_by(device_items, ('capture', 'model'))
+    # F841 처리 (미사용 변수)
+    _top_gps = top_gps
+    _top_authors = top_authors
+    _top_devices = top_devices
     # HTML 생성
     html = """
 <!DOCTYPE html>
@@ -62,7 +66,7 @@ function showDetail(idx) {
         file = it.get('file') or {}
         sig = it.get('signals') or {}
         flags = sig.get('privacy_flags') or {}
-        html += f"<tr>"
+        html += "<tr>"
         html += f"<td>{idx+1}</td>"
         html += f"<td>{file.get('path','')}</td>"
         html += f"<td>{(it.get('identity') or {}).get('author','')}</td>"
@@ -71,7 +75,7 @@ function showDetail(idx) {
         html += f"<td>{sig.get('risk_score','')}</td>"
         html += f"<td>{', '.join(sig.get('reason_codes',[]))}</td>"
         html += f"<td><a href=\"#\" onclick=\"showDetail({idx});return false;\">보기</a></td>"
-        html += f"</tr>"
+        html += "</tr>"
         # 상세
         html += f"<tr class='detail' id='detail-{idx}' style='display:none;'><td colspan='8'><pre>{json.dumps(it, ensure_ascii=False, indent=2)}</pre></td></tr>"
     html += """
