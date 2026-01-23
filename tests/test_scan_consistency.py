@@ -6,7 +6,6 @@ from pathlib import Path
 from engine import scan_file
 from utils import dumps_json
 
-
 _VOLATILE_KEYS = {"mtime", "atime", "ctime"}
 
 
@@ -24,6 +23,14 @@ def _normalize(obj):
     return obj
 
 
+def _first_jsonl_line(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.strip():
+            return line
+    return ""
+
+
 def test_scan_matches_golden() -> None:
     tests_dir = Path(__file__).parent
     fixtures_dir = tests_dir / "fixtures"
@@ -38,7 +45,8 @@ def test_scan_matches_golden() -> None:
 
         record = scan_file(fixture, base=fixtures_dir)
 
-        golden_line = next(line for line in golden.read_text(encoding="utf-8").splitlines() if line.strip())
+        golden_line = _first_jsonl_line(golden)
+        assert golden_line, f"Empty golden file: {golden}"
 
         expected_obj = json.loads(golden_line)
         actual_obj = json.loads(dumps_json(record))
