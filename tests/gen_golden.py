@@ -1,23 +1,30 @@
-import os
-import subprocess
+from __future__ import annotations
 
-FIXTURES_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
-GOLDEN_DIR = os.path.join(os.path.dirname(__file__), 'golden')
+from pathlib import Path
+from typing import Dict
 
-FIXTURE_FILES = [
-    'image_gps.jpg',
-    'image_noexif.jpg',
-    'sample.pdf',
-    'sample.docx',
-    'sample.mp4',
-]
+from engine import scan_file
+from utils import dumps_json
 
-os.makedirs(GOLDEN_DIR, exist_ok=True)
 
-for fixture_file in FIXTURE_FILES:
-    fixture_path = os.path.join(FIXTURES_DIR, fixture_file)
-    golden_path = os.path.join(GOLDEN_DIR, f'scan_{fixture_file}.jsonl')
-    print(f'Generating {golden_path} ...')
-    subprocess.run([
-        'python', '-m', 'metaxtract', 'scan', fixture_path, '--out', golden_path
-    ], check=True)
+def _golden_name_for_fixture(fixture_path: Path) -> str:
+    return fixture_path.name + ".jsonl"
+
+
+def ensure_golden(fixtures_dir: Path, golden_dir: Path) -> Dict[str, bool]:
+    golden_dir.mkdir(parents=True, exist_ok=True)
+
+    created: Dict[str, bool] = {}
+    for fp in sorted(fixtures_dir.glob("*")):
+        if not fp.is_file():
+            continue
+        gp = golden_dir / _golden_name_for_fixture(fp)
+        if gp.exists():
+            created[gp.name] = False
+            continue
+
+        rec = scan_file(fp, base=fixtures_dir)
+        gp.write_text(dumps_json(rec) + "\n", encoding="utf-8")
+        created[gp.name] = True
+
+    return created

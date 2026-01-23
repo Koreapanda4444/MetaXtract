@@ -1,92 +1,124 @@
+from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
+from typing import Dict
+
+from PIL import Image, TiffImagePlugin
+
+from reportlab.pdfgen import canvas
+import docx  # python-docx
 
 
-def ensure_dir(p: Path) -> None:
-    p.mkdir(parents=True, exist_ok=True)
+def _write_jpeg_noexif(path: Path) -> None:
+    img = Image.new("RGB", (64, 64), (10, 20, 30))
+    img.save(path, quality=85)
 
 
-def make_jpeg_noexif(path: Path) -> None:
-    from PIL import Image
-    img = Image.new("RGB", (64, 64), (120, 180, 240))
-    img.save(path, "JPEG", quality=85)
-
-
-def make_jpeg_with_fake_gps(path: Path) -> None:
-    from PIL import Image
-    import piexif
-    img = Image.new("RGB", (64, 64), (200, 120, 120))
-    zeroth_ifd = {}
-    exif_ifd = {}
+def _write_jpeg_with_gps(path: Path) -> None:
+    img = Image.new("RGB", (64, 64), (200, 50, 50))
+    exif = img.getexif()
     gps_ifd = {
-        piexif.GPSIFD.GPSLatitudeRef: "N",
-        piexif.GPSIFD.GPSLatitude: ((0, 1), (0, 1), (0, 1)),
-        piexif.GPSIFD.GPSLongitudeRef: "E",
-        piexif.GPSIFD.GPSLongitude: ((0, 1), (0, 1), (0, 1)),
+        1: "N",
+        2: (
+            TiffImagePlugin.IFDRational(37, 1),
+            TiffImagePlugin.IFDRational(34, 1),
+            TiffImagePlugin.IFDRational(0, 1),
+        ),
+        3: "E",
+        4: (
+            TiffImagePlugin.IFDRational(126, 1),
+            TiffImagePlugin.IFDRational(58, 1),
+            TiffImagePlugin.IFDRational(0, 1),
+        ),
     }
-    exif_dict = {"0th": zeroth_ifd, "Exif": exif_ifd, "GPS": gps_ifd, "1st": {}, "thumbnail": None}
-    exif_bytes = piexif.dump(exif_dict)
-    img.save(path, "JPEG", quality=85, exif=exif_bytes)
+    exif[34853] = gps_ifd
+    img.save(path, exif=exif, quality=85)
 
 
-def make_pdf(path: Path) -> None:
-    from reportlab.pdfgen import canvas
+def _write_pdf(path: Path) -> None:
     c = canvas.Canvas(str(path))
-    c.drawString(72, 720, "MetaXtract test PDF")
+    c.setTitle("MetaXtract PDF")
+    c.setAuthor("MetaXtract")
+    c.drawString(72, 720, "MetaXtract fixture PDF")
+    c.showPage()
     c.save()
 
 
-def make_docx(path: Path) -> None:
-    from docx import Document
-    doc = Document()
-    doc.add_paragraph("MetaXtract test DOCX")
-    doc.core_properties.author = "MetaXtract"
-    doc.save(str(path))
+def _write_docx(path: Path) -> None:
+    d = docx.Document()
+    d.add_heading("MetaXtract DOCX", level=1)
+    d.add_paragraph("MetaXtract fixture DOCX")
+    props = d.core_properties
+    props.author = "MetaXtract"
+    props.title = "MetaXtract DOCX"
+    d.save(str(path))
 
-def make_mp4_with_ffmpeg(path: Path) -> bool:
-    import shutil
-    import subprocess
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
+
+def _ffmpeg_available() -> bool:
+    return shutil.which("ffmpeg") is not None
+
+
+def _write_mp4(path: Path) -> bool:
+    if not _ffmpeg_available():
         return False
-    cmd = [
-        ffmpeg, "-y",
-        "-f", "lavfi", "-i", "color=c=black:s=320x240:d=1",
-        "-pix_fmt", "yuv420p",
-        str(path)
-    ]
-    subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return path.exists() and path.stat().st_size > 0
 
-def generate(fixtures_dir: str) -> dict:
-    d = Path(fixtures_dir)
-    ensure_dir(d)
-    out = {
-        "image_gps.jpg": False,
-        "image_noexif.jpg": False,
-        "sample.pdf": False,
-        "sample.docx": False,
-        "sample.mp4": False,
-    }
-    p = d / "image_noexif.jpg"
-    if not p.exists():
-        make_jpeg_noexif(p)
-    out["image_noexif.jpg"] = p.exists()
-    p = d / "image_gps.jpg"
-    if not p.exists():
-        make_jpeg_with_fake_gps(p)
-    out["image_gps.jpg"] = p.exists()
-    p = d / "sample.pdf"
-    if not p.exists():
-        make_pdf(p)
-    out["sample.pdf"] = p.exists()
-    p = d / "sample.docx"
-    if not p.exists():
-        make_docx(p)
-    out["sample.docx"] = p.exists()
-    p = d / "sample.mp4"
-    if not p.exists():
-        out["sample.mp4"] = make_mp4_with_ffmpeg(p)
+    # Generate a tiny 1 second test pattern video (no audio).
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=64x64:rate=10",
+        "-t",
+        "1",
+        "-pix_fmt",
+        "yuv420p",
+        str(path),
+    ]
+    proc = subprocess.run(cmd, check=False, capture_output=True)
+    return proc.returncode == 0 and path.exists()
+
+
+def ensure_fixtures(fixtures_dir: Path) -> Dict[str, bool]:
+    fixtures_dir.mkdir(parents=True, exist_ok=True)
+
+    created: Dict[str, bool] = {}
+
+    jpg_gps = fixtures_dir / "sample_gps.jpg"
+    if not jpg_gps.exists():
+        _write_jpeg_with_gps(jpg_gps)
+        created[jpg_gps.name] = True
     else:
-        out["sample.mp4"] = True
-    return out
+        created[jpg_gps.name] = False
+
+    jpg_plain = fixtures_dir / "sample_noexif.jpg"
+    if not jpg_plain.exists():
+        _write_jpeg_noexif(jpg_plain)
+        created[jpg_plain.name] = True
+    else:
+        created[jpg_plain.name] = False
+
+    pdf = fixtures_dir / "sample.pdf"
+    if not pdf.exists():
+        _write_pdf(pdf)
+        created[pdf.name] = True
+    else:
+        created[pdf.name] = False
+
+    doc = fixtures_dir / "sample.docx"
+    if not doc.exists():
+        _write_docx(doc)
+        created[doc.name] = True
+    else:
+        created[doc.name] = False
+
+    mp4 = fixtures_dir / "sample.mp4"
+    if not mp4.exists():
+        created[mp4.name] = _write_mp4(mp4)
+    else:
+        created[mp4.name] = False
+
+    return created

@@ -1,147 +1,97 @@
 from __future__ import annotations
 
-import logging
+import hashlib
+import json
 import os
-import sys
-import threading
-import traceback
-from typing import Optional
-
-_VERSION = "0.0.0"
-_LOGGER_NAME = "metaxtract"
+from dataclasses import asdict, is_dataclass
+from pathlib import Path
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 
 
-class ExitCodes:
-    SUCCESS: int = 0
-    INTERNAL_ERROR: int = 1
-    USAGE: int = 2
-    FAILURE: int = 3
+JsonObj = Dict[str, Any]
+PathLike = Union[str, os.PathLike[str]]
 
 
-class UsageError(Exception):
-    def __init__(self, user_message: str):
-        super().__init__(user_message)
-        self.user_message = user_message
+def sha256_file(path: PathLike, chunk_size: int = 1024 * 1024) -> str:
+    h = hashlib.sha256()
+    p = Path(path)
+    with p.open("rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
 
 
-class ProcessingError(Exception):
-    def __init__(self, user_message: str, *, exit_code: int = ExitCodes.FAILURE, cause: Optional[BaseException] = None):
-        super().__init__(user_message)
-        self.user_message = user_message
-        self.exit_code = int(exit_code)
-        self.cause = cause
-
-class _PlainFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        level = record.levelname
-        msg = record.getMessage()
-        return f"{level}: {msg}"
-
-class _AnsiFormatter(logging.Formatter):
-    _COLORS = {
-        "DEBUG": "\x1b[36m",
-        "INFO": "\x1b[32m",
-        "WARNING": "\x1b[33m",
-        "ERROR": "\x1b[31m",
-        "CRITICAL": "\x1b[35m",
+def safe_stat(path: PathLike) -> Dict[str, Any]:
+    p = Path(path)
+    st = p.stat()
+    return {
+        "size_bytes": int(st.st_size),
+        "mtime": int(st.st_mtime),
     }
-    _RESET = "\x1b[0m"
-
-    def format(self, record: logging.LogRecord) -> str:
-        level = record.levelname
-        color = self._COLORS.get(level, "")
-        msg = record.getMessage()
-        if color:
-            return f"{color}{level}{self._RESET}: {msg}"
-        return f"{level}: {msg}"
-
-def get_version() -> str:
-    return _VERSION
-
-def get_logger() -> logging.Logger:
-    return logging.getLogger(_LOGGER_NAME)
 
 
-def error(user_message: str, *, exc: Optional[BaseException] = None) -> None:
-    logger = get_logger()
-    logger.error(user_message)
+def dumps_json(obj: Any) -> str:
+    if is_dataclass(obj):
+        obj = asdict(obj)
+    return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
-    if exc is None:
+
+def write_jsonl(path: PathLike, rows: Iterable[Any]) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(dumps_json(row))
+            f.write("\n")
+
+
+def read_jsonl(path: PathLike) -> List[JsonObj]:
+    p = Path(path)
+    out: List[JsonObj] = []
+    with p.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            out.append(json.loads(line))
+    return out
+
+
+def iter_files(root: PathLike) -> Iterator[Path]:
+    p = Path(root)
+    if p.is_file():
+        yield p
         return
 
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("details: %s", repr(exc))
-        if isinstance(exc, ProcessingError) and exc.cause is not None:
-            logger.debug("cause: %s", repr(exc.cause))
-        tb = traceback.format_exc()
-        if tb and tb.strip() and "Traceback" in tb:
-            logger.debug(tb.rstrip())
+    for cur, _dirs, files in os.walk(p):
+        for name in sorted(files):
+            yield Path(cur) / name
 
 
-def fail(user_message: str, *, code: int, exc: Optional[BaseException] = None) -> int:
-    error(user_message, exc=exc)
-    return int(code)
+def guess_mime(path: PathLike) -> str:
+    p = Path(path)
+    ext = p.suffix.lower()
+    if ext in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if ext == ".png":
+        return "image/png"
+    if ext == ".pdf":
+        return "application/pdf"
+    if ext == ".docx":
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    if ext in {".mp4", ".mov", ".m4v"}:
+        return "video/mp4"
+    return "application/octet-stream"
 
 
-def not_implemented(feature: str) -> int:
-    return fail(f"{feature}: 아직 지원되지 않습니다(예정).", code=ExitCodes.USAGE)
-
-def configure_logging(verbosity: int = 0, no_color: bool = False) -> None:
-    logger = get_logger()
-    logger.propagate = False
-    logger.handlers.clear()
-
-    if verbosity >= 2:
-        level = logging.DEBUG
-    elif verbosity == 1:
-        level = logging.INFO
-    else:
-        level = logging.WARNING
-
-    use_color = (not no_color) and _stdout_supports_color()
-    formatter: logging.Formatter = _AnsiFormatter() if use_color else _PlainFormatter()
-
-    h = logging.StreamHandler(stream=sys.stderr)
-    h.setLevel(level)
-    h.setFormatter(formatter)
-
-    logger.setLevel(level)
-    logger.addHandler(h)
-
-def _stdout_supports_color() -> bool:
-    if os.environ.get("NO_COLOR"):
-        return False
-    if not hasattr(sys.stderr, "isatty") or not sys.stderr.isatty():
-        return False
-    term = os.environ.get("TERM", "")
-    if term.lower() in {"", "dumb"}:
-        return False
-    return True
-
-
-class CancelToken:
-    """스캔/추출 등 장시간 작업을 안전하게 중단하기 위한 취소 토큰."""
-
-    def __init__(self) -> None:
-        self._event = threading.Event()
-
-    def cancel(self) -> None:
-        self._event.set()
-
-    def is_cancelled(self) -> bool:
-        return self._event.is_set()
-
-
-def short_exc_message(exc: BaseException, *, limit: int = 160) -> str:
-    """로그/레코드에 남길 짧은 에러 메시지를 생성합니다."""
-
+def get_relpath(path: PathLike, base: Optional[PathLike]) -> str:
+    p = Path(path)
+    if base is None:
+        return str(p)
     try:
-        msg = str(exc).strip()
+        return str(p.relative_to(Path(base)))
     except Exception:
-        msg = ""
-
-    if not msg:
-        msg = exc.__class__.__name__
-    if len(msg) > limit:
-        msg = msg[: max(0, limit - 1)] + "…"
-    return msg
+        return str(p)

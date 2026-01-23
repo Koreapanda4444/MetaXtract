@@ -1,94 +1,24 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Tuple
+
+import docx  # python-docx
+
+from utils import PathLike
 
 
-@dataclass(frozen=True)
-class DocxExtractResult:
-    ok: bool
-    data: dict[str, Any]
-    error_code: Optional[str] = None
-    message_short: Optional[str] = None
+def extract_docx(path: PathLike) -> Tuple[Dict[str, Any], List[str]]:
+    warnings: List[str] = []
+    md: Dict[str, Any] = {}
 
+    document = docx.Document(str(path))
+    props = document.core_properties
 
-def _short_message(text: Any, *, limit: int = 160) -> str:
-    try:
-        msg = str(text).strip()
-    except Exception:
-        msg = ""
-    if not msg:
-        msg = "error"
-    if len(msg) > limit:
-        msg = msg[: max(0, limit - 1)] + "…"
-    return msg
+    md["docx_paragraphs"] = len(document.paragraphs)
+    md["docx_title"] = props.title or ""
+    md["docx_author"] = props.author or ""
+    md["docx_last_modified_by"] = props.last_modified_by or ""
+    md["docx_subject"] = props.subject or ""
+    md["docx_keywords"] = props.keywords or ""
 
-
-def _to_iso(dt: Any) -> Optional[str]:
-    if dt is None:
-        return None
-    if isinstance(dt, datetime):
-        try:
-            return dt.isoformat()
-        except Exception:
-            return None
-    try:
-        return datetime.fromisoformat(str(dt)).isoformat()
-    except Exception:
-        return None
-
-
-def extract_docx_metadata(path: Path) -> DocxExtractResult:
-    try:
-        from docx import Document
-    except Exception:
-        return DocxExtractResult(ok=False, data={}, error_code="missing_dependency", message_short="python-docx가 필요합니다")
-
-    try:
-        doc = Document(str(path))
-        cp = getattr(doc, "core_properties", None)
-        if cp is None:
-            return DocxExtractResult(ok=False, data={}, error_code="no_docx_meta", message_short="DOCX 메타 없음")
-
-        docx_out: dict[str, Any] = {}
-
-        creator = getattr(cp, "author", None)
-        last_modified_by = getattr(cp, "last_modified_by", None)
-        title = getattr(cp, "title", None)
-        created = getattr(cp, "created", None)
-        modified = getattr(cp, "modified", None)
-
-        if creator is not None:
-            docx_out["creator"] = creator
-        if last_modified_by is not None:
-            docx_out["lastModifiedBy"] = last_modified_by
-        if title is not None:
-            docx_out["title"] = title
-        if created is not None:
-            docx_out["created"] = created
-        if modified is not None:
-            docx_out["modified"] = modified
-
-        if not docx_out:
-            return DocxExtractResult(ok=False, data={}, error_code="no_docx_meta", message_short="DOCX 메타 없음")
-
-        data: dict[str, Any] = {"docx": docx_out}
-
-        times: dict[str, Any] = {}
-        created_iso = _to_iso(created)
-        modified_iso = _to_iso(modified)
-        if created_iso:
-            times["created"] = created_iso
-        if modified_iso:
-            times["modified"] = modified_iso
-        if times:
-            data["docx_times"] = times
-
-        return DocxExtractResult(ok=True, data=data)
-
-    except OSError:
-        return DocxExtractResult(ok=False, data={}, error_code="read_error", message_short="읽기 실패")
-    except Exception as e:
-        return DocxExtractResult(ok=False, data={}, error_code="extract_error", message_short=_short_message(e))
+    return md, warnings

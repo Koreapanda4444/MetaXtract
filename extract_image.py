@@ -1,181 +1,93 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Tuple
+
+from PIL import Image, ExifTags
+
+from utils import PathLike
 
 
-@dataclass(frozen=True)
-class ImageExtractResult:
-    ok: bool
-    data: dict[str, Any]
-    error_code: Optional[str] = None
-    message_short: Optional[str] = None
+_GPS_TAG = 34853  # GPSInfo
 
 
-def _short_message(text: Any, *, limit: int = 160) -> str:
+def _rational_to_float(v: Any) -> float:
+    # v can be IFDRational, Fraction-like, or tuple(n, d)
     try:
-        msg = str(text).strip()
+        return float(v)
     except Exception:
-        msg = ""
-    if not msg:
-        msg = "error"
-    if len(msg) > limit:
-        msg = msg[: max(0, limit - 1)] + "…"
-    return msg
-
-
-def _as_float_rational(value: Any) -> Optional[float]:
-    try:
-        if value is None:
-            return None
-        if hasattr(value, "numerator") and hasattr(value, "denominator"):
-            den = float(value.denominator)
-            if den == 0:
-                return None
-            return float(value.numerator) / den
-        if isinstance(value, tuple) and len(value) == 2:
-            num, den = value
-            den_f = float(den)
-            if den_f == 0:
-                return None
-            return float(num) / den_f
-        if isinstance(value, (int, float)):
-            return float(value)
-        return float(value)
-    except Exception:
-        return None
-
-
-def _dms_to_decimal(dms: Any, ref: Any) -> Optional[float]:
-    try:
-        if not isinstance(dms, (list, tuple)) or len(dms) != 3:
-            return None
-        deg = _as_float_rational(dms[0])
-        minutes = _as_float_rational(dms[1])
-        seconds = _as_float_rational(dms[2])
-        if deg is None or minutes is None or seconds is None:
-            return None
-
-        dec = deg + (minutes / 60.0) + (seconds / 3600.0)
-        ref_text = str(ref or "").strip().upper()
-        if ref_text in {"S", "W"}:
-            dec = -dec
-        return dec
-    except Exception:
-        return None
-
-
-def _parse_exif_datetime(value: Any) -> Optional[str]:
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    for fmt in ("%Y:%m:%d %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
         try:
-            dt = datetime.strptime(text, fmt)
-            return dt.isoformat()
+            n, d = v
+            return float(n) / float(d)
         except Exception:
-            pass
-
-    return None
+            return 0.0
 
 
-def extract_image_metadata(path: Path) -> ImageExtractResult:
-    try:
-        from PIL import Image, ExifTags
-    except Exception:
-        return ImageExtractResult(ok=False, data={}, error_code="missing_dependency", message_short="Pillow가 필요합니다")
+def _dms_to_deg(dms: Tuple[Any, Any, Any]) -> float:
+    deg = _rational_to_float(dms[0])
+    minutes = _rational_to_float(dms[1])
+    sec = _rational_to_float(dms[2])
+    return deg + (minutes / 60.0) + (sec / 3600.0)
 
-    try:
-        with Image.open(path) as img:
-            data: dict[str, Any] = {
-                "image": {
-                    "format": img.format,
-                    "width": int(getattr(img, "width", 0) or 0),
-                    "height": int(getattr(img, "height", 0) or 0),
-                    "mode": getattr(img, "mode", None),
-                }
-            }
 
-            exif_obj = None
-            try:
-                exif_obj = img.getexif()
-            except Exception:
-                exif_obj = None
+def _extract_gps(gps_ifd: Any) -> Dict[str, Any]:
+    # GPS IFD uses numeric keys:
+    # 1 lat ref, 2 lat, 3 lon ref, 4 lon
+    out: Dict[str, Any] = {}
+    if not isinstance(gps_ifd, dict):
+        return out
 
-            if not exif_obj:
-                return ImageExtractResult(ok=False, data=data, error_code="no_exif", message_short="EXIF 없음")
-            tags = getattr(ExifTags, "TAGS", {})
-            gps_tags = getattr(ExifTags, "GPSTAGS", {})
+    lat_ref = gps_ifd.get(1)
+    lat = gps_ifd.get(2)
+    lon_ref = gps_ifd.get(3)
+    lon = gps_ifd.get(4)
 
-            exif_out: dict[str, Any] = {}
-            gps_out: dict[str, Any] = {}
+    if (
+        isinstance(lat, (tuple, list))
+        and len(lat) == 3
+        and isinstance(lon, (tuple, list))
+        and len(lon) == 3
+    ):
+        lat_deg = _dms_to_deg((lat[0], lat[1], lat[2]))
+        lon_deg = _dms_to_deg((lon[0], lon[1], lon[2]))
+        if str(lat_ref).upper().startswith("S"):
+            lat_deg = -lat_deg
+        if str(lon_ref).upper().startswith("W"):
+            lon_deg = -lon_deg
+        out["gps_latitude"] = lat_deg
+        out["gps_longitude"] = lon_deg
+    return out
 
-            for tag_id, value in exif_obj.items():
-                name = tags.get(tag_id, str(tag_id))
 
-                if name == "GPSInfo" and isinstance(value, dict):
-                    for gps_id, gps_val in value.items():
-                        gps_name = gps_tags.get(gps_id, str(gps_id))
-                        gps_out[gps_name] = gps_val
-                    continue
+def extract_image(path: PathLike) -> Tuple[Dict[str, Any], List[str]]:
+    warnings: List[str] = []
+    md: Dict[str, Any] = {}
 
-                if name in {
-                    "DateTimeOriginal",
-                    "DateTimeDigitized",
-                    "Make",
-                    "Model",
-                    "Software",
-                    "Orientation",
-                    "LensModel",
-                }:
-                    exif_out[name] = value
+    with Image.open(path) as im:
+        md["format"] = im.format
+        md["mode"] = im.mode
+        md["width"] = im.width
+        md["height"] = im.height
 
-            if exif_out:
-                data["exif"] = exif_out
-            if gps_out:
-                data["gps"] = gps_out
-            if gps_out:
-                lat = _dms_to_decimal(gps_out.get("GPSLatitude"), gps_out.get("GPSLatitudeRef"))
-                lon = _dms_to_decimal(gps_out.get("GPSLongitude"), gps_out.get("GPSLongitudeRef"))
+        try:
+            exif = im.getexif()
+        except Exception:
+            exif = None
 
-                alt = _as_float_rational(gps_out.get("GPSAltitude"))
-                alt_ref = gps_out.get("GPSAltitudeRef")
-                try:
-                    if alt is not None and str(alt_ref).strip() == "1":
-                        alt = -alt
-                except Exception:
-                    pass
+        if exif:
+            # Basic EXIF: map a few common tags for stability.
+            tag_map = {v: k for k, v in ExifTags.TAGS.items()}
+            make_tag = tag_map.get("Make")
+            model_tag = tag_map.get("Model")
+            dt_tag = tag_map.get("DateTimeOriginal")
 
-                dop = _as_float_rational(gps_out.get("GPSDOP"))
+            if make_tag and make_tag in exif:
+                md["exif_make"] = str(exif.get(make_tag))
+            if model_tag and model_tag in exif:
+                md["exif_model"] = str(exif.get(model_tag))
+            if dt_tag and dt_tag in exif:
+                md["exif_datetime_original"] = str(exif.get(dt_tag))
 
-                norm_gps: dict[str, Any] = {}
-                if lat is not None and lon is not None:
-                    norm_gps["lat"] = float(lat)
-                    norm_gps["lon"] = float(lon)
-                if alt is not None:
-                    norm_gps["alt_m"] = float(alt)
-                if dop is not None:
-                    norm_gps["dop"] = float(dop)
+            gps_ifd = exif.get(_GPS_TAG)
+            md.update(_extract_gps(gps_ifd))
 
-                if norm_gps:
-                    data["gps_norm"] = norm_gps
-            dt_original = _parse_exif_datetime(exif_out.get("DateTimeOriginal") if exif_out else None)
-            dt_digitized = _parse_exif_datetime(exif_out.get("DateTimeDigitized") if exif_out else None)
-            times: dict[str, Any] = {}
-            if dt_original:
-                times["DateTimeOriginal"] = dt_original
-            if dt_digitized:
-                times["DateTimeDigitized"] = dt_digitized
-            if times:
-                data["exif_times"] = times
-
-            return ImageExtractResult(ok=True, data=data)
-
-    except OSError:
-        return ImageExtractResult(ok=False, data={}, error_code="read_error", message_short="읽기 실패")
-    except Exception as e:
-        return ImageExtractResult(ok=False, data={}, error_code="extract_error", message_short=_short_message(e))
+    return md, warnings

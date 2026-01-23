@@ -1,42 +1,15 @@
 from __future__ import annotations
 
-TOP_LEVEL_KEYS = (
-    "file",
-    "os_times",
-    "hashes",
-    "meta_times",
-    "identity",
-    "capture",
-    "geo",
-    "media",
-    "signals",
-    "raw",
-)
+from dataclasses import dataclass, field
+from typing import Any, Dict, List
 
 
-def empty_record() -> dict:
-    return {
-        "file": {},
-        "os_times": {},
-        "hashes": {},
-        "meta_times": {},
-        "identity": {},
-        "capture": {},
-        "geo": {},
-        "media": {},
-        "signals": {
-            "privacy_flags": {},
-            "risk_summary": "",
-            "risk_score": 0,
-            "reason_codes": [],
-            "timeline_flags": {"time_mismatch": False, "reason_codes": [], "short_explain": ""},
-        },
-        "raw": {},
-    }
-
-
-def has_top_level_keys(record: dict) -> bool:
-    try:
-        return set(record.keys()) == set(TOP_LEVEL_KEYS)
-    except Exception:
-        return False
+@dataclass(frozen=True)
+class ScanRecord:
+    path: str
+    mime: str
+    size_bytes: int
+    sha256: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    warnings: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
