@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from engine import scan_file
@@ -31,6 +32,10 @@ def _first_jsonl_line(path: Path) -> str:
     return ""
 
 
+def _has_ffprobe() -> bool:
+    return shutil.which("ffprobe") is not None
+
+
 def test_scan_matches_golden() -> None:
     tests_dir = Path(__file__).parent
     fixtures_dir = tests_dir / "fixtures"
@@ -38,6 +43,9 @@ def test_scan_matches_golden() -> None:
 
     for fixture in sorted(fixtures_dir.glob("*")):
         if not fixture.is_file():
+            continue
+
+        if fixture.suffix.lower() == ".mp4" and not _has_ffprobe():
             continue
 
         golden = golden_dir / (fixture.name + ".jsonl")
