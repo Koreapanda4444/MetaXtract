@@ -12,6 +12,8 @@ from report_html import render_report_html
 from utils import dumps_json, write_jsonl
 from verify import verify_scan
 from doctor import print_doctor
+
+
 def _cmd_doctor(_args: argparse.Namespace) -> int:
     print_doctor()
     return 0
@@ -113,7 +115,6 @@ def build_parser() -> argparse.ArgumentParser:
     exp.add_argument("scan", help="input scan.jsonl")
     exp.add_argument("out", help="output zip path")
     exp.set_defaults(func=_cmd_export_bundle)
-
 
     gui = sub.add_parser("gui", help="launch the GUI")
     gui.set_defaults(func=_cmd_gui)

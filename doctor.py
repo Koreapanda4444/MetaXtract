@@ -15,6 +15,7 @@ REQUIRED_PACKAGES = [
     ("pypdf", "PDF 추출에 권장"),
 ]
 
+
 def check_binaries():
     results = []
     for name, desc in REQUIRED_BINARIES:
@@ -27,6 +28,7 @@ def check_binaries():
         })
     return results
 
+
 def check_python_deps():
     results = []
     for pkg, desc in REQUIRED_PACKAGES:
@@ -38,12 +40,14 @@ def check_python_deps():
         })
     return results
 
+
 def check_env():
     return {
         "os": platform.platform(),
         "python_version": sys.version,
         "executable": sys.executable
     }
+
 
 def run_doctor():
     env = check_env()
@@ -60,6 +64,7 @@ def run_doctor():
         "python_packages": pkgs,
         "warnings": warnings
     }
+
 
 def print_doctor():
     result = run_doctor()
