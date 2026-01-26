@@ -9,7 +9,7 @@ from diff_report import diff_jsonl
 from engine import scan_path
 from cache import CacheStore
 from report import build_report
-from report_html import render_report_html
+from report_html import render_html
 from utils import dumps_json, write_jsonl
 from verify import verify_scan
 from doctor import print_doctor
@@ -42,17 +42,30 @@ def _cmd_cache_purge(args: argparse.Namespace) -> int:
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
-    rep = build_report(args.scan)
-    out_text = dumps_json(rep)
-    if args.out:
-        Path(args.out).write_text(out_text + "\n", encoding="utf-8")
+    # scan.jsonl을 읽어서 records 리스트로 변환
+    from utils import read_jsonl
+    records = read_jsonl(args.scan)
+    fmt = getattr(args, "format", None) or ("html" if getattr(args, "html", False) else "json")
+    if fmt == "html":
+        html = render_html(records)
+        if args.out:
+            Path(args.out).write_text(html + "\n", encoding="utf-8")
+        else:
+            print(html)
     else:
-        print(out_text)
+        rep = build_report(args.scan)
+        out_text = dumps_json(rep)
+        if args.out:
+            Path(args.out).write_text(out_text + "\n", encoding="utf-8")
+        else:
+            print(out_text)
     return 0
 
 
 def _cmd_report_html(args: argparse.Namespace) -> int:
-    html = render_report_html(args.scan)
+    from utils import read_jsonl
+    records = read_jsonl(args.scan)
+    html = render_html(records)
     if args.out:
         Path(args.out).write_text(html + "\n", encoding="utf-8")
     else:
@@ -120,9 +133,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     purge.set_defaults(func=_cmd_cache_purge)
 
-    rep = sub.add_parser("report", help="build a JSON summary report from a scan.jsonl")
+    rep = sub.add_parser("report", help="build a report from a scan.jsonl (JSON or HTML)")
     rep.add_argument("scan", help="input scan.jsonl")
-    rep.add_argument("--out", help="output report.json path (default: stdout)")
+    rep.add_argument("--out", help="output report path (default: stdout)")
+    rep.add_argument("--format", choices=["json", "html"], help="report format (json or html)")
+    rep.add_argument("--html", action="store_true", help="shortcut for --format html")
     rep.set_defaults(func=_cmd_report)
 
     rep_h = sub.add_parser("report-html", help="build an HTML report from a scan.jsonl")
