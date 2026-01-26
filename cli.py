@@ -7,6 +7,7 @@ from typing import List, Optional
 from bundle_export import export_bundle
 from diff_report import diff_jsonl
 from engine import scan_path
+from cache import CacheStore
 from report import build_report
 from report_html import render_report_html
 from utils import dumps_json, write_jsonl
@@ -20,12 +21,23 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:
-    records = scan_path(args.path)
+    cache_enabled = args.cache != "off"
+    cache_dir = args.cache_dir or ".metaxtract_cache"
+    cache = CacheStore(cache_dir) if cache_enabled else None
+    records = scan_path(args.path, cache=cache, cache_enabled=cache_enabled)
     if args.out:
         write_jsonl(args.out, records)
     else:
         for r in records:
             print(dumps_json(r))
+    return 0
+
+
+def _cmd_cache_purge(args: argparse.Namespace) -> int:
+    cache_dir = args.cache_dir or ".metaxtract_cache"
+    cache = CacheStore(cache_dir)
+    cache.purge()
+    print(f"Cache purged: {cache_dir}")
     return 0
 
 
@@ -82,13 +94,31 @@ def _cmd_gui(_args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="metaxtract", description="MetaXtract metadata scanner")
+    p = argparse.ArgumentParser(
+        prog="metaxtract",
+        description="MetaXtract metadata scanner"
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
 
     scan = sub.add_parser("scan", help="scan a file or folder and emit JSONL")
     scan.add_argument("path", help="file or folder to scan")
     scan.add_argument("--out", help="output JSONL path (default: stdout)")
+    scan.add_argument(
+        "--cache", choices=["on", "off"], default="on",
+        help="enable/disable scan cache (default: on)"
+    )
+    scan.add_argument(
+        "--cache-dir", help="cache directory (default: .metaxtract_cache)"
+    )
     scan.set_defaults(func=_cmd_scan)
+
+    cache_cmd = sub.add_parser("cache", help="cache 관리 명령어")
+    cache_cmd_sub = cache_cmd.add_subparsers(dest="cache_cmd", required=True)
+    purge = cache_cmd_sub.add_parser("purge", help="캐시 전체 삭제")
+    purge.add_argument(
+        "--cache-dir", help="cache directory (default: .metaxtract_cache)"
+    )
+    purge.set_defaults(func=_cmd_cache_purge)
 
     rep = sub.add_parser("report", help="build a JSON summary report from a scan.jsonl")
     rep.add_argument("scan", help="input scan.jsonl")

@@ -7,8 +7,10 @@ from extract_docx import extract_docx
 from extract_image import extract_image
 from extract_pdf import extract_pdf
 from extract_video import extract_video
+
 from schema import ScanRecord
 from utils import PathLike, get_relpath, guess_mime, iter_files, safe_stat, sha256_file
+from cache import CacheStore
 
 
 Extractor = Callable[[PathLike], Tuple[Dict[str, object], List[str]]]
@@ -27,10 +29,25 @@ def _select_extractor(mime: str, path: PathLike) -> Extractor:
     return lambda _p: ({}, [])
 
 
-def scan_file(path: PathLike, base: PathLike | None = None) -> ScanRecord:
+def scan_file(
+    path: PathLike,
+    base: PathLike | None = None,
+    cache: CacheStore = None,
+    cache_mode: str = "sha256",
+    cache_enabled: bool = True,
+) -> ScanRecord:
     p = Path(path)
     st = safe_stat(p)
     mime = guess_mime(p)
+
+    # 캐시 조회
+    if cache_enabled and cache is not None:
+        cached = cache.get(str(p), mode=cache_mode)
+        if cached is not None:
+            rec = ScanRecord(**cached)
+            rec.metadata = dict(rec.metadata)
+            rec.metadata["cache_hit"] = True
+            return rec
 
     warnings: List[str] = []
     errors: List[str] = []
@@ -52,7 +69,7 @@ def scan_file(path: PathLike, base: PathLike | None = None) -> ScanRecord:
     md = dict(md)
     md["mtime"] = st["mtime"]
 
-    return ScanRecord(
+    rec = ScanRecord(
         path=get_relpath(p, base),
         mime=mime,
         size_bytes=st["size_bytes"],
@@ -61,11 +78,33 @@ def scan_file(path: PathLike, base: PathLike | None = None) -> ScanRecord:
         warnings=warnings,
         errors=errors,
     )
+    # 캐시 저장
+    if cache_enabled and cache is not None:
+        cache.set(
+            str(p),
+            rec.model_dump() if hasattr(rec, "model_dump") else rec.__dict__,
+            mode=cache_mode
+        )
+    return rec
 
 
-def scan_path(root: PathLike) -> List[ScanRecord]:
+def scan_path(
+    root: PathLike,
+    cache: CacheStore = None,
+    cache_mode: str = "sha256",
+    cache_enabled: bool = True,
+) -> List[ScanRecord]:
     base = Path(root)
     files = list(iter_files(base))
-    records = [scan_file(p, base=base) for p in files]
+    records = [
+        scan_file(
+            p,
+            base=base,
+            cache=cache,
+            cache_mode=cache_mode,
+            cache_enabled=cache_enabled
+        )
+        for p in files
+    ]
     records.sort(key=lambda r: r.path)
     return records
