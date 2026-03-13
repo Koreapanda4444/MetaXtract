@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 from typing import List, Optional
 
-from bundle_export import export_bundle
+from bundle_export import export_case_bundle
 from diff_report import diff_jsonl
 from engine import scan_path
 from cache import CacheStore
@@ -93,9 +93,16 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_export_bundle(args: argparse.Namespace) -> int:
-    export_bundle(args.scan, args.out)
-    print(str(args.out))
+def _cmd_export_case(args: argparse.Namespace) -> int:
+    export_case_bundle(
+        args.scan,
+        args.out,
+        include_files=getattr(args, "include_files", False),
+        redact=getattr(args, "redact", False),
+        case_id=getattr(args, "case_id", None),
+        notes=getattr(args, "notes", None),
+        files_base=getattr(args, "files_base", None)
+    )
     return 0
 
 
@@ -159,10 +166,20 @@ def build_parser() -> argparse.ArgumentParser:
     exp = sub.add_parser("export-bundle", help="export scan + report into a ZIP bundle")
     exp.add_argument("scan", help="input scan.jsonl")
     exp.add_argument("out", help="output zip path")
-    exp.set_defaults(func=_cmd_export_bundle)
+    # exp.set_defaults(func=_cmd_export_bundle)  # deprecated: export-case 사용
 
-    gui = sub.add_parser("gui", help="launch the GUI")
-    gui.set_defaults(func=_cmd_gui)
+    exp_case = sub.add_parser(
+        "export-case",
+        help="케이스 번들(zip) 생성: manifest, hashes, report, files 등 포함"
+    )
+    exp_case.add_argument("scan", help="input scan.jsonl")
+    exp_case.add_argument("out", help="output zip path")
+    exp_case.add_argument("--include-files", action="store_true", help="원본 파일도 zip에 포함")
+    exp_case.add_argument("--files-base", help="원본 파일 기준 디렉토리 (기본: scan.jsonl 경로 기준)")
+    exp_case.add_argument("--redact", action="store_true", help="민감정보 마스킹 버전도 포함")
+    exp_case.add_argument("--case-id", help="케이스 ID")
+    exp_case.add_argument("--notes", help="비고/메모")
+    exp_case.set_defaults(func=_cmd_export_case)
 
     doctor = sub.add_parser("doctor", help="환경 및 의존성 진단")
     doctor.set_defaults(func=_cmd_doctor)
