@@ -60,3 +60,47 @@ python cli.py scan tests/fixtures --out scan.jsonl
 python cli.py report scan.jsonl --out report.json
 python -m pytest
 ```
+
+## 개발자 가이드 (How to contribute)
+
+### 개발 커맨드
+
+| 커맨드 | 설명 |
+|---|---|
+| `make lint` | flake8 lint 검사 |
+| `make test` | pytest 전체 테스트 실행 |
+| `make regen-fixtures` | `tests/fixtures/` 샘플 파일 재생성 |
+| `make regen-golden` | `tests/golden/` golden 파일 재생성 |
+
+### 빠른 시작
+
+```bash
+# 의존성 설치
+pip install -r requirements.txt
+
+# lint 검사
+make lint
+
+# 테스트 실행
+make test
+
+# fixture 재생성 (테스트용 샘플 파일 갱신)
+make regen-fixtures
+
+# golden 재생성 (스캔 결과 기준값 갱신)
+make regen-golden
+```
+
+### 디렉토리 구조
+
+```
+tests/
+├── fixtures/        # 테스트용 샘플 파일 (jpg, pdf, docx 등)
+├── golden/          # 스캔 결과 기준값 (.jsonl)
+├── gen_fixtures.py  # fixture 생성 로직
+├── gen_golden.py    # golden 생성 로직
+└── test_*.py        # pytest 테스트
+scripts/
+├── regen_fixtures.py  # make regen-fixtures 진입점
+└── regen_golden.py    # make regen-golden 진입점
+```
