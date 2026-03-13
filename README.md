@@ -1,106 +1,136 @@
 # MetaXtract
 
-MetaXtract is a small, deterministic metadata scanner that can extract basic metadata from:
+MetaXtract v0.1.0 is a deterministic metadata scanner for local files. It focuses on repeatable extraction, simple JSONL output, and lightweight reporting for small forensic or archival workflows.
 
-- Images (JPEG/PNG) via Pillow (EXIF + basic properties)
-- PDFs via PyPDF2
-- DOCX via python-docx
-- Videos (optional) via ffprobe if available
+It currently ships with a CLI and a minimal GUI entry point.
 
-It supports a CLI (`python cli.py scan <path>`) and a minimal GUI (`python gui.py`).
+## 설치
 
+### 요구 사항
 
-## 필수/선택 의존성
+- Python 3.11+
+- pip
+- Optional: ffprobe for video metadata
+- Optional: ffmpeg for generating local test fixtures
 
-MetaXtract는 아래 의존성에 따라 기능이 제한될 수 있습니다:
+### 설치 방법
 
-- **외부 바이너리**
-	- ffprobe: 영상 메타데이터 추출 (없으면 영상 분석 제한)
-	- ffmpeg: 영상/오디오 처리 (권장)
-	- exiftool: 이미지/문서 메타데이터 추출 (권장)
-- **파이썬 패키지**
-	- Pillow: 이미지 처리 (없으면 이미지 분석 제한)
-	- python-docx: docx 문서 추출
-	- PyPDF2/pypdf: PDF 추출
+```bash
+git clone https://github.com/Koreapanda4444/MetaXtract.git
+cd MetaXtract
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install pytest flake8
+```
 
-## 환경 진단 (doctor)
+Windows에서는 저장소에 포함된 make.bat 덕분에 별도 GNU Make 없이도 make lint, make test를 그대로 사용할 수 있습니다.
 
-환경 및 의존성 문제를 진단하려면:
+### 버전 확인
+
+```bash
+python -c "import metaxtract; print(metaxtract.__version__)"
+```
+
+## 지원 포맷
+
+| 포맷 | 확장자 예시 | 처리 방식 | 비고 |
+|---|---|---|---|
+| 이미지 | jpg, jpeg, png | Pillow | EXIF 및 기본 속성 추출 |
+| PDF | pdf | PyPDF2 | 문서 메타데이터 추출 |
+| DOCX | docx | python-docx | core properties 추출 |
+| 비디오 | mp4 등 | ffprobe | ffprobe가 있어야 분석 가능 |
+
+## CLI 사용 예시
+
+### 1. 스캔
+
+```bash
+python cli.py scan tests/fixtures --out scan.jsonl
+```
+
+### 2. JSON 리포트 생성
+
+```bash
+python cli.py report scan.jsonl --out report.json
+```
+
+### 3. HTML 리포트 생성
+
+```bash
+python cli.py report scan.jsonl --format html --out report.html
+```
+
+### 4. 케이스 번들 생성
+
+```bash
+python cli.py export-case scan.jsonl case_bundle.zip --case-id CASE-001 --notes "first release sample"
+```
+
+원본 파일까지 포함하려면:
+
+```bash
+python cli.py export-case scan.jsonl case_bundle.zip --include-files --files-base tests/fixtures
+```
+
+### 5. 환경 진단
 
 ```bash
 python cli.py doctor
-# 또는
-python -m metaxtract doctor
 ```
 
-예시 출력:
-```
-[환경 정보]
-OS: Windows-10-10.0.19045-SP0
-Python: 3.11.7 (main, Jan  1 2026, ...)
-실행 파일: C:/Users/user/miniconda3/python.exe
+## 출력물
 
-[외부 바이너리]
-O ffprobe: 영상 메타데이터 분석에 필요 (C:/ffmpeg/bin/ffprobe.exe)
-X exiftool: 이미지/문서 메타데이터 추출에 권장 (없음)
+- scan: JSONL 레코드 목록
+- report: JSON 또는 HTML 요약 리포트
+- export-case: manifest, hashes, report, optional files를 포함한 ZIP 번들
+- verify: JSONL 해시와 실제 파일 일치 여부 검증
 
-[파이썬 패키지]
-O Pillow: 이미지 처리에 필요
-X PyPDF2: PDF 추출에 권장
+## 제한 사항
 
-[경고/권장사항]
-[경고] ffprobe가 없으므로 영상 메타데이터 분석이 제한됩니다.
-[경고] Pillow가 없으므로 이미지 추출이 제한됩니다.
-```
+- 비디오 메타데이터는 ffprobe가 설치되어 있어야 합니다.
+- 테스트용 mp4 fixture 생성은 ffmpeg가 없으면 건너뜁니다.
+- 추출 가능한 메타데이터 범위는 각 라이브러리와 원본 파일 상태에 따라 달라집니다.
+- 현재 패키징 배포보다는 저장소 실행 방식에 맞춰져 있습니다.
 
-## Quick start
+## 빠른 시작
 
 ```bash
 python cli.py scan tests/fixtures --out scan.jsonl
 python cli.py report scan.jsonl --out report.json
-python -m pytest
+python cli.py doctor
 ```
 
-## 개발자 가이드 (How to contribute)
+## 개발
 
 ### 개발 커맨드
 
 | 커맨드 | 설명 |
 |---|---|
-| `make lint` | flake8 lint 검사 |
-| `make test` | pytest 전체 테스트 실행 |
-| `make regen-fixtures` | `tests/fixtures/` 샘플 파일 재생성 |
-| `make regen-golden` | `tests/golden/` golden 파일 재생성 |
+| make lint | flake8 실행 |
+| make test | pytest 실행 |
+| make regen-fixtures | tests/fixtures 재생성 |
+| make regen-golden | tests/golden 재생성 |
 
-### 빠른 시작
+### 기여용 체크리스트
 
 ```bash
-# 의존성 설치
-pip install -r requirements.txt
-
-# lint 검사
 make lint
-
-# 테스트 실행
 make test
+```
 
-# fixture 재생성 (테스트용 샘플 파일 갱신)
+fixture 또는 golden을 갱신해야 하는 변경이라면 아래도 함께 실행합니다.
+
+```bash
 make regen-fixtures
-
-# golden 재생성 (스캔 결과 기준값 갱신)
 make regen-golden
 ```
 
-### 디렉토리 구조
+## CI
 
-```
-tests/
-├── fixtures/        # 테스트용 샘플 파일 (jpg, pdf, docx 등)
-├── golden/          # 스캔 결과 기준값 (.jsonl)
-├── gen_fixtures.py  # fixture 생성 로직
-├── gen_golden.py    # golden 생성 로직
-└── test_*.py        # pytest 테스트
-scripts/
-├── regen_fixtures.py  # make regen-fixtures 진입점
-└── regen_golden.py    # make regen-golden 진입점
-```
+GitHub Actions workflow는 lint와 pytest를 실행합니다. 릴리스 태그를 달기 전에는 로컬에서 make lint, make test가 동일하게 통과하는 상태를 기준으로 삼습니다.
+
+## 변경 이력
+
+v0.1.0 변경 내역은 CHANGELOG.md를 참고하세요.
