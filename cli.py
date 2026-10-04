@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -24,7 +25,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     cache_enabled = args.cache != "off"
     cache_dir = args.cache_dir or ".metaxtract_cache"
     cache = CacheStore(cache_dir) if cache_enabled else None
-    records = scan_path(args.path, cache=cache, cache_enabled=cache_enabled)
+    try:
+        records = scan_path(args.path, cache=cache, cache_enabled=cache_enabled)
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        print(f"scan failed: {exc}", file=sys.stderr)
+        return 2
     if args.out:
         write_jsonl(args.out, records)
     else:

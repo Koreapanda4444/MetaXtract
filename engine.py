@@ -37,18 +37,33 @@ def scan_file(
     cache_enabled: bool = True,
 ) -> ScanRecord:
     p = Path(path)
-    st = safe_stat(p)
     mime = guess_mime(p)
+    record_path = get_relpath(p, base)
 
-    # 캐시 조회
+    try:
+        st = safe_stat(p)
+    except OSError as exc:
+        return ScanRecord(
+            path=record_path,
+            mime=mime,
+            size_bytes=0,
+            sha256="",
+            metadata={},
+            warnings=[],
+            errors=[f"stat_failed:{type(exc).__name__}"],
+        )
+
     if cache_enabled and cache is not None:
-        cached = cache.get(str(p), mode=cache_mode)
+        try:
+            cached = cache.get(str(p), mode=cache_mode)
+        except OSError:
+            cached = None
         if cached is not None:
             metadata = dict(cached.get("metadata") or {})
             metadata["mtime"] = st["mtime"]
             metadata["cache_hit"] = True
             return ScanRecord(
-                path=get_relpath(p, base),
+                path=record_path,
                 mime=str(cached.get("mime") or mime),
                 size_bytes=st["size_bytes"],
                 sha256=str(cached.get("sha256") or ""),
@@ -78,7 +93,7 @@ def scan_file(
     md["mtime"] = st["mtime"]
 
     rec = ScanRecord(
-        path=get_relpath(p, base),
+        path=record_path,
         mime=mime,
         size_bytes=st["size_bytes"],
         sha256=sha,
@@ -86,13 +101,15 @@ def scan_file(
         warnings=warnings,
         errors=errors,
     )
-    # 캐시 저장
-    if cache_enabled and cache is not None:
-        cache.set(
-            str(p),
-            rec.model_dump() if hasattr(rec, "model_dump") else rec.__dict__,
-            mode=cache_mode
-        )
+    if cache_enabled and cache is not None and not errors:
+        try:
+            cache.set(
+                str(p),
+                rec.model_dump() if hasattr(rec, "model_dump") else rec.__dict__,
+                mode=cache_mode,
+            )
+        except OSError:
+            pass
     return rec
 
 
@@ -102,8 +119,14 @@ def scan_path(
     cache_mode: str = "sha256",
     cache_enabled: bool = True,
 ) -> List[ScanRecord]:
-    base = Path(root)
-    files = list(iter_files(base))
+    target = Path(root)
+    if not target.exists():
+        raise FileNotFoundError(f"target does not exist: {target}")
+    if not target.is_file() and not target.is_dir():
+        raise NotADirectoryError(f"target is not a regular file or directory: {target}")
+
+    base = target.parent if target.is_file() else target
+    files = list(iter_files(target))
     records = [
         scan_file(
             p,
