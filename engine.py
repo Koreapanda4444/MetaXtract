@@ -11,6 +11,7 @@ from extract_video import extract_video
 from schema import ScanRecord
 from utils import PathLike, get_relpath, guess_mime, iter_files, safe_stat, sha256_file
 from cache import CacheStore
+from config import Settings
 
 
 Extractor = Callable[[PathLike], Tuple[Dict[str, object], List[str]]]
@@ -118,6 +119,8 @@ def scan_path(
     cache: CacheStore = None,
     cache_mode: str = "sha256",
     cache_enabled: bool = True,
+    max_files: int = Settings.max_files,
+    include_hidden: bool = Settings.include_hidden,
 ) -> List[ScanRecord]:
     target = Path(root)
     if not target.exists():
@@ -125,8 +128,21 @@ def scan_path(
     if not target.is_file() and not target.is_dir():
         raise NotADirectoryError(f"target is not a regular file or directory: {target}")
 
+    if max_files < 1:
+        raise ValueError("max_files must be at least 1")
+
     base = target.parent if target.is_file() else target
-    files = list(iter_files(target))
+    exclude_paths = [cache.cache_dir] if cache is not None else []
+    files = list(
+        iter_files(
+            target,
+            include_hidden=include_hidden,
+            max_files=max_files + 1,
+            exclude_paths=exclude_paths,
+        )
+    )
+    if len(files) > max_files:
+        raise ValueError(f"file limit exceeded: more than {max_files} files")
     records = [
         scan_file(
             p,

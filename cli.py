@@ -26,8 +26,14 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     cache_dir = args.cache_dir or ".metaxtract_cache"
     cache = CacheStore(cache_dir) if cache_enabled else None
     try:
-        records = scan_path(args.path, cache=cache, cache_enabled=cache_enabled)
-    except (FileNotFoundError, NotADirectoryError) as exc:
+        records = scan_path(
+            args.path,
+            cache=cache,
+            cache_enabled=cache_enabled,
+            max_files=args.max_files,
+            include_hidden=args.include_hidden,
+        )
+    except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
         print(f"scan failed: {exc}", file=sys.stderr)
         return 2
     if args.out:
@@ -134,6 +140,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan.add_argument(
         "--cache-dir", help="cache directory (default: .metaxtract_cache)"
+    )
+    scan.add_argument(
+        "--max-files", type=int, default=5000,
+        help="maximum number of files to scan (default: 5000)",
+    )
+    scan.add_argument(
+        "--include-hidden", action="store_true",
+        help="include hidden files and directories",
     )
     scan.set_defaults(func=_cmd_scan)
 

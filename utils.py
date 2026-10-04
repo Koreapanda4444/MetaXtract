@@ -60,15 +60,48 @@ def read_jsonl(path: PathLike) -> List[JsonObj]:
     return out
 
 
-def iter_files(root: PathLike) -> Iterator[Path]:
+def iter_files(
+    root: PathLike,
+    *,
+    include_hidden: bool = False,
+    max_files: Optional[int] = None,
+    exclude_paths: Iterable[PathLike] = (),
+) -> Iterator[Path]:
     p = Path(root)
     if p.is_file():
         yield p
         return
 
-    for cur, _dirs, files in os.walk(p):
+    excluded_names = {".git", "__pycache__", ".metaxtract_cache"}
+    excluded_paths = {Path(path).resolve() for path in exclude_paths}
+    yielded = 0
+
+    def is_excluded(path: Path) -> bool:
+        resolved = path.resolve()
+        return any(
+            resolved == excluded or resolved.is_relative_to(excluded)
+            for excluded in excluded_paths
+        )
+
+    for cur, dirs, files in os.walk(p):
+        current = Path(cur)
+        dirs[:] = sorted(
+            name
+            for name in dirs
+            if name not in excluded_names
+            and (include_hidden or not name.startswith("."))
+            and not is_excluded(current / name)
+        )
         for name in sorted(files):
-            yield Path(cur) / name
+            if not include_hidden and name.startswith("."):
+                continue
+            path = current / name
+            if is_excluded(path):
+                continue
+            yield path
+            yielded += 1
+            if max_files is not None and yielded >= max_files:
+                return
 
 
 def guess_mime(path: PathLike) -> str:
