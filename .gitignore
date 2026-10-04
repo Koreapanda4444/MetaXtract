@@ -1,8 +1,4 @@
 
-
-# allow golden outputs
-!tests/golden/
-!tests/golden/*.jsonl
 __pycache__/
 *.pyc
 .pytest_cache/

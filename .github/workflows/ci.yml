@@ -19,5 +19,9 @@ jobs:
           python -m pip install pytest flake8
       - name: Lint
         run: flake8 .
+      - name: CLI smoke test
+        run: |
+          python cli.py --help
+          python cli.py doctor
       - name: Test
         run: pytest -q
