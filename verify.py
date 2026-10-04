@@ -1,8 +1,10 @@
 
 from __future__ import annotations
+
 import zipfile
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
+
 from utils import sha256_file
 
 
@@ -32,3 +34,36 @@ def verify_bundle_hashes(bundle_zip_path: str, files_base: str = None):
 class VerifyIssue:
     path: str
     issue: str
+
+
+def verify_scan(scan_jsonl_path: str, files_base: str):
+    from utils import read_jsonl
+
+    issues = []
+    base = Path(files_base)
+    for row in read_jsonl(scan_jsonl_path):
+        rel = row.get("path")
+        if not isinstance(rel, str) or not rel:
+            issues.append({"path": str(rel or ""), "issue": "invalid_path"})
+            continue
+
+        path = base / rel
+        if not path.is_file():
+            issues.append({"path": rel, "issue": "missing"})
+            continue
+
+        expected = row.get("sha256")
+        if not isinstance(expected, str) or not expected:
+            issues.append({"path": rel, "issue": "missing_hash"})
+            continue
+
+        try:
+            actual = sha256_file(path)
+        except OSError as exc:
+            issues.append({"path": rel, "issue": f"read_failed:{type(exc).__name__}"})
+            continue
+
+        if actual != expected:
+            issues.append({"path": rel, "issue": "hash_mismatch"})
+
+    return issues

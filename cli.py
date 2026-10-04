@@ -166,7 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
     exp = sub.add_parser("export-bundle", help="export scan + report into a ZIP bundle")
     exp.add_argument("scan", help="input scan.jsonl")
     exp.add_argument("out", help="output zip path")
-    # exp.set_defaults(func=_cmd_export_bundle)  # deprecated: export-case 사용
+    exp.set_defaults(func=_cmd_export_case)
 
     exp_case = sub.add_parser(
         "export-case",
@@ -183,6 +183,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = sub.add_parser("doctor", help="환경 및 의존성 진단")
     doctor.set_defaults(func=_cmd_doctor)
+
+    gui = sub.add_parser("gui", help="launch the desktop GUI")
+    gui.set_defaults(func=_cmd_gui)
 
     return p
 
