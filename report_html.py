@@ -3,6 +3,8 @@ import html
 from collections import Counter
 from typing import Any, Dict, List
 
+from findings import collect_findings
+
 
 def render_html(records: List[Dict[str, Any]]) -> str:
     def _li(k: str, v: Any) -> str:
@@ -10,26 +12,17 @@ def render_html(records: List[Dict[str, Any]]) -> str:
 
     # 파일 요약
     total_files = len(records)
-    total_size = sum(r.get("size_bytes", 0) for r in records)
+    total_size = sum(
+        value if isinstance(value, (int, float)) else 0
+        for value in (r.get("size_bytes", 0) for r in records)
+    )
     mime_counts = Counter(r.get("mime", "") for r in records)
 
-    # 주요 발견사항 예시: GPS, 작성자, 편집툴, 타임라인 이상
-    gps_files = [r for r in records if "gps" in (r.get("metadata") or {})]
-    authors = Counter(
-        (r.get("metadata") or {}).get("author")
-        for r in records
-        if (r.get("metadata") or {}).get("author")
-    )
-    producers = Counter(
-        (r.get("metadata") or {}).get("producer")
-        for r in records
-        if (r.get("metadata") or {}).get("producer")
-    )
-    models = Counter(
-        (r.get("metadata") or {}).get("model")
-        for r in records
-        if (r.get("metadata") or {}).get("model")
-    )
+    findings = collect_findings(records)
+    gps_files = findings["gps_files"]
+    authors = findings["authors"]
+    producers = findings["producers"]
+    models = findings["models"]
 
     warnings = []
     errors = []
@@ -120,12 +113,15 @@ def render_html(records: List[Dict[str, Any]]) -> str:
         "<th>경고</th><th>오류</th></tr>"
     )
     for r in records:
+        size = html.escape(str(r.get("size_bytes", "")))
+        warning_text = html.escape("|".join(map(str, r.get("warnings") or [])))
+        error_text = html.escape("|".join(map(str, r.get("errors") or [])))
         parts.append(
             f"<tr><td>{html.escape(str(r.get('path', '')))}</td>"
             f"<td>{html.escape(str(r.get('mime', '')))}</td>"
-            f"<td>{r.get('size_bytes', '')}</td>"
-            f"<td>{'|'.join(map(str, r.get('warnings') or []))}</td>"
-            f"<td>{'|'.join(map(str, r.get('errors') or []))}</td></tr>"
+            f"<td>{size}</td>"
+            f"<td>{warning_text}</td>"
+            f"<td>{error_text}</td></tr>"
         )
     parts.append("</table>")
 
