@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Tuple
 
 from PIL import Image, ExifTags
@@ -30,16 +31,19 @@ def _dms_to_deg(dms: Tuple[Any, Any, Any]) -> float:
 
 
 def _extract_gps(gps_ifd: Any) -> Dict[str, Any]:
-    # GPS IFD uses numeric keys:
-    # 1 lat ref, 2 lat, 3 lon ref, 4 lon
     out: Dict[str, Any] = {}
     if not isinstance(gps_ifd, dict):
         return out
 
-    lat_ref = gps_ifd.get(1)
-    lat = gps_ifd.get(2)
-    lon_ref = gps_ifd.get(3)
-    lon = gps_ifd.get(4)
+    lat_ref = gps_ifd.get(1, gps_ifd.get("GPSLatitudeRef"))
+    lat = gps_ifd.get(2, gps_ifd.get("GPSLatitude"))
+    lon_ref = gps_ifd.get(3, gps_ifd.get("GPSLongitudeRef"))
+    lon = gps_ifd.get(4, gps_ifd.get("GPSLongitude"))
+
+    if isinstance(lat_ref, bytes):
+        lat_ref = lat_ref.decode("ascii", errors="ignore")
+    if isinstance(lon_ref, bytes):
+        lon_ref = lon_ref.decode("ascii", errors="ignore")
 
     if (
         isinstance(lat, (tuple, list))
@@ -53,8 +57,14 @@ def _extract_gps(gps_ifd: Any) -> Dict[str, Any]:
             lat_deg = -lat_deg
         if str(lon_ref).upper().startswith("W"):
             lon_deg = -lon_deg
-        out["gps_latitude"] = lat_deg
-        out["gps_longitude"] = lon_deg
+        if (
+            math.isfinite(lat_deg)
+            and math.isfinite(lon_deg)
+            and -90 <= lat_deg <= 90
+            and -180 <= lon_deg <= 180
+        ):
+            out["gps_latitude"] = lat_deg
+            out["gps_longitude"] = lon_deg
     return out
 
 
@@ -87,7 +97,10 @@ def extract_image(path: PathLike) -> Tuple[Dict[str, Any], List[str]]:
             if dt_tag and dt_tag in exif:
                 md["exif_datetime_original"] = str(exif.get(dt_tag))
 
-            gps_ifd = exif.get(_GPS_TAG)
+            try:
+                gps_ifd = exif.get_ifd(_GPS_TAG)
+            except (AttributeError, KeyError, TypeError, ValueError):
+                gps_ifd = exif.get(_GPS_TAG)
             md.update(_extract_gps(gps_ifd))
 
     return md, warnings
