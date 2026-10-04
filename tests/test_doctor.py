@@ -6,6 +6,7 @@ def test_dependency_checks_use_import_module_names():
 
     assert dependencies["Pillow"]["module"] == "PIL"
     assert dependencies["python-docx"]["module"] == "docx"
+    assert dependencies["pypdf"]["module"] == "pypdf"
     assert dependencies["Pillow"]["found"] is True
     assert dependencies["python-docx"]["found"] is True
 

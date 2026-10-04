@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from utils import PathLike
 
@@ -20,7 +20,6 @@ def extract_pdf(path: PathLike) -> Tuple[Dict[str, Any], List[str]]:
         info = None
 
     if info:
-        # PyPDF2 metadata values can be indirect or weird; coerce to strings.
         for key in ("/Title", "/Author", "/Subject", "/Creator", "/Producer"):
             if key in info and info[key]:
                 md[f"pdf_{key.strip('/').lower()}"] = str(info[key])

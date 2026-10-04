@@ -18,8 +18,8 @@ PYTHON_DEPENDENCIES = [
         "description": "DOCX metadata extraction",
     },
     {
-        "name": "PyPDF2",
-        "module": "PyPDF2",
+        "name": "pypdf",
+        "module": "pypdf",
         "required": True,
         "description": "PDF metadata extraction",
     },
