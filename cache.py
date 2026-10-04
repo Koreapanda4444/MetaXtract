@@ -1,5 +1,5 @@
-import json
 import hashlib
+import json
 from pathlib import Path
 from threading import RLock
 
@@ -8,8 +8,45 @@ class CacheStore:
     def __init__(self, cache_dir: str = ".metaxtract_cache"):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.index_path = self.cache_dir / "cache_index.jsonl"
+        self.index_path = self.cache_dir / "cache_index.json"
+        self.legacy_index_path = self.cache_dir / "cache_index.jsonl"
         self.lock = RLock()
+
+    def _load_entries(self):
+        if self.index_path.exists():
+            try:
+                data = json.loads(self.index_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                return {}
+            entries = data.get("entries") if isinstance(data, dict) else None
+            return entries if isinstance(entries, dict) else {}
+
+        entries = {}
+        if self.legacy_index_path.exists():
+            try:
+                lines = self.legacy_index_path.read_text(encoding="utf-8").splitlines()
+            except (OSError, UnicodeError):
+                return {}
+            for line in lines:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                key = record.get("key") if isinstance(record, dict) else None
+                if isinstance(key, str) and isinstance(record.get("result"), dict):
+                    entries[key] = record["result"]
+        return entries
+
+    def _save_entries(self, entries):
+        payload = {"version": 1, "entries": entries}
+        temp_path = self.index_path.with_suffix(".tmp")
+        temp_path.write_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
+        )
+        temp_path.replace(self.index_path)
+        if self.legacy_index_path.exists():
+            self.legacy_index_path.unlink()
 
     def _file_key(self, path: str, mode: str = "sha256"):
         p = Path(path)
@@ -34,32 +71,24 @@ class CacheStore:
     def get(self, path: str, mode: str = "sha256"):
         key = self._file_key(path, mode)
         with self.lock:
-            if not self.index_path.exists():
-                return None
-            with open(self.index_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    rec = json.loads(line)
-                    if rec.get("key") == key:
-                        return rec.get("result")
-        return None
+            result = self._load_entries().get(key)
+            return dict(result) if isinstance(result, dict) else None
 
     def set(self, path: str, result, mode: str = "sha256"):
         key = self._file_key(path, mode)
-        rec = {"key": key, "result": result}
         with self.lock:
-            with open(self.index_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            entries = self._load_entries()
+            entries[key] = result
+            self._save_entries(entries)
 
     def purge(self):
         with self.lock:
-            if self.index_path.exists():
-                self.index_path.unlink()
+            for path in (self.index_path, self.legacy_index_path):
+                if path.exists():
+                    path.unlink()
 
     def stats(self):
         with self.lock:
-            if not self.index_path.exists():
-                return {"entries": 0, "size": 0}
-            size = self.index_path.stat().st_size
-            with open(self.index_path, "r", encoding="utf-8") as f:
-                entries = sum(1 for _ in f)
-            return {"entries": entries, "size": size}
+            entries = self._load_entries()
+            size = self.index_path.stat().st_size if self.index_path.exists() else 0
+            return {"entries": len(entries), "size": size}
