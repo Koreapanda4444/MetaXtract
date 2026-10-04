@@ -9,6 +9,10 @@ from utils import JsonObj, read_jsonl
 
 def build_report(scan_jsonl_path: str) -> Dict[str, Any]:
     rows: List[JsonObj] = read_jsonl(scan_jsonl_path)
+    return build_report_from_rows(rows)
+
+
+def build_report_from_rows(rows: List[JsonObj]) -> Dict[str, Any]:
     mime_counts = Counter(r.get("mime", "") for r in rows)
     warnings = Counter(w for r in rows for w in (r.get("warnings") or []))
     errors = Counter(e for r in rows for e in (r.get("errors") or []))

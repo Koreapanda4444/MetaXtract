@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import zipfile
 from pathlib import Path
 from typing import List, Optional
 
@@ -105,15 +106,19 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
 
 def _cmd_export_case(args: argparse.Namespace) -> int:
-    export_case_bundle(
-        args.scan,
-        args.out,
-        include_files=getattr(args, "include_files", False),
-        redact=getattr(args, "redact", False),
-        case_id=getattr(args, "case_id", None),
-        notes=getattr(args, "notes", None),
-        files_base=getattr(args, "files_base", None)
-    )
+    try:
+        export_case_bundle(
+            args.scan,
+            args.out,
+            include_files=getattr(args, "include_files", False),
+            redact=getattr(args, "redact", False),
+            case_id=getattr(args, "case_id", None),
+            notes=getattr(args, "notes", None),
+            files_base=getattr(args, "files_base", None),
+        )
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        print(f"export failed: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 

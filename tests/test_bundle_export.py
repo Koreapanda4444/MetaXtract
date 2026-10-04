@@ -1,5 +1,9 @@
 
+import json
 import zipfile
+
+import pytest
+
 from bundle_export import export_case_bundle
 
 
@@ -24,3 +28,47 @@ def test_export_case_bundle(tmp_path):
         assert "manifest.json" in names
         assert "hashes.txt" in names
         assert "reports/report.json" in names
+
+
+def test_redacted_bundle_removes_sensitive_metadata(tmp_path):
+    scan_path = tmp_path / "scan.jsonl"
+    record = {
+        "path": "photo.jpg",
+        "sha256": "dummyhash",
+        "mime": "image/jpeg",
+        "size_bytes": 1,
+        "metadata": {
+            "gps_latitude": 37.5,
+            "gps_longitude": 127.0,
+            "exif_datetime_original": "2026:01:02 03:04:05",
+            "docx_author": "Private Person",
+            "width": 100,
+        },
+    }
+    scan_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    out_zip = tmp_path / "redacted.zip"
+
+    export_case_bundle(scan_path, out_zip, redact=True)
+
+    with zipfile.ZipFile(out_zip, "r") as zf:
+        bundled_scan = json.loads(zf.read("scan.jsonl"))
+        manifest = json.loads(zf.read("manifest.json"))
+        report = json.loads(zf.read("reports/report.json"))
+
+    assert bundled_scan["metadata"] == {"width": 100}
+    assert manifest["redacted"] is True
+    assert report["findings"]["gps_files"] == []
+    assert report["findings"]["authors"] == {}
+
+
+def test_redaction_rejects_raw_file_inclusion(tmp_path):
+    scan_path = tmp_path / "scan.jsonl"
+    scan_path.write_text("", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="cannot be combined"):
+        export_case_bundle(
+            scan_path,
+            tmp_path / "case.zip",
+            redact=True,
+            include_files=True,
+        )

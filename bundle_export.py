@@ -5,7 +5,8 @@ from pathlib import Path
 
 
 import json
-from report import build_report
+from report import build_report_from_rows
+from sanitize import sanitize_row
 from utils import PathLike, dumps_json, read_jsonl
 from manifest import build_manifest
 
@@ -22,31 +23,35 @@ def export_case_bundle(
 ) -> None:
     """케이스 번들(zip) 생성: manifest, scan, hashes, report, (옵션)원본파일 포함"""
     scan_rows = read_jsonl(scan_jsonl_path)
-    report = build_report(str(scan_jsonl_path))
+    if redact and include_files:
+        raise ValueError("--redact cannot be combined with --include-files")
+
+    output_rows = [sanitize_row(row) for row in scan_rows] if redact else scan_rows
+    report = build_report_from_rows(output_rows)
     hashes = []
-    for r in scan_rows:
+    for r in output_rows:
         hashes.append(f"{r.get('sha256', '')}\t{r.get('path', '')}")
 
     manifest_opts = {
         "case_id": case_id,
         "notes": notes,
-        "hashes": [r.get("sha256", "") for r in scan_rows],
+        "hashes": [r.get("sha256", "") for r in output_rows],
         "redacted": redact,
     }
-    manifest = build_manifest(scan_rows, manifest_opts)
+    manifest = build_manifest(output_rows, manifest_opts)
 
     out = Path(out_zip_path)
     out.parent.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
-        zf.writestr("scan.jsonl", "\n".join(dumps_json(r) for r in scan_rows) + "\n")
+        zf.writestr("scan.jsonl", "\n".join(dumps_json(r) for r in output_rows) + "\n")
         zf.writestr("hashes.txt", "\n".join(hashes) + "\n")
         zf.writestr("reports/report.json", dumps_json(report) + "\n")
         # 향후 html/csv 등 추가 가능
         if include_files and files_base:
             base = Path(files_base)
-            for r in scan_rows:
+            for r in output_rows:
                 rel = r.get("path")
                 if not rel:
                     continue
