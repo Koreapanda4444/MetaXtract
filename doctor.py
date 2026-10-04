@@ -1,43 +1,61 @@
-import sys
-import platform
 import importlib.util
+import platform
 import shutil
+import sys
 
-REQUIRED_BINARIES = [
-    ("ffprobe", "영상 메타데이터 분석에 필요"),
-    ("ffmpeg", "영상/오디오 처리에 권장"),
-    ("exiftool", "이미지/문서 메타데이터 추출에 권장"),
+
+PYTHON_DEPENDENCIES = [
+    {
+        "name": "Pillow",
+        "module": "PIL",
+        "required": True,
+        "description": "image metadata extraction",
+    },
+    {
+        "name": "python-docx",
+        "module": "docx",
+        "required": True,
+        "description": "DOCX metadata extraction",
+    },
+    {
+        "name": "PyPDF2",
+        "module": "PyPDF2",
+        "required": True,
+        "description": "PDF metadata extraction",
+    },
 ]
-REQUIRED_PACKAGES = [
-    ("Pillow", "이미지 처리에 필요"),
-    ("python-docx", "docx 문서 추출에 필요"),
-    ("PyPDF2", "PDF 추출에 권장"),
-    ("pypdf", "PDF 추출에 권장"),
+
+OPTIONAL_BINARIES = [
+    {
+        "name": "ffprobe",
+        "description": "video metadata extraction",
+    },
 ]
 
 
 def check_binaries():
     results = []
-    for name, desc in REQUIRED_BINARIES:
-        path = shutil.which(name)
-        results.append({
-            "name": name,
-            "desc": desc,
-            "found": bool(path),
-            "path": path or "(없음)"
-        })
+    for dependency in OPTIONAL_BINARIES:
+        path = shutil.which(dependency["name"])
+        results.append(
+            {
+                **dependency,
+                "required": False,
+                "found": bool(path),
+                "path": path,
+            }
+        )
     return results
 
 
 def check_python_deps():
     results = []
-    for pkg, desc in REQUIRED_PACKAGES:
-        found = importlib.util.find_spec(pkg) is not None
-        results.append({
-            "name": pkg,
-            "desc": desc,
-            "found": found
-        })
+    for dependency in PYTHON_DEPENDENCIES:
+        try:
+            found = importlib.util.find_spec(dependency["module"]) is not None
+        except (ImportError, ModuleNotFoundError, ValueError):
+            found = False
+        results.append({**dependency, "found": found})
     return results
 
 
@@ -45,42 +63,53 @@ def check_env():
     return {
         "os": platform.platform(),
         "python_version": sys.version,
-        "executable": sys.executable
+        "executable": sys.executable,
     }
 
 
 def run_doctor():
-    env = check_env()
-    bins = check_binaries()
-    pkgs = check_python_deps()
+    binaries = check_binaries()
+    packages = check_python_deps()
     warnings = []
-    if not any(b["name"] == "ffprobe" and b["found"] for b in bins):
-        warnings.append("[경고] ffprobe가 없으므로 영상 메타데이터 분석이 제한됩니다.")
-    if not any(p["name"] == "Pillow" and p["found"] for p in pkgs):
-        warnings.append("[경고] Pillow가 없으므로 이미지 추출이 제한됩니다.")
+    for package in packages:
+        if package["required"] and not package["found"]:
+            warnings.append(
+                f"Required dependency missing: {package['name']} "
+                f"({package['description']})"
+            )
+    for binary in binaries:
+        if not binary["found"]:
+            warnings.append(
+                f"Optional dependency missing: {binary['name']} "
+                f"({binary['description']})"
+            )
     return {
-        "env": env,
-        "binaries": bins,
-        "python_packages": pkgs,
-        "warnings": warnings
+        "env": check_env(),
+        "binaries": binaries,
+        "python_packages": packages,
+        "warnings": warnings,
+        "ok": all(not item["required"] or item["found"] for item in packages),
     }
 
 
 def print_doctor():
     result = run_doctor()
-    print("[환경 정보]")
+    print("Environment")
     print(f"OS: {result['env']['os']}")
     print(f"Python: {result['env']['python_version']}")
-    print(f"실행 파일: {result['env']['executable']}")
-    print("\n[외부 바이너리]")
-    for b in result["binaries"]:
-        status = "O" if b["found"] else "X"
-        print(f"{status} {b['name']}: {b['desc']} ({b['path']})")
-    print("\n[파이썬 패키지]")
-    for p in result["python_packages"]:
-        status = "O" if p["found"] else "X"
-        print(f"{status} {p['name']}: {p['desc']}")
+    print(f"Executable: {result['env']['executable']}")
+    print("\nPython dependencies")
+    for package in result["python_packages"]:
+        status = "OK" if package["found"] else "MISSING"
+        kind = "required" if package["required"] else "optional"
+        print(f"{status} {package['name']} [{kind}]: {package['description']}")
+    print("\nExternal tools")
+    for binary in result["binaries"]:
+        status = "OK" if binary["found"] else "MISSING"
+        path = binary["path"] or "not found"
+        print(f"{status} {binary['name']} [optional]: {binary['description']} ({path})")
     if result["warnings"]:
-        print("\n[경고/권장사항]")
-        for w in result["warnings"]:
-            print(w)
+        print("\nWarnings")
+        for warning in result["warnings"]:
+            print(warning)
+    return result
