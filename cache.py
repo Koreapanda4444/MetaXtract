@@ -13,6 +13,9 @@ class CacheStore:
 
     def _file_key(self, path: str, mode: str = "sha256"):
         p = Path(path)
+        path_hash = hashlib.sha256(
+            str(p.resolve()).encode("utf-8", errors="surrogatepass")
+        ).hexdigest()
         if mode == "sha256":
             h = hashlib.sha256()
             with open(p, "rb") as f:
@@ -21,10 +24,10 @@ class CacheStore:
                     if not chunk:
                         break
                     h.update(chunk)
-            return f"sha256:{h.hexdigest()}"
+            return f"sha256:{path_hash}:{h.hexdigest()}"
         elif mode == "mtime":
             stat = p.stat()
-            return f"mtime:{int(stat.st_mtime)}:{stat.st_size}"
+            return f"mtime:{path_hash}:{stat.st_mtime_ns}:{stat.st_size}"
         else:
             raise ValueError(f"Unknown cache mode: {mode}")
 

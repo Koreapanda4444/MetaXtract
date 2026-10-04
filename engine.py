@@ -44,10 +44,18 @@ def scan_file(
     if cache_enabled and cache is not None:
         cached = cache.get(str(p), mode=cache_mode)
         if cached is not None:
-            rec = ScanRecord(**cached)
-            rec.metadata = dict(rec.metadata)
-            rec.metadata["cache_hit"] = True
-            return rec
+            metadata = dict(cached.get("metadata") or {})
+            metadata["mtime"] = st["mtime"]
+            metadata["cache_hit"] = True
+            return ScanRecord(
+                path=get_relpath(p, base),
+                mime=str(cached.get("mime") or mime),
+                size_bytes=st["size_bytes"],
+                sha256=str(cached.get("sha256") or ""),
+                metadata=metadata,
+                warnings=list(cached.get("warnings") or []),
+                errors=list(cached.get("errors") or []),
+            )
 
     warnings: List[str] = []
     errors: List[str] = []
