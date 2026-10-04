@@ -13,7 +13,7 @@ from cache import CacheStore
 from report import build_report
 from report_html import render_html
 from utils import dumps_json, write_jsonl
-from verify import verify_scan
+from verify import verify_bundle, verify_scan
 from doctor import print_doctor
 
 
@@ -105,6 +105,16 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_verify_bundle(args: argparse.Namespace) -> int:
+    issues = verify_bundle(args.bundle, args.files_base)
+    if issues:
+        for issue in issues:
+            print(dumps_json(issue))
+        return 2
+    print("OK")
+    return 0
+
+
 def _cmd_export_case(args: argparse.Namespace) -> int:
     try:
         export_case_bundle(
@@ -186,6 +196,14 @@ def build_parser() -> argparse.ArgumentParser:
     ver.add_argument("scan", help="input scan.jsonl")
     ver.add_argument("base", help="base directory where files live")
     ver.set_defaults(func=_cmd_verify)
+
+    ver_bundle = sub.add_parser("verify-bundle", help="verify a complete case ZIP bundle")
+    ver_bundle.add_argument("bundle", help="case bundle ZIP path")
+    ver_bundle.add_argument(
+        "--files-base",
+        help="verify external originals when the bundle does not include files",
+    )
+    ver_bundle.set_defaults(func=_cmd_verify_bundle)
 
     exp = sub.add_parser("export-bundle", help="export scan + report into a ZIP bundle")
     exp.add_argument("scan", help="input scan.jsonl")

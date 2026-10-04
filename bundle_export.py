@@ -2,46 +2,13 @@ from __future__ import annotations
 
 import json
 import zipfile
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 
 from manifest import build_manifest
+from path_safety import normalize_relative_path, resolve_source
 from report import build_report_from_rows
 from sanitize import sanitize_row
-from utils import PathLike, dumps_json, read_jsonl
-
-
-def _normalize_relative_path(value: object) -> str:
-    if not isinstance(value, str) or not value:
-        raise ValueError("bundle record has an invalid path")
-    if any(char in value for char in "\x00\r\n\t"):
-        raise ValueError(f"bundle path contains control characters: {value!r}")
-    if PureWindowsPath(value).drive:
-        raise ValueError(f"absolute bundle path is not allowed: {value}")
-
-    normalized = value.replace("\\", "/")
-    path = PurePosixPath(normalized)
-    parts = normalized.split("/")
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in parts):
-        raise ValueError(f"unsafe bundle path: {value}")
-    return path.as_posix()
-
-
-def _resolve_source(base: Path, relative_path: str) -> Path:
-    source = base
-    for part in PurePosixPath(relative_path).parts:
-        source = source / part
-        if source.is_symlink():
-            raise ValueError(f"symbolic links are not allowed: {relative_path}")
-
-    if not source.exists():
-        raise FileNotFoundError(f"bundle source is missing: {relative_path}")
-    if not source.is_file():
-        raise IsADirectoryError(f"bundle source is not a file: {relative_path}")
-
-    resolved = source.resolve(strict=True)
-    if not resolved.is_relative_to(base):
-        raise ValueError(f"bundle source escapes files base: {relative_path}")
-    return resolved
+from utils import PathLike, dumps_json, read_jsonl, sha256_file
 
 
 def export_case_bundle(
@@ -65,7 +32,7 @@ def export_case_bundle(
     for row in candidate_rows:
         if not isinstance(row, dict):
             raise ValueError("bundle scan rows must be JSON objects")
-        normalized_path = _normalize_relative_path(row.get("path"))
+        normalized_path = normalize_relative_path(row.get("path"))
         collision_key = normalized_path.casefold()
         if collision_key in seen_paths:
             raise ValueError(f"duplicate bundle path: {normalized_path}")
@@ -83,9 +50,12 @@ def export_case_bundle(
             raise NotADirectoryError(f"files base is not a directory: {base}")
         base = base.resolve(strict=True)
         sources = [
-            (_resolve_source(base, row["path"]), row["path"])
+            (resolve_source(base, row["path"]), row["path"], row.get("sha256"))
             for row in output_rows
         ]
+        for source, relative_path, expected_hash in sources:
+            if sha256_file(source) != expected_hash:
+                raise ValueError(f"bundle source hash changed: {relative_path}")
 
     report = build_report_from_rows(output_rows)
     hashes = []
@@ -108,5 +78,5 @@ def export_case_bundle(
         zf.writestr("scan.jsonl", "\n".join(dumps_json(r) for r in output_rows) + "\n")
         zf.writestr("hashes.txt", "\n".join(hashes) + "\n")
         zf.writestr("reports/report.json", dumps_json(report) + "\n")
-        for source, relative_path in sources:
+        for source, relative_path, _expected_hash in sources:
             zf.write(source, f"files/{relative_path}")

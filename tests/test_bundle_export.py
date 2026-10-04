@@ -5,6 +5,7 @@ import zipfile
 import pytest
 
 from bundle_export import export_case_bundle
+from utils import sha256_file
 
 
 def test_export_case_bundle(tmp_path):
@@ -79,7 +80,7 @@ def test_file_inclusion_uses_scan_directory_by_default(tmp_path):
     source.write_text("evidence", encoding="utf-8")
     scan_path = tmp_path / "scan.jsonl"
     scan_path.write_text(
-        json.dumps({"path": "evidence.txt", "sha256": "dummyhash"}) + "\n",
+        json.dumps({"path": "evidence.txt", "sha256": sha256_file(source)}) + "\n",
         encoding="utf-8",
     )
     out_zip = tmp_path / "case.zip"
