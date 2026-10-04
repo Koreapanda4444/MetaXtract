@@ -72,3 +72,31 @@ def test_redaction_rejects_raw_file_inclusion(tmp_path):
             redact=True,
             include_files=True,
         )
+
+
+def test_file_inclusion_uses_scan_directory_by_default(tmp_path):
+    source = tmp_path / "evidence.txt"
+    source.write_text("evidence", encoding="utf-8")
+    scan_path = tmp_path / "scan.jsonl"
+    scan_path.write_text(
+        json.dumps({"path": "evidence.txt", "sha256": "dummyhash"}) + "\n",
+        encoding="utf-8",
+    )
+    out_zip = tmp_path / "case.zip"
+
+    export_case_bundle(scan_path, out_zip, include_files=True)
+
+    with zipfile.ZipFile(out_zip, "r") as zf:
+        assert zf.read("files/evidence.txt") == b"evidence"
+
+
+@pytest.mark.parametrize("unsafe_path", ["../secret.txt", "/etc/passwd", "C:\\secret.txt"])
+def test_export_rejects_unsafe_paths(tmp_path, unsafe_path):
+    scan_path = tmp_path / "scan.jsonl"
+    scan_path.write_text(
+        json.dumps({"path": unsafe_path, "sha256": "dummyhash"}) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        export_case_bundle(scan_path, tmp_path / "case.zip")
