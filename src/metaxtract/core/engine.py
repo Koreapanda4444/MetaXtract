@@ -3,15 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
-from .extract_docx import extract_docx
-from .extract_image import extract_image
-from .extract_pdf import extract_pdf
-from .extract_video import extract_video
+from ..config import Settings
+from ..extractors.docx import extract_docx
+from ..extractors.image import extract_image
+from ..extractors.pdf import extract_pdf
+from ..extractors.video import extract_video
 
 from .schema import ScanRecord
 from .utils import PathLike, get_relpath, guess_mime, iter_files, safe_stat, sha256_file
 from .cache import CacheStore
-from .config import Settings
 
 
 Extractor = Callable[[PathLike], Tuple[Dict[str, object], List[str]]]

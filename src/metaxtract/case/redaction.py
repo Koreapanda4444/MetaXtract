@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List
 
-from .rules_privacy import PRIVACY_KEYS
-from .schema import ScanRecord
+from .privacy import PRIVACY_KEYS
+from ..core.schema import ScanRecord
 
 
 def sanitize_record(record: ScanRecord, remove_keys: Iterable[str] = PRIVACY_KEYS) -> ScanRecord:

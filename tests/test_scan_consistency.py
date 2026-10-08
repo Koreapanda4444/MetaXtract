@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 
-from metaxtract.engine import scan_file
+from metaxtract.core.engine import scan_file
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

@@ -1,5 +1,5 @@
-from metaxtract.cache import CacheStore
-from metaxtract.engine import scan_file
+from metaxtract.core.cache import CacheStore
+from metaxtract.core.engine import scan_file
 
 
 def test_cache_set_get(tmp_path):

@@ -7,10 +7,10 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
-from .path_safety import normalize_relative_path, resolve_source
-from .report import build_report_from_rows
-from .rules_privacy import PRIVACY_KEYS
-from .utils import read_jsonl, sha256_file
+from .paths import normalize_relative_path, resolve_source
+from .privacy import PRIVACY_KEYS
+from ..core.utils import read_jsonl, sha256_file
+from ..reporting.builder import build_report_from_rows
 
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")

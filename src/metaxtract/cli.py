@@ -6,15 +6,15 @@ import zipfile
 from pathlib import Path
 from typing import List, Optional
 
-from .bundle_export import export_case_bundle
-from .diff_report import diff_jsonl
-from .engine import scan_path
-from .cache import CacheStore
-from .report import build_report
-from .report_html import render_html
-from .utils import dumps_json, write_jsonl
-from .verify import verify_bundle, verify_scan
+from .case.bundle import export_case_bundle
+from .case.verify import verify_bundle, verify_scan
+from .core.cache import CacheStore
+from .core.engine import scan_path
+from .core.utils import dumps_json, write_jsonl
 from .doctor import print_doctor
+from .reporting.builder import build_report
+from .reporting.diff import diff_jsonl
+from .reporting.html import render_html
 
 
 def _cmd_doctor(_args: argparse.Namespace) -> int:
@@ -55,7 +55,7 @@ def _cmd_cache_purge(args: argparse.Namespace) -> int:
 
 def _cmd_report(args: argparse.Namespace) -> int:
     # scan.jsonl을 읽어서 records 리스트로 변환
-    from .utils import read_jsonl
+    from .core.utils import read_jsonl
     records = read_jsonl(args.scan)
     fmt = getattr(args, "format", None) or ("html" if getattr(args, "html", False) else "json")
     if fmt == "html":
@@ -75,7 +75,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
 
 def _cmd_report_html(args: argparse.Namespace) -> int:
-    from .utils import read_jsonl
+    from .core.utils import read_jsonl
     records = read_jsonl(args.scan)
     html = render_html(records)
     if args.out:

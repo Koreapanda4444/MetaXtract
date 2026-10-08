@@ -1,4 +1,4 @@
-from metaxtract.report_html import render_html
+from metaxtract.reporting.html import render_html
 
 
 def sample_records():
