@@ -25,7 +25,7 @@ Windows:
 ```powershell
 .venv\Scripts\activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install .
 ```
 
 Linux 또는 macOS:
@@ -33,13 +33,13 @@ Linux 또는 macOS:
 ```bash
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install .
 ```
 
 환경과 선택 기능의 사용 가능 여부는 다음 명령으로 확인합니다.
 
 ```bash
-python cli.py doctor
+metaxtract doctor
 ```
 
 ## 지원 포맷
@@ -58,29 +58,29 @@ python cli.py doctor
 ### 스캔
 
 ```bash
-python cli.py scan evidence --out scan.jsonl
+metaxtract scan evidence --out scan.jsonl
 ```
 
 기본 캐시는 `.metaxtract_cache/`에 저장됩니다. `.git`, `__pycache__`, 자체 캐시는
 스캔에서 제외되고 한 번에 최대 5,000개 파일을 처리합니다.
 
 ```bash
-python cli.py scan evidence --cache off --max-files 1000
-python cli.py scan evidence --include-hidden --out scan.jsonl
-python cli.py cache purge
+metaxtract scan evidence --cache off --max-files 1000
+metaxtract scan evidence --include-hidden --out scan.jsonl
+metaxtract cache purge
 ```
 
 ### 리포트
 
 ```bash
-python cli.py report scan.jsonl --out report.json
-python cli.py report scan.jsonl --format html --out report.html
+metaxtract report scan.jsonl --out report.json
+metaxtract report scan.jsonl --format html --out report.html
 ```
 
 ### 원본 검증
 
 ```bash
-python cli.py verify scan.jsonl evidence
+metaxtract verify scan.jsonl evidence
 ```
 
 JSONL의 경로, 크기, SHA-256을 현재 원본과 대조합니다. 누락, 변경, 중복 경로,
@@ -92,13 +92,13 @@ JSONL의 경로, 크기, SHA-256을 현재 원본과 대조합니다. 누락, �
 메타데이터 전용 번들:
 
 ```bash
-python cli.py export-case scan.jsonl case.zip --case-id CASE-001
+metaxtract export-case scan.jsonl case.zip --case-id CASE-001
 ```
 
 원본 포함 번들:
 
 ```bash
-python cli.py export-case scan.jsonl case.zip \
+metaxtract export-case scan.jsonl case.zip \
   --include-files --files-base evidence
 ```
 
@@ -109,7 +109,7 @@ python cli.py export-case scan.jsonl case.zip \
 개인정보 제거 번들:
 
 ```bash
-python cli.py export-case scan.jsonl redacted.zip --redact
+metaxtract export-case scan.jsonl redacted.zip --redact
 ```
 
 `--redact`는 GPS, 작성자, 최종 수정자, EXIF 촬영 시각을 `scan.jsonl`과 리포트에서
@@ -119,7 +119,7 @@ python cli.py export-case scan.jsonl redacted.zip --redact
 ### 번들 검증
 
 ```bash
-python cli.py verify-bundle case.zip
+metaxtract verify-bundle case.zip
 ```
 
 필수 항목, ZIP 중복·위험 경로, JSONL, manifest, 리포트, `hashes.txt`, 포함 원본의
@@ -127,14 +127,14 @@ SHA-256을 함께 검사합니다. 원본이 포함되지 않은 번들은 외�
 대조할 수 있습니다.
 
 ```bash
-python cli.py verify-bundle case.zip --files-base evidence
+metaxtract verify-bundle case.zip --files-base evidence
 ```
 
 ### 기타
 
 ```bash
-python cli.py diff old.jsonl new.jsonl --out diff.json
-python cli.py gui
+metaxtract diff old.jsonl new.jsonl --out diff.json
+metaxtract gui
 ```
 
 GUI 실행에는 Python의 Tk 지원이 필요합니다.
@@ -144,13 +144,13 @@ GUI 실행에는 Python의 Tk 지원이 필요합니다.
 개발 의존성을 설치한 뒤 lint와 테스트를 실행합니다.
 
 ```bash
-python -m pip install pytest flake8
-python -m flake8 .
+python -m pip install -e ".[dev]"
+python -m ruff check .
 python -m pytest
 ```
 
 테스트는 체크인된 최소 fixture를 사용하며 실행 중 fixture나 기대 결과를 자동으로
-생성하지 않습니다. CI는 `flake8`, CLI smoke test, 전체 `pytest`를 실행합니다.
+생성하지 않습니다. CI는 `ruff`, CLI smoke test, 전체 `pytest`를 실행합니다.
 
 ## 제한 사항
 

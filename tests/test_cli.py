@@ -11,7 +11,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def _run_cli(*arguments: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "cli.py", *arguments],
+        [sys.executable, "-m", "metaxtract", *arguments],
         cwd=ROOT,
         check=False,
         capture_output=True,
