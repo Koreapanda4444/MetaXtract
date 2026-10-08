@@ -3,7 +3,7 @@ import html
 from collections import Counter
 from typing import Any, Dict, List
 
-from findings import collect_findings
+from .findings import collect_findings
 
 
 def render_html(records: List[Dict[str, Any]]) -> str:

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 from PIL import Image, ExifTags
 
-from utils import PathLike
+from .utils import PathLike
 
 
 _GPS_TAG = 34853  # GPSInfo

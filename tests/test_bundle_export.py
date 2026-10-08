@@ -4,8 +4,8 @@ import zipfile
 
 import pytest
 
-from bundle_export import export_case_bundle
-from utils import sha256_file
+from metaxtract.bundle_export import export_case_bundle
+from metaxtract.utils import sha256_file
 
 
 def test_export_case_bundle(tmp_path):

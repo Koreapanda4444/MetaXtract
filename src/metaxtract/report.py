@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any, Dict, List
 
-from findings import collect_findings
-from utils import JsonObj, read_jsonl
+from .findings import collect_findings
+from .utils import JsonObj, read_jsonl
 
 
 def build_report(scan_jsonl_path: str) -> Dict[str, Any]:

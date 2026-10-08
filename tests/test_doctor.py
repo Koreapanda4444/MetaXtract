@@ -1,4 +1,4 @@
-from doctor import check_python_deps, run_doctor
+from metaxtract.doctor import check_python_deps, run_doctor
 
 
 def test_dependency_checks_use_import_module_names():

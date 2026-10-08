@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from extract_image import extract_image
+from metaxtract.extract_image import extract_image
 
 
 def test_extracts_gps_coordinates() -> None:

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Tuple
 
 from pypdf import PdfReader
 
-from utils import PathLike
+from .utils import PathLike
 
 
 def extract_pdf(path: PathLike) -> Tuple[Dict[str, Any], List[str]]:

@@ -1,8 +1,8 @@
 import json
 
-from bundle_export import export_case_bundle
-from utils import sha256_file
-from verify import verify_bundle, verify_scan
+from metaxtract.bundle_export import export_case_bundle
+from metaxtract.utils import sha256_file
+from metaxtract.verify import verify_bundle, verify_scan
 
 
 def test_verify_scan_detects_changes_and_duplicate_paths(tmp_path):
