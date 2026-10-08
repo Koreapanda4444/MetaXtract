@@ -11,7 +11,6 @@ MetaXtract는 로컬 파일의 메타데이터와 SHA-256 해시를 추출해 JS
 - Python 3.11 이상
 - Pillow, pypdf, python-docx
 - 비디오 분석 시 `ffprobe` 선택 설치
-- 테스트 fixture 재생성 시 `ffmpeg` 선택 설치
 
 ## 설치
 
@@ -146,19 +145,12 @@ GUI 실행에는 Python의 Tk 지원이 필요합니다.
 
 ```bash
 python -m pip install pytest flake8
-make lint
-make test
+python -m flake8 .
+python -m pytest
 ```
 
-Windows에서는 저장소의 `make.bat`로 같은 명령을 실행할 수 있습니다. 테스트는
-체크인된 최소 fixture를 사용하며, 실행 중 기대 결과를 자동 생성하지 않습니다.
-
-```bash
-make regen-fixtures
-```
-
-fixture를 다시 만들었다면 메타데이터·GPS·CLI 통합 테스트를 모두 통과하는지
-확인해야 합니다. CI는 `flake8`, CLI smoke test, 전체 `pytest`를 실행합니다.
+테스트는 체크인된 최소 fixture를 사용하며 실행 중 fixture나 기대 결과를 자동으로
+생성하지 않습니다. CI는 `flake8`, CLI smoke test, 전체 `pytest`를 실행합니다.
 
 ## 제한 사항
 
