@@ -7,7 +7,8 @@ from pathlib import Path
 from .manifest import build_manifest
 from .paths import normalize_relative_path, resolve_source
 from .redaction import sanitize_row
-from ..core.utils import PathLike, dumps_json, read_jsonl, sha256_file
+from ..core.files import PathLike, sha256_file
+from ..core.jsonio import dumps_json, read_jsonl
 from ..reporting.builder import build_report_from_rows
 
 

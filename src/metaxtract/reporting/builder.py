@@ -4,7 +4,7 @@ from collections import Counter
 from typing import Any, Dict, List
 
 from .findings import collect_findings
-from ..core.utils import JsonObj, read_jsonl
+from ..core.jsonio import JsonObj, read_jsonl
 
 
 def build_report(scan_jsonl_path: str) -> Dict[str, Any]:

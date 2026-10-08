@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-from ..core.utils import JsonObj, read_jsonl
+from ..core.jsonio import JsonObj, read_jsonl
 
 
 @dataclass(frozen=True)

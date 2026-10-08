@@ -9,7 +9,8 @@ from typing import Any, Dict, Iterable, List, Tuple
 
 from .paths import normalize_relative_path, resolve_source
 from .privacy import PRIVACY_KEYS
-from ..core.utils import read_jsonl, sha256_file
+from ..core.files import sha256_file
+from ..core.jsonio import read_jsonl
 from ..reporting.builder import build_report_from_rows
 
 

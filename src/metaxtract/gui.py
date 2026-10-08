@@ -3,8 +3,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from .core.engine import scan_path
-from .core.utils import dumps_json, write_jsonl
+from .core.jsonio import dumps_json, write_jsonl
+from .core.scanner import scan_path
 
 
 class MetaXtractGUI(tk.Tk):

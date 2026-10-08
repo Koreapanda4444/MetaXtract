@@ -9,8 +9,8 @@ from typing import List, Optional
 from .case.bundle import export_case_bundle
 from .case.verify import verify_bundle, verify_scan
 from .core.cache import CacheStore
-from .core.engine import scan_path
-from .core.utils import dumps_json, write_jsonl
+from .core.jsonio import dumps_json, write_jsonl
+from .core.scanner import scan_path
 from .doctor import print_doctor
 from .reporting.builder import build_report
 from .reporting.diff import diff_jsonl
@@ -55,7 +55,7 @@ def _cmd_cache_purge(args: argparse.Namespace) -> int:
 
 def _cmd_report(args: argparse.Namespace) -> int:
     # scan.jsonl을 읽어서 records 리스트로 변환
-    from .core.utils import read_jsonl
+    from .core.jsonio import read_jsonl
     records = read_jsonl(args.scan)
     fmt = getattr(args, "format", None) or ("html" if getattr(args, "html", False) else "json")
     if fmt == "html":
@@ -75,7 +75,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
 
 def _cmd_report_html(args: argparse.Namespace) -> int:
-    from .core.utils import read_jsonl
+    from .core.jsonio import read_jsonl
     records = read_jsonl(args.scan)
     html = render_html(records)
     if args.out:

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Tuple
 
 import docx  # python-docx
 
-from ..core.utils import PathLike
+from ..core.files import PathLike
 
 
 def extract_docx(path: PathLike) -> Tuple[Dict[str, Any], List[str]]:

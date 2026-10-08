@@ -9,9 +9,9 @@ from ..extractors.image import extract_image
 from ..extractors.pdf import extract_pdf
 from ..extractors.video import extract_video
 
-from .schema import ScanRecord
-from .utils import PathLike, get_relpath, guess_mime, iter_files, safe_stat, sha256_file
 from .cache import CacheStore
+from .files import PathLike, get_relpath, guess_mime, iter_files, safe_stat, sha256_file
+from .models import ScanRecord
 
 
 Extractor = Callable[[PathLike], Tuple[Dict[str, object], List[str]]]

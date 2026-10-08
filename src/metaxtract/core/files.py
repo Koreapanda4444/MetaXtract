@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
-from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, Optional, Union
 
 
-JsonObj = Dict[str, Any]
 PathLike = Union[str, os.PathLike[str]]
 
 
@@ -31,33 +28,6 @@ def safe_stat(path: PathLike) -> Dict[str, Any]:
         "size_bytes": int(st.st_size),
         "mtime": int(st.st_mtime),
     }
-
-
-def dumps_json(obj: Any) -> str:
-    if is_dataclass(obj):
-        obj = asdict(obj)
-    return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def write_jsonl(path: PathLike, rows: Iterable[Any]) -> None:
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(dumps_json(row))
-            f.write("\n")
-
-
-def read_jsonl(path: PathLike) -> List[JsonObj]:
-    p = Path(path)
-    out: List[JsonObj] = []
-    with p.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            out.append(json.loads(line))
-    return out
 
 
 def iter_files(

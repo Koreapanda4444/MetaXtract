@@ -5,7 +5,7 @@ import zipfile
 import pytest
 
 from metaxtract.case.bundle import export_case_bundle
-from metaxtract.core.utils import sha256_file
+from metaxtract.core.files import sha256_file
 
 
 def test_export_case_bundle(tmp_path):

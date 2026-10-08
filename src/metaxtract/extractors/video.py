@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from typing import Any, Dict, List, Tuple
 
-from ..core.utils import PathLike
+from ..core.files import PathLike
 
 
 def _ffprobe_available() -> bool:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List
 
 from .privacy import PRIVACY_KEYS
-from ..core.schema import ScanRecord
+from ..core.models import ScanRecord
 
 
 def sanitize_record(record: ScanRecord, remove_keys: Iterable[str] = PRIVACY_KEYS) -> ScanRecord:
