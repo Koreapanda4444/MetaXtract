@@ -10,24 +10,34 @@ PathLike = Union[str, os.PathLike[str]]
 
 
 def sha256_file(path: PathLike, chunk_size: int = 1024 * 1024) -> str:
-    h = hashlib.sha256()
-    p = Path(path)
-    with p.open("rb") as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-            h.update(chunk)
-    return h.hexdigest()
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        while chunk := stream.read(chunk_size):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def safe_stat(path: PathLike) -> Dict[str, Any]:
-    p = Path(path)
-    st = p.stat()
+    st = Path(path).stat()
     return {
         "size_bytes": int(st.st_size),
         "mtime": int(st.st_mtime),
     }
+
+
+def _reject_symlink(path: Path) -> None:
+    if path.is_symlink():
+        raise ValueError(f"symbolic links are not supported: {path}")
+
+
+def _resolve_inside(path: Path, root: Path) -> Path:
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"cannot resolve scan path: {path}") from exc
+    if resolved != root and not resolved.is_relative_to(root):
+        raise ValueError(f"path escapes scan root: {path}")
+    return resolved
 
 
 def iter_files(
@@ -37,46 +47,66 @@ def iter_files(
     max_files: Optional[int] = None,
     exclude_paths: Iterable[PathLike] = (),
 ) -> Iterator[Path]:
-    p = Path(root)
-    if p.is_file():
-        yield p
+    source = Path(root)
+    _reject_symlink(source)
+    try:
+        resolved_root = source.resolve(strict=True)
+    except OSError as exc:
+        raise FileNotFoundError(f"scan root does not exist: {source}") from exc
+
+    if resolved_root.is_file():
+        yield resolved_root
         return
+    if not resolved_root.is_dir():
+        raise NotADirectoryError(
+            f"scan root is not a regular file or directory: {source}"
+        )
 
     excluded_names = {".git", "__pycache__", ".metaxtract_cache"}
-    excluded_paths = {Path(path).resolve() for path in exclude_paths}
+    excluded_paths = {Path(path).resolve(strict=False) for path in exclude_paths}
     yielded = 0
 
     def is_excluded(path: Path) -> bool:
-        resolved = path.resolve()
+        resolved = path.resolve(strict=False)
         return any(
             resolved == excluded or resolved.is_relative_to(excluded)
             for excluded in excluded_paths
         )
 
-    for cur, dirs, files in os.walk(p):
-        current = Path(cur)
-        dirs[:] = sorted(
-            name
-            for name in dirs
-            if name not in excluded_names
-            and (include_hidden or not name.startswith("."))
-            and not is_excluded(current / name)
-        )
-        for name in sorted(files):
+    for current_name, dirs, filenames in os.walk(
+        resolved_root,
+        followlinks=False,
+    ):
+        current = Path(current_name)
+        kept_dirs = []
+        for name in sorted(dirs):
+            if name in excluded_names or (
+                not include_hidden and name.startswith(".")
+            ):
+                continue
+            candidate = current / name
+            if is_excluded(candidate):
+                continue
+            _reject_symlink(candidate)
+            _resolve_inside(candidate, resolved_root)
+            kept_dirs.append(name)
+        dirs[:] = kept_dirs
+
+        for name in sorted(filenames):
             if not include_hidden and name.startswith("."):
                 continue
-            path = current / name
-            if is_excluded(path):
+            candidate = current / name
+            if is_excluded(candidate):
                 continue
-            yield path
+            _reject_symlink(candidate)
+            yield _resolve_inside(candidate, resolved_root)
             yielded += 1
             if max_files is not None and yielded >= max_files:
                 return
 
 
 def guess_mime(path: PathLike) -> str:
-    p = Path(path)
-    ext = p.suffix.lower()
+    ext = Path(path).suffix.lower()
     if ext in {".jpg", ".jpeg"}:
         return "image/jpeg"
     if ext == ".png":
@@ -96,5 +126,5 @@ def get_relpath(path: PathLike, base: Optional[PathLike]) -> str:
         return str(p)
     try:
         return str(p.relative_to(Path(base)))
-    except Exception:
+    except ValueError:
         return str(p)

@@ -30,6 +30,29 @@ def _select_extractor(mime: str, path: PathLike) -> Extractor:
     return lambda _p: ({}, [])
 
 
+def _validate_scan_file(
+    path: Path,
+    base: PathLike | None,
+) -> tuple[Path, Path | None]:
+    if path.is_symlink():
+        raise ValueError(f"symbolic links are not supported: {path}")
+
+    resolved_path = path.resolve(strict=False)
+    if base is None:
+        return path, None
+
+    base_path = Path(base)
+    if base_path.is_symlink():
+        raise ValueError(f"symbolic links are not supported: {base_path}")
+    resolved_base = base_path.resolve(strict=False)
+    if (
+        resolved_path != resolved_base
+        and not resolved_path.is_relative_to(resolved_base)
+    ):
+        raise ValueError(f"path escapes scan root: {path}")
+    return resolved_path, resolved_base
+
+
 def scan_file(
     path: PathLike,
     base: PathLike | None = None,
@@ -37,9 +60,9 @@ def scan_file(
     cache_mode: str = "sha256",
     cache_enabled: bool = True,
 ) -> ScanRecord:
-    p = Path(path)
+    p, resolved_base = _validate_scan_file(Path(path), base)
     mime = guess_mime(p)
-    record_path = get_relpath(p, base)
+    record_path = get_relpath(p, resolved_base)
 
     try:
         st = safe_stat(p)
@@ -123,6 +146,8 @@ def scan_path(
     include_hidden: bool = Settings.include_hidden,
 ) -> List[ScanRecord]:
     target = Path(root)
+    if target.is_symlink():
+        raise ValueError(f"symbolic links are not supported: {target}")
     if not target.exists():
         raise FileNotFoundError(f"target does not exist: {target}")
     if not target.is_file() and not target.is_dir():
@@ -131,6 +156,7 @@ def scan_path(
     if max_files < 1:
         raise ValueError("max_files must be at least 1")
 
+    target = target.resolve(strict=True)
     base = target.parent if target.is_file() else target
     exclude_paths = [cache.cache_dir] if cache is not None else []
     files = list(
@@ -149,7 +175,7 @@ def scan_path(
             base=base,
             cache=cache,
             cache_mode=cache_mode,
-            cache_enabled=cache_enabled
+            cache_enabled=cache_enabled,
         )
         for p in files
     ]

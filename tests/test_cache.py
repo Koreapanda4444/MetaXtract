@@ -1,5 +1,14 @@
+import pytest
+
 from metaxtract.core.cache import CacheStore
-from metaxtract.core.scanner import scan_file
+from metaxtract.core.scanner import scan_file, scan_path
+
+
+def _make_symlink(link, target, *, directory=False):
+    try:
+        link.symlink_to(target, target_is_directory=directory)
+    except (NotImplementedError, OSError):
+        pytest.skip("symbolic links are not available in this environment")
 
 
 def test_cache_set_get(tmp_path):
@@ -74,3 +83,44 @@ def test_corrupt_cache_is_treated_as_empty(tmp_path):
 
     assert cache.get(source) is None
     assert cache.stats()["entries"] == 0
+
+
+def test_scan_rejects_symlinked_root(tmp_path):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    root_link = tmp_path / "root-link"
+    _make_symlink(root_link, evidence, directory=True)
+
+    with pytest.raises(ValueError, match="symbolic links"):
+        scan_path(root_link, cache_enabled=False)
+
+
+def test_scan_rejects_symlinked_files_and_directories(tmp_path):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    outside_file = tmp_path / "outside.txt"
+    outside_file.write_text("outside", encoding="utf-8")
+    file_link = evidence / "file-link.txt"
+    _make_symlink(file_link, outside_file)
+
+    with pytest.raises(ValueError, match="symbolic links"):
+        scan_path(evidence, cache_enabled=False)
+
+    file_link.unlink()
+    outside_directory = tmp_path / "outside"
+    outside_directory.mkdir()
+    directory_link = evidence / "directory-link"
+    _make_symlink(directory_link, outside_directory, directory=True)
+
+    with pytest.raises(ValueError, match="symbolic links"):
+        scan_path(evidence, cache_enabled=False)
+
+
+def test_scan_file_rejects_paths_outside_base(tmp_path):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="escapes scan root"):
+        scan_file(outside, base=evidence, cache_enabled=False)
