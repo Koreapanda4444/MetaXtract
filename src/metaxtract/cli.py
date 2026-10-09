@@ -6,9 +6,6 @@ import zipfile
 from pathlib import Path
 from typing import Sequence
 
-from . import __version__
-
-
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 
@@ -147,7 +144,6 @@ def build_parser() -> argparse.ArgumentParser:
         prog="metaxtract",
         description="MetaXtract metadata scanner",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     scan = sub.add_parser("scan", help="scan a file or folder and emit JSONL")

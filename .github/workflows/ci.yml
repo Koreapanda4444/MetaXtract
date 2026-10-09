@@ -71,10 +71,9 @@ jobs:
           python -c "from pathlib import Path; import subprocess, sys; wheels = list(Path('dist').glob('*.whl')); assert len(wheels) == 1; subprocess.check_call([sys.executable, '-m', 'pip', 'install', str(wheels[0])])"
       - name: Check installed entry points
         run: |
-          metaxtract --version
           metaxtract --help
           metaxtract doctor
-          python -m metaxtract --version
+          python -m metaxtract --help
       - name: Run installed CLI workflow
         run: |
           python -c "from pathlib import Path; root = Path('smoke-data'); root.mkdir(); (root / 'evidence.txt').write_text('cross-platform smoke test', encoding='utf-8')"

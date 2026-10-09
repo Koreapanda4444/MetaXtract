@@ -33,14 +33,11 @@ def _run_cli_without_site_packages(*arguments: str) -> subprocess.CompletedProce
     )
 
 
-def test_help_version_and_doctor_work_without_feature_dependencies():
+def test_help_and_doctor_work_without_feature_dependencies():
     help_result = _run_cli_without_site_packages("--help")
-    version_result = _run_cli_without_site_packages("--version")
     doctor_result = _run_cli_without_site_packages("doctor")
 
     assert help_result.returncode == 0, help_result.stderr
-    assert version_result.returncode == 0, version_result.stderr
-    assert version_result.stdout.strip().startswith("metaxtract ")
     assert doctor_result.returncode == 1
     assert "MISSING Pillow" in doctor_result.stdout
     assert "Traceback" not in doctor_result.stderr
