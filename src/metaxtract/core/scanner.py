@@ -15,6 +15,17 @@ from .models import ScanRecord
 
 
 Extractor = Callable[[PathLike], Tuple[Dict[str, object], List[str]]]
+ProgressCallback = Callable[[int, int, str | None], None]
+CancelCheck = Callable[[], bool]
+
+
+class ScanCancelled(RuntimeError):
+    """Raised when a caller requests cooperative scan cancellation."""
+
+
+def _check_cancelled(cancel_check: CancelCheck | None) -> None:
+    if cancel_check is not None and cancel_check():
+        raise ScanCancelled("scan cancelled")
 
 
 def _select_extractor(mime: str, path: PathLike) -> Extractor:
@@ -45,10 +56,7 @@ def _validate_scan_file(
     if base_path.is_symlink():
         raise ValueError(f"symbolic links are not supported: {base_path}")
     resolved_base = base_path.resolve(strict=False)
-    if (
-        resolved_path != resolved_base
-        and not resolved_path.is_relative_to(resolved_base)
-    ):
+    if resolved_path != resolved_base and not resolved_path.is_relative_to(resolved_base):
         raise ValueError(f"path escapes scan root: {path}")
     return resolved_path, resolved_base
 
@@ -161,6 +169,8 @@ def scan_path(
     cache_enabled: bool = True,
     max_files: int = Settings.max_files,
     include_hidden: bool = Settings.include_hidden,
+    progress_callback: ProgressCallback | None = None,
+    cancel_check: CancelCheck | None = None,
 ) -> List[ScanRecord]:
     target = Path(root)
     if target.is_symlink():
@@ -176,29 +186,37 @@ def scan_path(
     target = target.resolve(strict=True)
     base = target.parent if target.is_file() else target
     exclude_paths = [cache.cache_dir] if cache is not None else []
-    files = list(
-        iter_files(
-            target,
-            include_hidden=include_hidden,
-            max_files=max_files + 1,
-            exclude_paths=exclude_paths,
-        )
-    )
+    files = []
+    for path in iter_files(
+        target,
+        include_hidden=include_hidden,
+        max_files=max_files + 1,
+        exclude_paths=exclude_paths,
+    ):
+        _check_cancelled(cancel_check)
+        files.append(path)
     if len(files) > max_files:
         raise ValueError(f"file limit exceeded: more than {max_files} files")
+    _check_cancelled(cancel_check)
+    if progress_callback is not None:
+        progress_callback(0, len(files), None)
+
     records = []
     try:
-        for path in files:
-            records.append(
-                scan_file(
-                    path,
-                    base=base,
-                    cache=cache,
-                    cache_mode=cache_mode,
-                    cache_enabled=cache_enabled,
-                    defer_cache_write=True,
-                )
+        for completed, path in enumerate(files, start=1):
+            _check_cancelled(cancel_check)
+            record = scan_file(
+                path,
+                base=base,
+                cache=cache,
+                cache_mode=cache_mode,
+                cache_enabled=cache_enabled,
+                defer_cache_write=True,
             )
+            records.append(record)
+            if progress_callback is not None:
+                progress_callback(completed, len(files), record.path)
+            _check_cancelled(cancel_check)
     finally:
         if cache_enabled and cache is not None:
             try:

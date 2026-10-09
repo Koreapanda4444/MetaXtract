@@ -4,7 +4,7 @@ import metaxtract.core.cache as cache_module
 import metaxtract.core.files as files_module
 import metaxtract.core.scanner as scanner_module
 from metaxtract.core.cache import CacheStore
-from metaxtract.core.scanner import scan_file, scan_path
+from metaxtract.core.scanner import ScanCancelled, scan_file, scan_path
 
 
 def _make_symlink(link, target, *, directory=False):
@@ -194,3 +194,41 @@ def test_scan_batches_cache_index_writes(tmp_path, monkeypatch):
 
     assert save_calls == 1
     assert CacheStore(cache_dir).stats()["entries"] == 4
+
+
+def test_scan_reports_file_progress(tmp_path):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    for index in range(3):
+        (evidence / f"file-{index}.txt").write_text(str(index), encoding="utf-8")
+    progress = []
+
+    records = scan_path(
+        evidence,
+        cache_enabled=False,
+        progress_callback=lambda completed, total, path: progress.append((completed, total, path)),
+    )
+
+    assert progress[0] == (0, 3, None)
+    assert progress[-1] == (3, 3, records[-1].path)
+    assert [item[0] for item in progress] == [0, 1, 2, 3]
+
+
+def test_scan_can_be_cancelled_between_files(tmp_path):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    for index in range(3):
+        (evidence / f"file-{index}.txt").write_text(str(index), encoding="utf-8")
+    should_cancel = False
+
+    def update_progress(completed, _total, _path):
+        nonlocal should_cancel
+        should_cancel = completed == 1
+
+    with pytest.raises(ScanCancelled, match="scan cancelled"):
+        scan_path(
+            evidence,
+            cache_enabled=False,
+            progress_callback=update_progress,
+            cancel_check=lambda: should_cancel,
+        )
