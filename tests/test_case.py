@@ -1,3 +1,4 @@
+import hashlib
 import json
 import zipfile
 
@@ -146,6 +147,68 @@ def test_file_inclusion_uses_scan_directory_by_default(tmp_path):
             "size_bytes": source.stat().st_size,
         }
     ]
+
+
+def test_case_bundle_is_deterministic_and_hashes_every_artifact(tmp_path):
+    source = tmp_path / "evidence.txt"
+    source.write_text("deterministic evidence", encoding="utf-8")
+    scan_path = tmp_path / "scan.jsonl"
+    scan_path.write_text(
+        json.dumps(
+            _record(
+                "evidence.txt",
+                sha256=sha256_file(source),
+                size_bytes=source.stat().st_size,
+                mime="text/plain",
+                metadata={"mtime": 1_760_000_000.0},
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    first_bundle = tmp_path / "first.zip"
+    second_bundle = tmp_path / "second.zip"
+
+    export_case_bundle(scan_path, first_bundle, include_files=True)
+    export_case_bundle(scan_path, second_bundle, include_files=True)
+
+    assert first_bundle.read_bytes() == second_bundle.read_bytes()
+    with zipfile.ZipFile(first_bundle, "r") as bundle:
+        assert bundle.namelist() == [
+            "manifest.json",
+            "scan.jsonl",
+            "hashes.txt",
+            "reports/report.json",
+            "files/evidence.txt",
+        ]
+        assert all(info.date_time == (1980, 1, 1, 0, 0, 0) for info in bundle.infolist())
+        assert all((info.external_attr >> 16) & 0o777 == 0o644 for info in bundle.infolist())
+        manifest = json.loads(bundle.read("manifest.json"))
+        artifacts = {item["path"]: item for item in manifest["artifacts"]}
+        assert set(artifacts) == set(bundle.namelist()) - {"manifest.json"}
+        for path, item in artifacts.items():
+            data = bundle.read(path)
+            assert item["size_bytes"] == len(data)
+            assert item["sha256"] == hashlib.sha256(data).hexdigest()
+
+    assert verify_bundle(str(first_bundle)) == []
+
+
+def test_verify_bundle_detects_tampered_artifact(tmp_path):
+    scan_path = tmp_path / "scan.jsonl"
+    scan_path.write_text(json.dumps(_record("evidence.txt")) + "\n", encoding="utf-8")
+    bundle_path = tmp_path / "case.zip"
+    tampered_path = tmp_path / "tampered.zip"
+    export_case_bundle(scan_path, bundle_path)
+
+    _rewrite_zip(
+        bundle_path,
+        tampered_path,
+        replacements={"reports/report.json": b"{}\n"},
+    )
+
+    issues = verify_bundle(str(tampered_path))
+    assert "artifact_hash_mismatch" in {issue["issue"] for issue in issues}
 
 
 @pytest.mark.parametrize("unsafe_path", ["../secret.txt", "/etc/passwd", "C:\\secret.txt"])

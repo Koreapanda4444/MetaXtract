@@ -42,10 +42,7 @@ def _validate_rows(
     rows: Iterable[Any],
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, str]]]:
     valid_rows, validation_issues = validate_scan_records(rows)
-    issues = [
-        _issue(item.path, item.issue, item.detail)
-        for item in validation_issues
-    ]
+    issues = [_issue(item.path, item.issue, item.detail) for item in validation_issues]
     return valid_rows, issues
 
 
@@ -81,9 +78,7 @@ def _verify_rows_against_base(
             issues.append(_issue(relative_path, "size_mismatch"))
 
         expected_hash = row.get("sha256")
-        if not isinstance(expected_hash, str) or not SHA256_PATTERN.fullmatch(
-            expected_hash
-        ):
+        if not isinstance(expected_hash, str) or not SHA256_PATTERN.fullmatch(expected_hash):
             continue
         try:
             actual_hash = sha256_file(source)
@@ -120,9 +115,7 @@ def _read_member(
         while chunk := source.read(min(1024 * 1024, max_bytes + 1 - len(data))):
             data.extend(chunk)
             if len(data) > max_bytes:
-                raise ValueError(
-                    f"ZIP member exceeds {max_bytes} bytes: {info.filename}"
-                )
+                raise ValueError(f"ZIP member exceeds {max_bytes} bytes: {info.filename}")
     return bytes(data)
 
 
@@ -145,9 +138,7 @@ def _parse_hashes(data: bytes) -> Tuple[Dict[str, str], List[Dict[str, str]]]:
         try:
             relative_path = normalize_relative_path(raw_path)
         except ValueError as exc:
-            issues.append(
-                _issue(f"hashes.txt:{line_number}", "invalid_path", str(exc))
-            )
+            issues.append(_issue(f"hashes.txt:{line_number}", "invalid_path", str(exc)))
             continue
         collision_key = relative_path.casefold()
         if collision_key in seen_paths:
@@ -188,9 +179,7 @@ def _parse_original_inventory(
         seen_paths.add(collision_key)
 
         expected_hash = item.get("sha256")
-        if not isinstance(expected_hash, str) or not SHA256_PATTERN.fullmatch(
-            expected_hash
-        ):
+        if not isinstance(expected_hash, str) or not SHA256_PATTERN.fullmatch(expected_hash):
             issues.append(_issue(relative_path, "invalid_original_hash"))
             continue
         expected_size = item.get("size_bytes")
@@ -200,6 +189,53 @@ def _parse_original_inventory(
 
         inventory[relative_path] = {
             "path": relative_path,
+            "sha256": expected_hash.lower(),
+            "size_bytes": expected_size,
+        }
+
+    return inventory, issues
+
+
+def _parse_artifact_inventory(
+    value: Any,
+) -> Tuple[Dict[str, Dict[str, Any]], List[Dict[str, str]]]:
+    inventory = {}
+    issues = []
+    seen_paths = set()
+    if not isinstance(value, list):
+        return {}, [_issue("manifest.json", "invalid_artifact_inventory")]
+
+    for index, item in enumerate(value, start=1):
+        location = f"manifest.json:artifacts:{index}"
+        if not isinstance(item, dict):
+            issues.append(_issue(location, "invalid_artifact"))
+            continue
+        try:
+            artifact_path = normalize_relative_path(item.get("path"))
+        except ValueError as exc:
+            issues.append(_issue(location, "invalid_path", str(exc)))
+            continue
+        if artifact_path == "manifest.json":
+            issues.append(_issue(artifact_path, "manifest_self_hash"))
+            continue
+
+        collision_key = artifact_path.casefold()
+        if collision_key in seen_paths:
+            issues.append(_issue(artifact_path, "duplicate_artifact"))
+            continue
+        seen_paths.add(collision_key)
+
+        expected_hash = item.get("sha256")
+        if not isinstance(expected_hash, str) or not SHA256_PATTERN.fullmatch(expected_hash):
+            issues.append(_issue(artifact_path, "invalid_artifact_hash"))
+            continue
+        expected_size = item.get("size_bytes")
+        if type(expected_size) is not int or expected_size < 0:
+            issues.append(_issue(artifact_path, "invalid_artifact_size"))
+            continue
+
+        inventory[artifact_path] = {
+            "path": artifact_path,
             "sha256": expected_hash.lower(),
             "size_bytes": expected_size,
         }
@@ -232,8 +268,7 @@ def _zip_limit_issues(
                 )
             )
         if info.file_size and (
-            info.file_size / max(info.compress_size, 1)
-            > MAX_BUNDLE_COMPRESSION_RATIO
+            info.file_size / max(info.compress_size, 1) > MAX_BUNDLE_COMPRESSION_RATIO
         ):
             issues.append(
                 _issue(
@@ -340,14 +375,12 @@ def verify_bundle(
 
         valid_rows, row_issues = _validate_rows(rows)
         issues.extend(row_issues)
-        scan_hashes = {
-            row["path"]: str(row.get("sha256") or "").lower()
-            for row in valid_rows
-        }
+        scan_hashes = {row["path"]: str(row.get("sha256") or "").lower() for row in valid_rows}
         scan_rows = {row["path"]: row for row in valid_rows}
 
         includes_files = None
         original_inventory = {}
+        artifact_inventory = {}
         if "manifest.json" in members:
             try:
                 manifest = json.loads(_read_member(zf, members["manifest.json"]))
@@ -368,6 +401,10 @@ def verify_bundle(
                     manifest.get("original_files")
                 )
                 issues.extend(inventory_issues)
+                artifact_inventory, artifact_issues = _parse_artifact_inventory(
+                    manifest.get("artifacts")
+                )
+                issues.extend(artifact_issues)
 
                 if includes_files is True:
                     for path, row in scan_rows.items():
@@ -378,10 +415,7 @@ def verify_bundle(
                         if item["sha256"] != scan_hashes[path]:
                             issues.append(_issue(path, "manifest_file_hash_mismatch"))
                         expected_size = row.get("size_bytes")
-                        if (
-                            type(expected_size) is int
-                            and item["size_bytes"] != expected_size
-                        ):
+                        if type(expected_size) is int and item["size_bytes"] != expected_size:
                             issues.append(_issue(path, "manifest_file_size_mismatch"))
                     for path in original_inventory.keys() - scan_rows.keys():
                         issues.append(_issue(path, "unexpected_manifest_file"))
@@ -390,19 +424,37 @@ def verify_bundle(
                         issues.append(_issue(path, "unexpected_manifest_file"))
 
                 if manifest.get("redacted") is True and any(
-                    _contains_private_metadata(row.get("metadata") or {})
-                    for row in valid_rows
+                    _contains_private_metadata(row.get("metadata") or {}) for row in valid_rows
                 ):
                     issues.append(_issue("scan.jsonl", "redaction_leak"))
             except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
                 issues.append(_issue("manifest.json", "invalid_manifest", str(exc)))
 
+        artifact_names = set(members) - {"manifest.json"}
+        for path in sorted(artifact_names - artifact_inventory.keys()):
+            issues.append(_issue(path, "missing_artifact_entry"))
+        for path in sorted(artifact_inventory.keys() - artifact_names):
+            issues.append(_issue(path, "missing_artifact"))
+
+        artifact_hashes = {}
+        for path in sorted(artifact_names & artifact_inventory.keys()):
+            info = members[path]
+            item = artifact_inventory[path]
+            if info.file_size != item["size_bytes"]:
+                issues.append(_issue(path, "artifact_size_mismatch"))
+            try:
+                actual_hash = _zip_member_sha256(zf, info)
+            except (OSError, RuntimeError, EOFError, zipfile.BadZipFile) as exc:
+                issues.append(_issue(path, "artifact_read_failed", str(exc)))
+                continue
+            artifact_hashes[path] = actual_hash
+            if actual_hash != item["sha256"]:
+                issues.append(_issue(path, "artifact_hash_mismatch"))
+
         hash_entries = {}
         if "hashes.txt" in members:
             try:
-                hash_entries, hash_issues = _parse_hashes(
-                    _read_member(zf, members["hashes.txt"])
-                )
+                hash_entries, hash_issues = _parse_hashes(_read_member(zf, members["hashes.txt"]))
                 issues.extend(hash_issues)
             except (OSError, ValueError, zipfile.BadZipFile) as exc:
                 issues.append(_issue("hashes.txt", "read_failed", str(exc)))
@@ -428,11 +480,13 @@ def verify_bundle(
                     continue
                 if info.file_size != inventory_item["size_bytes"]:
                     issues.append(_issue(path, "bundled_file_size_mismatch"))
-                try:
-                    actual_hash = _zip_member_sha256(zf, info)
-                except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
-                    issues.append(_issue(path, "bundled_file_read_failed", str(exc)))
-                    continue
+                actual_hash = artifact_hashes.get(f"files/{path}")
+                if actual_hash is None:
+                    try:
+                        actual_hash = _zip_member_sha256(zf, info)
+                    except (OSError, RuntimeError, EOFError, zipfile.BadZipFile) as exc:
+                        issues.append(_issue(path, "bundled_file_read_failed", str(exc)))
+                        continue
                 if actual_hash != inventory_item["sha256"]:
                     issues.append(_issue(path, "bundled_file_hash_mismatch"))
             for path in file_members.keys() - original_inventory.keys():
