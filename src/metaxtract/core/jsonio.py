@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
 from .files import PathLike
+from .models import require_valid_records
 
 
 JsonObj = Dict[str, Any]
@@ -26,11 +27,18 @@ def write_jsonl(path: PathLike, rows: Iterable[Any]) -> None:
             stream.write("\n")
 
 
-def read_jsonl(path: PathLike) -> List[JsonObj]:
-    rows: List[JsonObj] = []
+def read_jsonl(path: PathLike, *, validate: bool = True) -> List[JsonObj]:
+    rows: List[Any] = []
     with Path(path).open("r", encoding="utf-8") as stream:
-        for line in stream:
+        for line_number, line in enumerate(stream, start=1):
             line = line.strip()
             if line:
-                rows.append(json.loads(line))
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"invalid JSONL at line {line_number}: {exc.msg}"
+                    ) from exc
+    if validate:
+        return require_valid_records(rows)
     return rows

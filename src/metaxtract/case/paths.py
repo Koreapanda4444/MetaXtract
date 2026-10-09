@@ -1,22 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath
 
-
-def normalize_relative_path(value: object) -> str:
-    if not isinstance(value, str) or not value:
-        raise ValueError("record has an invalid path")
-    if any(char in value for char in "\x00\r\n\t"):
-        raise ValueError(f"path contains control characters: {value!r}")
-    if PureWindowsPath(value).drive:
-        raise ValueError(f"absolute path is not allowed: {value}")
-
-    normalized = value.replace("\\", "/")
-    path = PurePosixPath(normalized)
-    parts = normalized.split("/")
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in parts):
-        raise ValueError(f"unsafe relative path: {value}")
-    return path.as_posix()
+from ..core.models import normalize_relative_path as normalize_relative_path
 
 
 def resolve_source(base: Path, relative_path: str) -> Path:

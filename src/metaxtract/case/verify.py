@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
@@ -11,10 +10,10 @@ from .paths import normalize_relative_path, resolve_source
 from .privacy import PRIVACY_KEYS
 from ..core.files import sha256_file
 from ..core.jsonio import read_jsonl
+from ..core.models import SHA256_PATTERN, validate_scan_records
 from ..reporting.builder import build_report_from_rows
 
 
-_SHA256_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
 _REQUIRED_BUNDLE_ENTRIES = {
     "manifest.json",
     "scan.jsonl",
@@ -30,35 +29,14 @@ def _issue(path: str, issue: str, detail: str | None = None) -> Dict[str, str]:
     return result
 
 
-def _validate_rows(rows: Iterable[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, str]]]:
-    valid_rows = []
-    issues = []
-    seen_paths = set()
-
-    for index, row in enumerate(rows, start=1):
-        if not isinstance(row, dict):
-            issues.append(_issue(f"row:{index}", "invalid_record"))
-            continue
-        try:
-            relative_path = normalize_relative_path(row.get("path"))
-        except ValueError as exc:
-            issues.append(_issue(f"row:{index}", "invalid_path", str(exc)))
-            continue
-
-        collision_key = relative_path.casefold()
-        if collision_key in seen_paths:
-            issues.append(_issue(relative_path, "duplicate_path"))
-            continue
-        seen_paths.add(collision_key)
-
-        expected_hash = row.get("sha256")
-        if not isinstance(expected_hash, str) or not _SHA256_PATTERN.fullmatch(expected_hash):
-            issues.append(_issue(relative_path, "invalid_hash"))
-
-        normalized_row = dict(row)
-        normalized_row["path"] = relative_path
-        valid_rows.append(normalized_row)
-
+def _validate_rows(
+    rows: Iterable[Any],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, str]]]:
+    valid_rows, validation_issues = validate_scan_records(rows)
+    issues = [
+        _issue(item.path, item.issue, item.detail)
+        for item in validation_issues
+    ]
     return valid_rows, issues
 
 
@@ -94,7 +72,9 @@ def _verify_rows_against_base(
             issues.append(_issue(relative_path, "size_mismatch"))
 
         expected_hash = row.get("sha256")
-        if not isinstance(expected_hash, str) or not _SHA256_PATTERN.fullmatch(expected_hash):
+        if not isinstance(expected_hash, str) or not SHA256_PATTERN.fullmatch(
+            expected_hash
+        ):
             continue
         try:
             actual_hash = sha256_file(source)
@@ -109,8 +89,8 @@ def _verify_rows_against_base(
 
 def verify_scan(scan_jsonl_path: str, files_base: str) -> List[Dict[str, str]]:
     try:
-        rows = read_jsonl(scan_jsonl_path)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        rows = read_jsonl(scan_jsonl_path, validate=False)
+    except (OSError, UnicodeError, ValueError) as exc:
         return [_issue(str(scan_jsonl_path), "invalid_scan", str(exc))]
 
     valid_rows, issues = _validate_rows(rows)
@@ -164,7 +144,7 @@ def _parse_hashes(data: bytes) -> Tuple[Dict[str, str], List[Dict[str, str]]]:
             issues.append(_issue(relative_path, "duplicate_hash_path"))
             continue
         seen_paths.add(collision_key)
-        if not _SHA256_PATTERN.fullmatch(expected_hash):
+        if not SHA256_PATTERN.fullmatch(expected_hash):
             issues.append(_issue(relative_path, "invalid_hash"))
             continue
         hashes[relative_path] = expected_hash.lower()
@@ -198,7 +178,7 @@ def _parse_original_inventory(
         seen_paths.add(collision_key)
 
         expected_hash = item.get("sha256")
-        if not isinstance(expected_hash, str) or not _SHA256_PATTERN.fullmatch(
+        if not isinstance(expected_hash, str) or not SHA256_PATTERN.fullmatch(
             expected_hash
         ):
             issues.append(_issue(relative_path, "invalid_original_hash"))

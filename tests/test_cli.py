@@ -56,6 +56,70 @@ def test_runtime_and_usage_failures_have_stable_exit_codes(tmp_path):
     assert usage_failure.returncode == 2
 
 
+def test_commands_reject_invalid_records_consistently(tmp_path):
+    invalid_scan = tmp_path / "invalid.jsonl"
+    invalid_scan.write_text(
+        json.dumps(
+            {
+                "path": "bad.txt",
+                "sha256": "not-a-hash",
+                "size_bytes": -1,
+                "mime": 42,
+                "metadata": [],
+                "warnings": "warning",
+                "errors": [1],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    commands = [
+        ("report", str(invalid_scan)),
+        ("report-html", str(invalid_scan)),
+        ("diff", str(invalid_scan), str(invalid_scan)),
+        ("export-case", str(invalid_scan), str(tmp_path / "case.zip")),
+        ("verify", str(invalid_scan), str(tmp_path)),
+    ]
+    for command in commands:
+        result = _run_cli(*command)
+        output = result.stdout + result.stderr
+        assert result.returncode == 1, output
+        assert "invalid_hash" in output
+        assert "invalid_size" in output
+        assert "Traceback" not in output
+
+
+def test_commands_reject_duplicate_record_paths(tmp_path):
+    scan_path = tmp_path / "duplicates.jsonl"
+    record = {
+        "path": "Evidence.txt",
+        "sha256": "0" * 64,
+        "size_bytes": 0,
+        "mime": "text/plain",
+        "metadata": {},
+        "warnings": [],
+        "errors": [],
+    }
+    duplicate = {**record, "path": "evidence.txt"}
+    scan_path.write_text(
+        json.dumps(record) + "\n" + json.dumps(duplicate) + "\n",
+        encoding="utf-8",
+    )
+
+    commands = [
+        ("report", str(scan_path)),
+        ("diff", str(scan_path), str(scan_path)),
+        ("export-case", str(scan_path), str(tmp_path / "case.zip")),
+    ]
+    for command in commands:
+        result = _run_cli(*command)
+        output = result.stdout + result.stderr
+        assert result.returncode == 1, output
+        assert "duplicate_path" in output
+        assert "Traceback" not in output
+
+
 def test_scan_report_export_and_verify_workflow(tmp_path):
     evidence_dir = tmp_path / "evidence"
     evidence_dir.mkdir()

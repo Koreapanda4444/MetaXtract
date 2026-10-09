@@ -5,6 +5,7 @@ def sample_records():
     return [
         {
             "path": "a.jpg",
+            "sha256": "0" * 64,
             "mime": "image/jpeg",
             "size_bytes": 1234,
             "metadata": {"author": "alice", "gps": [37.5, 127.0]},
@@ -13,6 +14,7 @@ def sample_records():
         },
         {
             "path": "b.docx",
+            "sha256": "1" * 64,
             "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "size_bytes": 4321,
             "metadata": {"author": "bob", "producer": "Word"},
@@ -39,9 +41,10 @@ def test_render_html_basic():
 def test_render_html_uses_extractor_field_names_and_escapes_rows():
     records = [
         {
-            "path": "photo.jpg",
+            "path": "photo-<script>.jpg",
+            "sha256": "0" * 64,
             "mime": "image/jpeg",
-            "size_bytes": "<size>",
+            "size_bytes": 42,
             "metadata": {
                 "gps_latitude": 37.5,
                 "gps_longitude": 127.0,
@@ -64,4 +67,4 @@ def test_render_html_uses_extractor_field_names_and_escapes_rows():
     assert "Camera X" in html
     assert "<script>" not in html
     assert "<img src=x" not in html
-    assert "&lt;size&gt;" in html
+    assert "photo-&lt;script&gt;.jpg" in html

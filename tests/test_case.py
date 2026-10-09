@@ -9,6 +9,27 @@ from metaxtract.case.verify import verify_bundle, verify_scan
 from metaxtract.core.files import sha256_file
 
 
+def _record(
+    path,
+    *,
+    sha256="0" * 64,
+    size_bytes=0,
+    mime="application/octet-stream",
+    metadata=None,
+    warnings=None,
+    errors=None,
+):
+    return {
+        "path": path,
+        "sha256": sha256,
+        "size_bytes": size_bytes,
+        "mime": mime,
+        "metadata": metadata or {},
+        "warnings": warnings or [],
+        "errors": errors or [],
+    }
+
+
 def _rewrite_zip(source, destination, *, remove=(), replacements=None):
     replacements = replacements or {}
     with zipfile.ZipFile(source, "r") as original:
@@ -23,8 +44,8 @@ def _rewrite_zip(source, destination, *, remove=(), replacements=None):
 def test_export_case_bundle(tmp_path):
     scan_path = tmp_path / "scan.jsonl"
     records = [
-        {"path": "a.txt", "sha256": "dummyhash", "mime": "text/plain", "size_bytes": 1},
-        {"path": "b.txt", "sha256": "dummyhash2", "mime": "text/plain", "size_bytes": 2},
+        _record("a.txt", sha256="0" * 64, size_bytes=1, mime="text/plain"),
+        _record("b.txt", sha256="1" * 64, size_bytes=2, mime="text/plain"),
     ]
     with open(scan_path, "w", encoding="utf-8") as f:
         for r in records:
@@ -46,19 +67,18 @@ def test_export_case_bundle(tmp_path):
 
 def test_redacted_bundle_removes_sensitive_metadata(tmp_path):
     scan_path = tmp_path / "scan.jsonl"
-    record = {
-        "path": "photo.jpg",
-        "sha256": "dummyhash",
-        "mime": "image/jpeg",
-        "size_bytes": 1,
-        "metadata": {
+    record = _record(
+        "photo.jpg",
+        size_bytes=1,
+        mime="image/jpeg",
+        metadata={
             "gps_latitude": 37.5,
             "gps_longitude": 127.0,
             "exif_datetime_original": "2026:01:02 03:04:05",
             "docx_author": "Private Person",
             "width": 100,
         },
-    }
+    )
     scan_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
     out_zip = tmp_path / "redacted.zip"
 
@@ -93,7 +113,15 @@ def test_file_inclusion_uses_scan_directory_by_default(tmp_path):
     source.write_text("evidence", encoding="utf-8")
     scan_path = tmp_path / "scan.jsonl"
     scan_path.write_text(
-        json.dumps({"path": "evidence.txt", "sha256": sha256_file(source)}) + "\n",
+        json.dumps(
+            _record(
+                "evidence.txt",
+                sha256=sha256_file(source),
+                size_bytes=source.stat().st_size,
+                mime="text/plain",
+            )
+        )
+        + "\n",
         encoding="utf-8",
     )
     out_zip = tmp_path / "case.zip"
@@ -118,7 +146,7 @@ def test_file_inclusion_uses_scan_directory_by_default(tmp_path):
 def test_export_rejects_unsafe_paths(tmp_path, unsafe_path):
     scan_path = tmp_path / "scan.jsonl"
     scan_path.write_text(
-        json.dumps({"path": unsafe_path, "sha256": "dummyhash"}) + "\n",
+        json.dumps(_record(unsafe_path)) + "\n",
         encoding="utf-8",
     )
 
@@ -129,11 +157,12 @@ def test_export_rejects_unsafe_paths(tmp_path, unsafe_path):
 def test_verify_scan_detects_changes_and_duplicate_paths(tmp_path):
     source = tmp_path / "evidence.txt"
     source.write_text("original", encoding="utf-8")
-    record = {
-        "path": "evidence.txt",
-        "sha256": sha256_file(source),
-        "size_bytes": source.stat().st_size,
-    }
+    record = _record(
+        "evidence.txt",
+        sha256=sha256_file(source),
+        size_bytes=source.stat().st_size,
+        mime="text/plain",
+    )
     scan_path = tmp_path / "scan.jsonl"
     scan_path.write_text(
         json.dumps(record) + "\n" + json.dumps(record) + "\n",

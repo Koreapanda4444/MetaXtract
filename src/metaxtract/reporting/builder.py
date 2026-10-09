@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 from .findings import collect_findings
 from ..core.jsonio import JsonObj, read_jsonl
+from ..core.models import require_valid_records
 
 
 def build_report(scan_jsonl_path: str) -> Dict[str, Any]:
@@ -13,6 +14,7 @@ def build_report(scan_jsonl_path: str) -> Dict[str, Any]:
 
 
 def build_report_from_rows(rows: List[JsonObj]) -> Dict[str, Any]:
+    rows = require_valid_records(rows)
     mime_counts = Counter(r.get("mime", "") for r in rows)
     warnings = Counter(w for r in rows for w in (r.get("warnings") or []))
     errors = Counter(e for r in rows for e in (r.get("errors") or []))

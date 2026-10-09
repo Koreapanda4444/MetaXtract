@@ -4,9 +4,12 @@ from collections import Counter
 from typing import Any, Dict, List
 
 from .findings import collect_findings
+from ..core.models import require_valid_records
 
 
 def render_html(records: List[Dict[str, Any]]) -> str:
+    records = require_valid_records(records)
+
     def _li(k: str, v: Any) -> str:
         return f"<li><b>{html.escape(str(k))}</b>: {html.escape(str(v))}</li>"
 
