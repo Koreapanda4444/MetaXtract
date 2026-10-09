@@ -11,4 +11,6 @@ def build_manifest(records, options) -> Dict[str, Any]:
         "record_count": len(records),
         "hashes": options.get("hashes", []),
         "redacted": options.get("redacted", False),
+        "includes_files": bool(options.get("includes_files", False)),
+        "original_files": list(options.get("original_files", [])),
     }

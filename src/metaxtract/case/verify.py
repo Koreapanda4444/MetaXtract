@@ -171,6 +171,52 @@ def _parse_hashes(data: bytes) -> Tuple[Dict[str, str], List[Dict[str, str]]]:
     return hashes, issues
 
 
+def _parse_original_inventory(
+    value: Any,
+) -> Tuple[Dict[str, Dict[str, Any]], List[Dict[str, str]]]:
+    inventory = {}
+    issues = []
+    seen_paths = set()
+    if not isinstance(value, list):
+        return {}, [_issue("manifest.json", "invalid_original_inventory")]
+
+    for index, item in enumerate(value, start=1):
+        location = f"manifest.json:original_files:{index}"
+        if not isinstance(item, dict):
+            issues.append(_issue(location, "invalid_original_file"))
+            continue
+        try:
+            relative_path = normalize_relative_path(item.get("path"))
+        except ValueError as exc:
+            issues.append(_issue(location, "invalid_path", str(exc)))
+            continue
+
+        collision_key = relative_path.casefold()
+        if collision_key in seen_paths:
+            issues.append(_issue(relative_path, "duplicate_original_file"))
+            continue
+        seen_paths.add(collision_key)
+
+        expected_hash = item.get("sha256")
+        if not isinstance(expected_hash, str) or not _SHA256_PATTERN.fullmatch(
+            expected_hash
+        ):
+            issues.append(_issue(relative_path, "invalid_original_hash"))
+            continue
+        expected_size = item.get("size_bytes")
+        if type(expected_size) is not int or expected_size < 0:
+            issues.append(_issue(relative_path, "invalid_original_size"))
+            continue
+
+        inventory[relative_path] = {
+            "path": relative_path,
+            "sha256": expected_hash.lower(),
+            "size_bytes": expected_size,
+        }
+
+    return inventory, issues
+
+
 def _zip_member_sha256(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> str:
     digest = hashlib.sha256()
     with zf.open(info, "r") as source:
@@ -247,6 +293,58 @@ def verify_bundle(
             row["path"]: str(row.get("sha256") or "").lower()
             for row in valid_rows
         }
+        scan_rows = {row["path"]: row for row in valid_rows}
+
+        includes_files = None
+        original_inventory = {}
+        if "manifest.json" in members:
+            try:
+                manifest = json.loads(_read_member(zf, members["manifest.json"]))
+                if not isinstance(manifest, dict):
+                    raise ValueError("manifest must be a JSON object")
+                if manifest.get("record_count") != len(rows):
+                    issues.append(_issue("manifest.json", "record_count_mismatch"))
+                expected_hashes = [row.get("sha256", "") for row in valid_rows]
+                if manifest.get("hashes") != expected_hashes:
+                    issues.append(_issue("manifest.json", "manifest_hashes_mismatch"))
+
+                declared_mode = manifest.get("includes_files")
+                if type(declared_mode) is not bool:
+                    issues.append(_issue("manifest.json", "invalid_files_mode"))
+                else:
+                    includes_files = declared_mode
+                original_inventory, inventory_issues = _parse_original_inventory(
+                    manifest.get("original_files")
+                )
+                issues.extend(inventory_issues)
+
+                if includes_files is True:
+                    for path, row in scan_rows.items():
+                        item = original_inventory.get(path)
+                        if item is None:
+                            issues.append(_issue(path, "missing_manifest_file"))
+                            continue
+                        if item["sha256"] != scan_hashes[path]:
+                            issues.append(_issue(path, "manifest_file_hash_mismatch"))
+                        expected_size = row.get("size_bytes")
+                        if (
+                            type(expected_size) is int
+                            and item["size_bytes"] != expected_size
+                        ):
+                            issues.append(_issue(path, "manifest_file_size_mismatch"))
+                    for path in original_inventory.keys() - scan_rows.keys():
+                        issues.append(_issue(path, "unexpected_manifest_file"))
+                elif includes_files is False:
+                    for path in original_inventory:
+                        issues.append(_issue(path, "unexpected_manifest_file"))
+
+                if manifest.get("redacted") is True and any(
+                    _contains_private_metadata(row.get("metadata") or {})
+                    for row in valid_rows
+                ):
+                    issues.append(_issue("scan.jsonl", "redaction_leak"))
+            except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+                issues.append(_issue("manifest.json", "invalid_manifest", str(exc)))
 
         hash_entries = {}
         if "hashes.txt" in members:
@@ -271,43 +369,28 @@ def verify_bundle(
             for name, info in members.items()
             if name.startswith("files/")
         }
-        if file_members:
-            for path, expected_hash in scan_hashes.items():
+        if includes_files is True:
+            for path, inventory_item in original_inventory.items():
                 info = file_members.get(path)
                 if info is None:
                     issues.append(_issue(path, "missing_bundled_file"))
                     continue
-                if not _SHA256_PATTERN.fullmatch(expected_hash):
-                    continue
+                if info.file_size != inventory_item["size_bytes"]:
+                    issues.append(_issue(path, "bundled_file_size_mismatch"))
                 try:
                     actual_hash = _zip_member_sha256(zf, info)
                 except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
                     issues.append(_issue(path, "bundled_file_read_failed", str(exc)))
                     continue
-                if actual_hash != expected_hash:
+                if actual_hash != inventory_item["sha256"]:
                     issues.append(_issue(path, "bundled_file_hash_mismatch"))
-            for path in file_members.keys() - scan_hashes.keys():
+            for path in file_members.keys() - original_inventory.keys():
                 issues.append(_issue(path, "unexpected_bundled_file"))
-        elif files_base is not None:
-            issues.extend(_verify_rows_against_base(valid_rows, files_base))
-
-        if "manifest.json" in members:
-            try:
-                manifest = json.loads(_read_member(zf, members["manifest.json"]))
-                if not isinstance(manifest, dict):
-                    raise ValueError("manifest must be a JSON object")
-                if manifest.get("record_count") != len(rows):
-                    issues.append(_issue("manifest.json", "record_count_mismatch"))
-                expected_hashes = [row.get("sha256", "") for row in valid_rows]
-                if manifest.get("hashes") != expected_hashes:
-                    issues.append(_issue("manifest.json", "manifest_hashes_mismatch"))
-                if manifest.get("redacted") is True and any(
-                    _contains_private_metadata(row.get("metadata") or {})
-                    for row in valid_rows
-                ):
-                    issues.append(_issue("scan.jsonl", "redaction_leak"))
-            except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
-                issues.append(_issue("manifest.json", "invalid_manifest", str(exc)))
+        elif includes_files is False:
+            for path in file_members:
+                issues.append(_issue(path, "unexpected_bundled_file"))
+            if files_base is not None:
+                issues.extend(_verify_rows_against_base(valid_rows, files_base))
 
         if "reports/report.json" in members:
             try:

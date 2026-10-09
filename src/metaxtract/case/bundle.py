@@ -51,12 +51,19 @@ def export_case_bundle(
             raise NotADirectoryError(f"files base is not a directory: {base}")
         base = base.resolve(strict=True)
         sources = [
-            (resolve_source(base, row["path"]), row["path"], row.get("sha256"))
+            (
+                resolve_source(base, row["path"]),
+                row["path"],
+                row.get("sha256"),
+                row.get("size_bytes"),
+            )
             for row in output_rows
         ]
-        for source, relative_path, expected_hash in sources:
+        for source, relative_path, expected_hash, expected_size in sources:
             if sha256_file(source) != expected_hash:
                 raise ValueError(f"bundle source hash changed: {relative_path}")
+            if isinstance(expected_size, int) and source.stat().st_size != expected_size:
+                raise ValueError(f"bundle source size changed: {relative_path}")
 
     report = build_report_from_rows(output_rows)
     hashes = []
@@ -68,6 +75,15 @@ def export_case_bundle(
         "notes": notes,
         "hashes": [r.get("sha256", "") for r in output_rows],
         "redacted": redact,
+        "includes_files": include_files,
+        "original_files": [
+            {
+                "path": relative_path,
+                "sha256": expected_hash,
+                "size_bytes": source.stat().st_size,
+            }
+            for source, relative_path, expected_hash, _expected_size in sources
+        ],
     }
     manifest = build_manifest(output_rows, manifest_opts)
 
@@ -79,5 +95,5 @@ def export_case_bundle(
         zf.writestr("scan.jsonl", "\n".join(dumps_json(r) for r in output_rows) + "\n")
         zf.writestr("hashes.txt", "\n".join(hashes) + "\n")
         zf.writestr("reports/report.json", dumps_json(report) + "\n")
-        for source, relative_path, _expected_hash in sources:
+        for source, relative_path, _expected_hash, _expected_size in sources:
             zf.write(source, f"files/{relative_path}")
