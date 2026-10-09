@@ -8,8 +8,17 @@ from typing import Any, Dict, Iterable, List, Tuple
 
 from .paths import normalize_relative_path, resolve_source
 from .privacy import PRIVACY_KEYS
+from ..config import (
+    MAX_BUNDLE_ARCHIVE_BYTES,
+    MAX_BUNDLE_COMPRESSION_RATIO,
+    MAX_BUNDLE_CONTROL_BYTES,
+    MAX_BUNDLE_MEMBER_BYTES,
+    MAX_BUNDLE_MEMBERS,
+    MAX_BUNDLE_TOTAL_BYTES,
+    MAX_JSONL_BYTES,
+)
 from ..core.files import sha256_file
-from ..core.jsonio import read_jsonl
+from ..core.jsonio import parse_jsonl_bytes, read_jsonl
 from ..core.models import SHA256_PATTERN, validate_scan_records
 from ..reporting.builder import build_report_from_rows
 
@@ -98,22 +107,23 @@ def verify_scan(scan_jsonl_path: str, files_base: str) -> List[Dict[str, str]]:
     return issues
 
 
-def _read_member(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
+def _read_member(
+    zf: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    *,
+    max_bytes: int = MAX_BUNDLE_CONTROL_BYTES,
+) -> bytes:
+    if info.file_size > max_bytes:
+        raise ValueError(f"ZIP member exceeds {max_bytes} bytes: {info.filename}")
+    data = bytearray()
     with zf.open(info, "r") as source:
-        return source.read()
-
-
-def _parse_jsonl_bytes(data: bytes) -> List[Any]:
-    rows = []
-    text = data.decode("utf-8")
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        if not line.strip():
-            continue
-        try:
-            rows.append(json.loads(line))
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"invalid JSONL at line {line_number}: {exc.msg}") from exc
-    return rows
+        while chunk := source.read(min(1024 * 1024, max_bytes + 1 - len(data))):
+            data.extend(chunk)
+            if len(data) > max_bytes:
+                raise ValueError(
+                    f"ZIP member exceeds {max_bytes} bytes: {info.filename}"
+                )
+    return bytes(data)
 
 
 def _parse_hashes(data: bytes) -> Tuple[Dict[str, str], List[Dict[str, str]]]:
@@ -197,6 +207,53 @@ def _parse_original_inventory(
     return inventory, issues
 
 
+def _zip_limit_issues(
+    infos: List[zipfile.ZipInfo],
+) -> List[Dict[str, str]]:
+    if len(infos) > MAX_BUNDLE_MEMBERS:
+        return [
+            _issue(
+                "bundle",
+                "too_many_zip_entries",
+                f"{len(infos)} exceeds {MAX_BUNDLE_MEMBERS}",
+            )
+        ]
+
+    issues = []
+    total_size = 0
+    for info in infos:
+        total_size += info.file_size
+        if info.file_size > MAX_BUNDLE_MEMBER_BYTES:
+            issues.append(
+                _issue(
+                    info.filename,
+                    "zip_member_too_large",
+                    f"{info.file_size} exceeds {MAX_BUNDLE_MEMBER_BYTES}",
+                )
+            )
+        if info.file_size and (
+            info.file_size / max(info.compress_size, 1)
+            > MAX_BUNDLE_COMPRESSION_RATIO
+        ):
+            issues.append(
+                _issue(
+                    info.filename,
+                    "suspicious_compression_ratio",
+                    f"ratio exceeds {MAX_BUNDLE_COMPRESSION_RATIO:g}",
+                )
+            )
+
+    if total_size > MAX_BUNDLE_TOTAL_BYTES:
+        issues.append(
+            _issue(
+                "bundle",
+                "zip_total_size_exceeded",
+                f"{total_size} exceeds {MAX_BUNDLE_TOTAL_BYTES}",
+            )
+        )
+    return issues
+
+
 def _zip_member_sha256(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> str:
     digest = hashlib.sha256()
     with zf.open(info, "r") as source:
@@ -223,15 +280,30 @@ def verify_bundle(
     files_base: str | None = None,
 ) -> List[Dict[str, str]]:
     issues = []
+    bundle_path = Path(bundle_zip_path)
     try:
-        zf = zipfile.ZipFile(bundle_zip_path, "r")
+        archive_size = bundle_path.stat().st_size
+        if archive_size > MAX_BUNDLE_ARCHIVE_BYTES:
+            return [
+                _issue(
+                    str(bundle_path),
+                    "bundle_archive_too_large",
+                    f"{archive_size} exceeds {MAX_BUNDLE_ARCHIVE_BYTES}",
+                )
+            ]
+        zf = zipfile.ZipFile(bundle_path, "r")
     except (OSError, zipfile.BadZipFile) as exc:
         return [_issue(str(bundle_zip_path), "invalid_bundle", str(exc))]
 
     with zf:
+        infos = zf.infolist()
+        limit_issues = _zip_limit_issues(infos)
+        if limit_issues:
+            return limit_issues
+
         members = {}
         seen_names = set()
-        for info in zf.infolist():
+        for info in infos:
             try:
                 name = normalize_relative_path(info.filename)
             except ValueError as exc:
@@ -252,18 +324,17 @@ def verify_bundle(
             if name not in _REQUIRED_BUNDLE_ENTRIES and not name.startswith("files/"):
                 issues.append(_issue(name, "unexpected_bundle_entry"))
 
-        try:
-            bad_crc = zf.testzip()
-        except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
-            issues.append(_issue(str(bundle_zip_path), "bundle_read_failed", str(exc)))
-            bad_crc = None
-        if bad_crc:
-            issues.append(_issue(bad_crc, "crc_mismatch"))
-
         rows = []
         if "scan.jsonl" in members:
             try:
-                rows = _parse_jsonl_bytes(_read_member(zf, members["scan.jsonl"]))
+                rows = parse_jsonl_bytes(
+                    _read_member(
+                        zf,
+                        members["scan.jsonl"],
+                        max_bytes=MAX_JSONL_BYTES,
+                    ),
+                    source="scan.jsonl",
+                )
             except (OSError, UnicodeError, ValueError, zipfile.BadZipFile) as exc:
                 issues.append(_issue("scan.jsonl", "invalid_scan", str(exc)))
 
@@ -333,7 +404,7 @@ def verify_bundle(
                     _read_member(zf, members["hashes.txt"])
                 )
                 issues.extend(hash_issues)
-            except (OSError, zipfile.BadZipFile) as exc:
+            except (OSError, ValueError, zipfile.BadZipFile) as exc:
                 issues.append(_issue("hashes.txt", "read_failed", str(exc)))
 
         for path, expected_hash in scan_hashes.items():
@@ -377,7 +448,7 @@ def verify_bundle(
                 report = json.loads(_read_member(zf, members["reports/report.json"]))
                 if report != build_report_from_rows(valid_rows):
                     issues.append(_issue("reports/report.json", "report_mismatch"))
-            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
                 issues.append(_issue("reports/report.json", "invalid_report", str(exc)))
 
     return issues

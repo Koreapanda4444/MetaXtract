@@ -4,9 +4,12 @@ import zipfile
 
 import pytest
 
+import metaxtract.case.verify as verify_module
+import metaxtract.core.jsonio as jsonio_module
 from metaxtract.case.bundle import export_case_bundle
 from metaxtract.case.verify import verify_bundle, verify_scan
 from metaxtract.core.files import sha256_file
+from metaxtract.core.jsonio import read_jsonl
 
 
 def _record(
@@ -251,5 +254,74 @@ def test_verify_bundle_binds_manifest_inventory_to_scan(tmp_path):
 
     issues = verify_bundle(str(tampered_path))
     assert "manifest_file_hash_mismatch" in {
+        issue["issue"] for issue in issues
+    }
+
+
+def test_jsonl_reader_bounds_lines_bytes_and_record_count(tmp_path, monkeypatch):
+    first = _record("first.txt")
+    second = _record("second.txt", sha256="1" * 64)
+    scan_path = tmp_path / "scan.jsonl"
+    payload = json.dumps(first) + "\n" + json.dumps(second) + "\n"
+    scan_path.write_text(payload, encoding="utf-8")
+
+    monkeypatch.setattr(jsonio_module, "MAX_JSONL_LINE_BYTES", 32)
+    with pytest.raises(ValueError, match="line 1 exceeds"):
+        read_jsonl(scan_path)
+
+    monkeypatch.setattr(jsonio_module, "MAX_JSONL_LINE_BYTES", 1024 * 1024)
+    monkeypatch.setattr(jsonio_module, "MAX_JSONL_BYTES", 32)
+    with pytest.raises(ValueError, match="JSONL exceeds"):
+        read_jsonl(scan_path)
+
+    monkeypatch.setattr(jsonio_module, "MAX_JSONL_BYTES", 1024 * 1024)
+    monkeypatch.setattr(jsonio_module, "MAX_JSONL_RECORDS", 1)
+    with pytest.raises(ValueError, match="exceeds 1 records"):
+        read_jsonl(scan_path)
+
+
+def test_bundle_verifier_bounds_member_count_and_sizes(tmp_path, monkeypatch):
+    bundle_path = tmp_path / "limits.zip"
+    with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_STORED) as bundle:
+        bundle.writestr("one.bin", b"a" * 32)
+        bundle.writestr("two.bin", b"b" * 32)
+        bundle.writestr("three.bin", b"c" * 32)
+
+    monkeypatch.setattr(verify_module, "MAX_BUNDLE_MEMBERS", 2)
+    issues = verify_bundle(str(bundle_path))
+    assert "too_many_zip_entries" in {issue["issue"] for issue in issues}
+
+    monkeypatch.setattr(verify_module, "MAX_BUNDLE_MEMBERS", 10)
+    monkeypatch.setattr(verify_module, "MAX_BUNDLE_MEMBER_BYTES", 16)
+    issues = verify_bundle(str(bundle_path))
+    assert "zip_member_too_large" in {issue["issue"] for issue in issues}
+
+    monkeypatch.setattr(verify_module, "MAX_BUNDLE_MEMBER_BYTES", 1024)
+    monkeypatch.setattr(verify_module, "MAX_BUNDLE_TOTAL_BYTES", 64)
+    issues = verify_bundle(str(bundle_path))
+    assert "zip_total_size_exceeded" in {issue["issue"] for issue in issues}
+
+
+def test_bundle_verifier_rejects_extreme_compression_ratio(tmp_path):
+    bundle_path = tmp_path / "compression-bomb.zip"
+    with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("files/repeated.bin", b"0" * 1024 * 1024)
+
+    issues = verify_bundle(str(bundle_path))
+
+    assert "suspicious_compression_ratio" in {
+        issue["issue"] for issue in issues
+    }
+
+
+def test_bundle_verifier_bounds_archive_bytes(tmp_path, monkeypatch):
+    bundle_path = tmp_path / "archive.zip"
+    with zipfile.ZipFile(bundle_path, "w") as bundle:
+        bundle.writestr("entry.txt", b"data")
+    monkeypatch.setattr(verify_module, "MAX_BUNDLE_ARCHIVE_BYTES", 1)
+
+    issues = verify_bundle(str(bundle_path))
+
+    assert "bundle_archive_too_large" in {
         issue["issue"] for issue in issues
     }
