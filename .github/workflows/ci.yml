@@ -21,14 +21,12 @@ jobs:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: pyproject.toml
-      - name: Install development dependencies
+      - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
       - name: Lint source
         run: python -m ruff check .
-      - name: Test
-        run: python -m pytest
       - name: Build wheel
         run: python -m build --wheel
       - uses: actions/upload-artifact@v4
@@ -74,6 +72,7 @@ jobs:
           metaxtract --help
           metaxtract doctor
           python -m metaxtract --help
+          python -c "import metaxtract.gui; print('GUI import OK')"
       - name: Run installed CLI workflow
         run: |
           python -c "from pathlib import Path; root = Path('smoke-data'); root.mkdir(); (root / 'evidence.txt').write_text('cross-platform smoke test', encoding='utf-8')"

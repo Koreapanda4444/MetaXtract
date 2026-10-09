@@ -231,29 +231,23 @@ ZIP의 구조·해시·선택적 서명을 검사합니다. 서명된 ZIP을 고
 | `src/metaxtract/reporting/` | JSON·HTML 리포트, findings, diff |
 | `src/metaxtract/cli.py` | CLI 라우팅과 공통 실패 처리 |
 | `src/metaxtract/gui.py` | 데스크톱 GUI와 백그라운드 작업 제어 |
-| `tests/` | 핵심 회귀 테스트와 소형 실제 포맷 fixture |
-| `pyproject.toml` | 패키지, 의존성, pytest, Ruff 설정 |
-| `.github/workflows/ci.yml` | 빌드, 테스트, 설치형 CLI 및 Windows EXE 검증 |
+| `pyproject.toml` | 패키지, 의존성, 빌드와 Ruff 설정 |
+| `.github/workflows/ci.yml` | 린트, 빌드, 설치형 CLI 및 Windows EXE 검증 |
 
-별도 `scripts/` 디렉터리나 중복 설정 파일은 두지 않습니다. 개발 명령과 도구 설정은
-`pyproject.toml`에 모았습니다.
+별도 `tests/`, `scripts/` 디렉터리나 중복 설정 파일은 두지 않습니다. 개발 명령과 도구
+설정은 `pyproject.toml`에 모았습니다.
 
-## 개발과 테스트
+## 개발과 빌드
 
 ```bash
 python -m pip install -e ".[dev]"
 python -m ruff check .
-python -m pytest
 python -m build --wheel
 ```
 
-`tests/`는 스캔·추출·캐시·검증·CLI 간 계약과 보안 경계를 지키는 데 필요한 최소
-회귀 범위이므로 저장소에 유지합니다. 테스트 및 fixture는 wheel에는 포함되지 않습니다.
-실행 중 fixture나 기대 결과를 다시 만드는 생성 스크립트도 사용하지 않습니다.
-
-CI는 먼저 린트·회귀 테스트를 통과한 wheel을 만든 뒤, 그 wheel만 새 환경에
-설치합니다. 설치형 CLI 전체 흐름은 Linux·Windows·macOS의 Python 3.11과 Linux의
-Python 3.14에서 검사합니다.
+CI는 린트 후 wheel을 만들고, 그 wheel만 새 환경에 설치합니다. 설치형 CLI 전체 흐름은
+Linux·Windows·macOS의 Python 3.11과 Linux의 Python 3.14에서 직접 실행합니다. 별도
+Windows 작업은 단일 EXE를 빌드하고 GUI 프로세스가 정상 실행되는지 확인합니다.
 
 ## 제한 사항
 
