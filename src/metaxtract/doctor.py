@@ -6,6 +6,12 @@ import sys
 
 PYTHON_DEPENDENCIES = [
     {
+        "name": "cryptography",
+        "module": "cryptography",
+        "required": True,
+        "description": "case bundle signing and signature verification",
+    },
+    {
         "name": "Pillow",
         "module": "PIL",
         "required": True,

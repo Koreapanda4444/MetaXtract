@@ -80,5 +80,6 @@ jobs:
           metaxtract scan smoke-data --cache off --out scan.jsonl
           metaxtract report scan.jsonl --out report.json
           metaxtract verify scan.jsonl smoke-data
-          metaxtract export-case scan.jsonl case.zip --include-files --files-base smoke-data
-          metaxtract verify-bundle case.zip
+          metaxtract keygen private.pem public.pem
+          metaxtract export-case scan.jsonl case.zip --include-files --files-base smoke-data --signing-key private.pem
+          metaxtract verify-bundle case.zip --public-key public.pem

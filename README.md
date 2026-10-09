@@ -17,7 +17,7 @@ CLI와 데스크톱 GUI를 제공합니다.
 ## 요구 사항과 설치
 
 - Python 3.11 이상
-- 필수 Python 패키지: Pillow, pypdf, python-docx
+- 필수 Python 패키지: cryptography, Pillow, pypdf, python-docx
 - 선택 도구: 비디오 메타데이터 추출용 `ffprobe`
 
 ```bash
@@ -66,8 +66,10 @@ metaxtract doctor
 metaxtract scan evidence --out scan.jsonl
 metaxtract report scan.jsonl --out report.json
 metaxtract verify scan.jsonl evidence
-metaxtract export-case scan.jsonl case.zip --include-files --files-base evidence
-metaxtract verify-bundle case.zip
+metaxtract keygen private.pem public.pem
+metaxtract export-case scan.jsonl case.zip --include-files --files-base evidence \
+  --signing-key private.pem
+metaxtract verify-bundle case.zip --public-key public.pem
 ```
 
 정상 완료 시 종료 코드는 `0`, 검증 문제나 명령 실패 시 `1`입니다. 예외 traceback을
@@ -138,6 +140,18 @@ metaxtract export-case scan.jsonl case.zip \
 `scan.jsonl`, `hashes.txt`, 리포트, 포함 원본 각각의 크기와 SHA-256을 기록합니다.
 자기 자신을 해시할 수 없는 `manifest.json`만 이 목록에서 제외됩니다.
 
+서명 키를 한 번 만들고 매니페스트를 Ed25519로 서명할 수 있습니다. 개인 키는 외부에
+공개하지 말고, 검증 상대에게는 공개 키만 전달합니다. 기존 키 파일은 덮어쓰지 않습니다.
+
+```bash
+metaxtract keygen private.pem public.pem
+metaxtract export-case scan.jsonl signed-case.zip --signing-key private.pem
+metaxtract verify-bundle signed-case.zip --public-key public.pem
+```
+
+서명된 번들에는 `signature.json`이 추가됩니다. 같은 입력과 같은 키로 생성한 번들은
+여전히 같은 ZIP 바이트를 만듭니다.
+
 개인정보 제거 번들:
 
 ```bash
@@ -153,11 +167,14 @@ metaxtract export-case scan.jsonl redacted.zip --redact
 ```bash
 metaxtract verify-bundle case.zip
 metaxtract verify-bundle case.zip --files-base evidence
+metaxtract verify-bundle signed-case.zip --public-key public.pem
 ```
 
 검증기는 필수 멤버, 중복·위험 ZIP 경로, JSONL 레코드, 매니페스트 인벤토리,
 `hashes.txt`, 리포트, 모든 산출물 해시와 포함 원본을 함께 검사합니다. 원본이 없는
-번들은 `--files-base`로 외부 파일까지 대조할 수 있습니다.
+번들은 `--files-base`로 외부 파일까지 대조할 수 있습니다. 서명된 번들은 공개 키 없이는
+검증 성공으로 처리하지 않으며, 외부에서 받은 공개 키로 매니페스트의 서명과 키 지문을
+확인합니다.
 
 신뢰하지 않는 입력에 적용되는 기본 상한은 다음과 같습니다.
 
@@ -208,7 +225,7 @@ python -m build --wheel
 회귀 범위이므로 저장소에 유지합니다. 테스트 및 fixture는 wheel에는 포함되지 않습니다.
 실행 중 fixture나 기대 결과를 다시 만드는 생성 스크립트도 사용하지 않습니다.
 
-CI는 먼저 린트·47개 회귀 테스트를 통과한 wheel을 만든 뒤, 그 wheel만 새 환경에
+CI는 먼저 린트·회귀 테스트를 통과한 wheel을 만든 뒤, 그 wheel만 새 환경에
 설치합니다. 설치형 CLI 전체 흐름은 Linux·Windows·macOS의 Python 3.11과 Linux의
 Python 3.14에서 검사합니다.
 
@@ -219,6 +236,7 @@ Python 3.14에서 검사합니다.
   경고를 기록합니다.
 - redaction은 번들 내부의 구조화된 메타데이터에만 적용되며 원본 파일을 수정하지
   않습니다.
-- 결정적 ZIP과 SHA-256 검증은 무결성 확인 수단입니다. 전자서명, 신뢰 시각,
-  작성자 신원 증명을 제공하지는 않습니다.
+- 서명하지 않은 ZIP과 SHA-256 검증은 내부 무결성만 확인합니다. Ed25519 서명은 보관된
+  공개 키와 매니페스트가 일치함을 확인하지만 신뢰 시각이나 작성자 신원까지 증명하지는
+  않습니다.
 - 매니페스트는 다른 모든 번들 산출물을 해시하지만 자기 자신은 해시하지 않습니다.

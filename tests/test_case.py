@@ -7,6 +7,7 @@ import pytest
 import metaxtract.case.verify as verify_module
 import metaxtract.core.jsonio as jsonio_module
 from metaxtract.case.bundle import export_case_bundle
+from metaxtract.case.signing import generate_signing_keypair
 from metaxtract.case.verify import verify_bundle, verify_scan
 from metaxtract.core.files import sha256_file
 from metaxtract.core.jsonio import read_jsonl
@@ -192,6 +193,82 @@ def test_case_bundle_is_deterministic_and_hashes_every_artifact(tmp_path):
             assert item["sha256"] == hashlib.sha256(data).hexdigest()
 
     assert verify_bundle(str(first_bundle)) == []
+
+
+def test_signed_bundle_is_deterministic_and_requires_matching_public_key(tmp_path):
+    scan_path = tmp_path / "scan.jsonl"
+    scan_path.write_text(json.dumps(_record("evidence.txt")) + "\n", encoding="utf-8")
+    private_key = tmp_path / "private.pem"
+    public_key = tmp_path / "public.pem"
+    wrong_private_key = tmp_path / "wrong-private.pem"
+    wrong_public_key = tmp_path / "wrong-public.pem"
+    generate_signing_keypair(private_key, public_key)
+    generate_signing_keypair(wrong_private_key, wrong_public_key)
+    first_bundle = tmp_path / "first.zip"
+    second_bundle = tmp_path / "second.zip"
+
+    export_case_bundle(scan_path, first_bundle, signing_key=private_key)
+    export_case_bundle(scan_path, second_bundle, signing_key=private_key)
+
+    assert first_bundle.read_bytes() == second_bundle.read_bytes()
+    with zipfile.ZipFile(first_bundle, "r") as bundle:
+        assert bundle.namelist()[0:2] == ["manifest.json", "signature.json"]
+        signature = json.loads(bundle.read("signature.json"))
+        assert signature["algorithm"] == "Ed25519"
+
+    unsigned_issues = verify_bundle(str(first_bundle))
+    wrong_key_issues = verify_bundle(str(first_bundle), public_key=wrong_public_key)
+    assert {issue["issue"] for issue in unsigned_issues} == {"signature_key_required"}
+    assert "public_key_mismatch" in {issue["issue"] for issue in wrong_key_issues}
+    assert verify_bundle(str(first_bundle), public_key=public_key) == []
+
+
+def test_signed_bundle_detects_manifest_tampering(tmp_path):
+    scan_path = tmp_path / "scan.jsonl"
+    scan_path.write_text(json.dumps(_record("evidence.txt")) + "\n", encoding="utf-8")
+    private_key = tmp_path / "private.pem"
+    public_key = tmp_path / "public.pem"
+    generate_signing_keypair(private_key, public_key)
+    bundle_path = tmp_path / "case.zip"
+    tampered_path = tmp_path / "tampered.zip"
+    export_case_bundle(scan_path, bundle_path, signing_key=private_key)
+
+    with zipfile.ZipFile(bundle_path, "r") as bundle:
+        manifest = json.loads(bundle.read("manifest.json"))
+    manifest["notes"] = "tampered"
+    _rewrite_zip(
+        bundle_path,
+        tampered_path,
+        replacements={"manifest.json": json.dumps(manifest).encode("utf-8")},
+    )
+
+    issues = verify_bundle(str(tampered_path), public_key=public_key)
+    assert "manifest_signature_hash_mismatch" in {issue["issue"] for issue in issues}
+
+
+def test_unsigned_bundle_rejects_requested_signature_verification(tmp_path):
+    scan_path = tmp_path / "scan.jsonl"
+    scan_path.write_text(json.dumps(_record("evidence.txt")) + "\n", encoding="utf-8")
+    private_key = tmp_path / "private.pem"
+    public_key = tmp_path / "public.pem"
+    generate_signing_keypair(private_key, public_key)
+    bundle_path = tmp_path / "case.zip"
+    export_case_bundle(scan_path, bundle_path)
+
+    issues = verify_bundle(str(bundle_path), public_key=public_key)
+
+    assert "missing_signature" in {issue["issue"] for issue in issues}
+
+
+def test_key_generation_refuses_to_overwrite_existing_keys(tmp_path):
+    private_key = tmp_path / "private.pem"
+    public_key = tmp_path / "public.pem"
+    generate_signing_keypair(private_key, public_key)
+
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        generate_signing_keypair(private_key, tmp_path / "new-public.pem")
+
+    assert private_key.stat().st_mode & 0o777 == 0o600
 
 
 def test_verify_bundle_detects_tampered_artifact(tmp_path):

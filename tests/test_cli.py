@@ -123,6 +123,8 @@ def test_scan_report_export_and_verify_workflow(tmp_path):
     scan_path = tmp_path / "scan.jsonl"
     report_path = tmp_path / "report.json"
     bundle_path = tmp_path / "case.zip"
+    private_key = tmp_path / "private.pem"
+    public_key = tmp_path / "public.pem"
 
     scan = _run_cli(
         "scan",
@@ -138,6 +140,11 @@ def test_scan_report_export_and_verify_workflow(tmp_path):
     assert report.returncode == 0, report.stderr
     assert json.loads(report_path.read_text(encoding="utf-8"))["total_files"] == 1
 
+    keygen = _run_cli("keygen", str(private_key), str(public_key))
+    assert keygen.returncode == 0, keygen.stderr
+    assert private_key.exists()
+    assert public_key.exists()
+
     export = _run_cli(
         "export-case",
         str(scan_path),
@@ -145,6 +152,8 @@ def test_scan_report_export_and_verify_workflow(tmp_path):
         "--include-files",
         "--files-base",
         str(evidence_dir),
+        "--signing-key",
+        str(private_key),
     )
     assert export.returncode == 0, export.stderr
 
@@ -152,6 +161,11 @@ def test_scan_report_export_and_verify_workflow(tmp_path):
     assert verify_scan.returncode == 0, verify_scan.stdout + verify_scan.stderr
     assert verify_scan.stdout.strip() == "OK"
 
-    verify_bundle = _run_cli("verify-bundle", str(bundle_path))
+    verify_bundle = _run_cli(
+        "verify-bundle",
+        str(bundle_path),
+        "--public-key",
+        str(public_key),
+    )
     assert verify_bundle.returncode == 0, verify_bundle.stdout + verify_bundle.stderr
     assert verify_bundle.stdout.strip() == "OK"

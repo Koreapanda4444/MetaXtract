@@ -4,6 +4,7 @@ from metaxtract.doctor import check_python_deps, run_doctor
 def test_dependency_checks_use_import_module_names():
     dependencies = {item["name"]: item for item in check_python_deps()}
 
+    assert dependencies["cryptography"]["found"] is True
     assert dependencies["Pillow"]["module"] == "PIL"
     assert dependencies["python-docx"]["module"] == "docx"
     assert dependencies["pypdf"]["module"] == "pypdf"

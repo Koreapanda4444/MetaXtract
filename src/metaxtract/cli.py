@@ -96,7 +96,7 @@ def _cmd_verify_bundle(args: argparse.Namespace) -> int:
     from .case.verify import verify_bundle
     from .core.jsonio import dumps_json
 
-    issues = verify_bundle(args.bundle, args.files_base)
+    issues = verify_bundle(args.bundle, args.files_base, args.public_key)
     if issues:
         for issue in issues:
             print(dumps_json(issue))
@@ -116,7 +116,17 @@ def _cmd_export_case(args: argparse.Namespace) -> int:
         case_id=getattr(args, "case_id", None),
         notes=getattr(args, "notes", None),
         files_base=getattr(args, "files_base", None),
+        signing_key=getattr(args, "signing_key", None),
     )
+    return EXIT_SUCCESS
+
+
+def _cmd_keygen(args: argparse.Namespace) -> int:
+    from .case.signing import generate_signing_keypair
+
+    generate_signing_keypair(args.private_key, args.public_key)
+    print(f"Private key: {args.private_key}")
+    print(f"Public key: {args.public_key}")
     return EXIT_SUCCESS
 
 
@@ -187,6 +197,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--files-base",
         help="verify external originals when the bundle does not include files",
     )
+    verify_bundle.add_argument(
+        "--public-key",
+        help="Ed25519 public key used to verify a signed manifest",
+    )
     verify_bundle.set_defaults(func=_cmd_verify_bundle)
 
     export_case = sub.add_parser(
@@ -211,7 +225,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     export_case.add_argument("--case-id", help="case identifier")
     export_case.add_argument("--notes", help="case notes")
+    export_case.add_argument(
+        "--signing-key",
+        help="Ed25519 private key used to sign the manifest",
+    )
     export_case.set_defaults(func=_cmd_export_case)
+
+    keygen = sub.add_parser("keygen", help="create an Ed25519 signing key pair")
+    keygen.add_argument("private_key", help="new private key PEM path")
+    keygen.add_argument("public_key", help="new public key PEM path")
+    keygen.set_defaults(func=_cmd_keygen)
 
     doctor = sub.add_parser("doctor", help="diagnose the environment and dependencies")
     doctor.set_defaults(func=_cmd_doctor)

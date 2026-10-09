@@ -10,6 +10,7 @@ from typing import Any
 
 from .paths import normalize_relative_path, resolve_source
 from .redaction import sanitize_row
+from .signing import SIGNATURE_MEMBER, sign_manifest
 from ..core.files import PathLike, sha256_file
 from ..core.jsonio import dumps_json, read_jsonl
 from ..reporting.builder import build_report_from_rows
@@ -101,6 +102,7 @@ def export_case_bundle(
     case_id: str = None,
     notes: str = None,
     files_base: PathLike = None,
+    signing_key: PathLike = None,
 ) -> None:
     scan_rows = read_jsonl(scan_jsonl_path)
     if redact and include_files:
@@ -185,6 +187,13 @@ def export_case_bundle(
         "hashes.txt": hashes_data,
         "reports/report.json": report_data,
     }
+    control_members = list(_CONTROL_MEMBERS)
+    if signing_key is not None:
+        signature_data = (dumps_json(sign_manifest(manifest_data, signing_key)) + "\n").encode(
+            "utf-8"
+        )
+        control_data[SIGNATURE_MEMBER] = signature_data
+        control_members.insert(1, SIGNATURE_MEMBER)
 
     output_path = Path(out_zip_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -203,7 +212,7 @@ def export_case_bundle(
             compression=zipfile.ZIP_DEFLATED,
             compresslevel=9,
         ) as zf:
-            for member_path in _CONTROL_MEMBERS:
+            for member_path in control_members:
                 _write_bytes(zf, member_path, control_data[member_path])
             for source, relative_path, expected_hash, expected_size in sources:
                 _write_source(

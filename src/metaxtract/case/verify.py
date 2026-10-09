@@ -8,6 +8,11 @@ from typing import Any, Dict, Iterable, List, Tuple
 
 from .paths import normalize_relative_path, resolve_source
 from .privacy import PRIVACY_KEYS
+from .signing import (
+    SIGNATURE_MEMBER,
+    SignatureValidationError,
+    verify_manifest_signature,
+)
 from ..config import (
     MAX_BUNDLE_ARCHIVE_BYTES,
     MAX_BUNDLE_COMPRESSION_RATIO,
@@ -313,6 +318,7 @@ def _contains_private_metadata(value: Any) -> bool:
 def verify_bundle(
     bundle_zip_path: str,
     files_base: str | None = None,
+    public_key: str | Path | None = None,
 ) -> List[Dict[str, str]]:
     issues = []
     bundle_path = Path(bundle_zip_path)
@@ -356,7 +362,11 @@ def verify_bundle(
                 issues.append(_issue(required_name, "missing_bundle_entry"))
 
         for name in members:
-            if name not in _REQUIRED_BUNDLE_ENTRIES and not name.startswith("files/"):
+            if (
+                name not in _REQUIRED_BUNDLE_ENTRIES
+                and name != SIGNATURE_MEMBER
+                and not name.startswith("files/")
+            ):
                 issues.append(_issue(name, "unexpected_bundle_entry"))
 
         rows = []
@@ -381,9 +391,11 @@ def verify_bundle(
         includes_files = None
         original_inventory = {}
         artifact_inventory = {}
+        manifest_data = None
         if "manifest.json" in members:
             try:
-                manifest = json.loads(_read_member(zf, members["manifest.json"]))
+                manifest_data = _read_member(zf, members["manifest.json"])
+                manifest = json.loads(manifest_data)
                 if not isinstance(manifest, dict):
                     raise ValueError("manifest must be a JSON object")
                 if manifest.get("record_count") != len(rows):
@@ -430,7 +442,27 @@ def verify_bundle(
             except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
                 issues.append(_issue("manifest.json", "invalid_manifest", str(exc)))
 
-        artifact_names = set(members) - {"manifest.json"}
+        if SIGNATURE_MEMBER in members:
+            if public_key is None:
+                issues.append(_issue(SIGNATURE_MEMBER, "signature_key_required"))
+            elif manifest_data is not None:
+                try:
+                    signature_record = json.loads(
+                        _read_member(zf, members[SIGNATURE_MEMBER])
+                    )
+                    verify_manifest_signature(
+                        manifest_data,
+                        signature_record,
+                        public_key,
+                    )
+                except SignatureValidationError as exc:
+                    issues.append(_issue(SIGNATURE_MEMBER, exc.issue, exc.detail))
+                except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+                    issues.append(_issue(SIGNATURE_MEMBER, "invalid_signature", str(exc)))
+        elif public_key is not None:
+            issues.append(_issue(SIGNATURE_MEMBER, "missing_signature"))
+
+        artifact_names = set(members) - {"manifest.json", SIGNATURE_MEMBER}
         for path in sorted(artifact_names - artifact_inventory.keys()):
             issues.append(_issue(path, "missing_artifact_entry"))
         for path in sorted(artifact_inventory.keys() - artifact_names):
@@ -508,5 +540,9 @@ def verify_bundle(
     return issues
 
 
-def verify_bundle_hashes(bundle_zip_path: str, files_base: str = None):
-    return verify_bundle(bundle_zip_path, files_base)
+def verify_bundle_hashes(
+    bundle_zip_path: str,
+    files_base: str = None,
+    public_key: str | Path | None = None,
+):
+    return verify_bundle(bundle_zip_path, files_base, public_key)
