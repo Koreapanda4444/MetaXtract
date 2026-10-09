@@ -59,6 +59,7 @@ def scan_file(
     cache: CacheStore = None,
     cache_mode: str = "sha256",
     cache_enabled: bool = True,
+    defer_cache_write: bool = False,
 ) -> ScanRecord:
     p, resolved_base = _validate_scan_file(Path(path), base)
     mime = guess_mime(p)
@@ -77,9 +78,25 @@ def scan_file(
             errors=[f"stat_failed:{type(exc).__name__}"],
         )
 
-    if cache_enabled and cache is not None:
+    warnings: List[str] = []
+    errors: List[str] = []
+    md: Dict[str, object] = {}
+    sha: str | None = None
+
+    if cache_enabled and cache is not None and cache_mode == "sha256":
         try:
-            cached = cache.get(str(p), mode=cache_mode)
+            sha = sha256_file(p)
+        except Exception as exc:
+            errors.append(f"hash_failed:{type(exc).__name__}")
+
+    if cache_enabled and cache is not None and not errors:
+        try:
+            cached = cache.get(
+                p,
+                mode=cache_mode,
+                content_sha256=sha,
+                file_stat=st,
+            )
         except OSError:
             cached = None
         if cached is not None:
@@ -96,22 +113,19 @@ def scan_file(
                 errors=list(cached.get("errors") or []),
             )
 
-    warnings: List[str] = []
-    errors: List[str] = []
-    md: Dict[str, object] = {}
-
-    try:
-        sha = sha256_file(p)
-    except Exception as e:
-        sha = ""
-        errors.append(f"hash_failed:{type(e).__name__}")
+    if sha is None and not errors:
+        try:
+            sha = sha256_file(p)
+        except Exception as exc:
+            errors.append(f"hash_failed:{type(exc).__name__}")
+    sha = sha or ""
 
     try:
         extractor = _select_extractor(mime, p)
         md, w = extractor(p)
         warnings.extend(w)
-    except Exception as e:
-        errors.append(f"extract_failed:{type(e).__name__}")
+    except Exception as exc:
+        errors.append(f"extract_failed:{type(exc).__name__}")
 
     md = dict(md)
     md["mtime"] = st["mtime"]
@@ -131,6 +145,9 @@ def scan_file(
                 str(p),
                 rec.model_dump() if hasattr(rec, "model_dump") else rec.__dict__,
                 mode=cache_mode,
+                content_sha256=sha,
+                file_stat=st,
+                flush=not defer_cache_write,
             )
         except OSError:
             pass
@@ -169,15 +186,24 @@ def scan_path(
     )
     if len(files) > max_files:
         raise ValueError(f"file limit exceeded: more than {max_files} files")
-    records = [
-        scan_file(
-            p,
-            base=base,
-            cache=cache,
-            cache_mode=cache_mode,
-            cache_enabled=cache_enabled,
-        )
-        for p in files
-    ]
+    records = []
+    try:
+        for path in files:
+            records.append(
+                scan_file(
+                    path,
+                    base=base,
+                    cache=cache,
+                    cache_mode=cache_mode,
+                    cache_enabled=cache_enabled,
+                    defer_cache_write=True,
+                )
+            )
+    finally:
+        if cache_enabled and cache is not None:
+            try:
+                cache.flush()
+            except OSError:
+                pass
     records.sort(key=lambda r: r.path)
     return records

@@ -22,6 +22,7 @@ def safe_stat(path: PathLike) -> Dict[str, Any]:
     return {
         "size_bytes": int(st.st_size),
         "mtime": int(st.st_mtime),
+        "mtime_ns": int(st.st_mtime_ns),
     }
 
 

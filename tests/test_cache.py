@@ -1,5 +1,8 @@
 import pytest
 
+import metaxtract.core.cache as cache_module
+import metaxtract.core.files as files_module
+import metaxtract.core.scanner as scanner_module
 from metaxtract.core.cache import CacheStore
 from metaxtract.core.scanner import scan_file, scan_path
 
@@ -16,12 +19,9 @@ def test_cache_set_get(tmp_path):
     test_file = tmp_path / "test.txt"
     test_file.write_text("hello world")
     result = {"foo": 123}
-    # set
     cache.set(str(test_file), result)
-    # get
     hit = cache.get(str(test_file))
     assert hit == result
-    # miss (다른 파일)
     test_file2 = tmp_path / "test2.txt"
     test_file2.write_text("other")
     assert cache.get(str(test_file2)) is None
@@ -124,3 +124,73 @@ def test_scan_file_rejects_paths_outside_base(tmp_path):
 
     with pytest.raises(ValueError, match="escapes scan root"):
         scan_file(outside, base=evidence, cache_enabled=False)
+
+
+def test_sha_cache_hashes_each_file_once_per_scan(tmp_path, monkeypatch):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    for index in range(3):
+        (evidence / f"file-{index}.txt").write_text(str(index), encoding="utf-8")
+    cache = CacheStore(tmp_path / "cache")
+    real_hash = files_module.sha256_file
+    hash_calls = 0
+
+    def counting_hash(path, chunk_size=1024 * 1024):
+        nonlocal hash_calls
+        hash_calls += 1
+        return real_hash(path, chunk_size)
+
+    monkeypatch.setattr(scanner_module, "sha256_file", counting_hash)
+    monkeypatch.setattr(cache_module, "sha256_file", counting_hash)
+
+    first = scan_path(evidence, cache=cache)
+    second = scan_path(evidence, cache=cache)
+
+    assert hash_calls == 6
+    assert all("cache_hit" not in record.metadata for record in first)
+    assert all(record.metadata["cache_hit"] is True for record in second)
+
+
+def test_mtime_cache_skips_hashing_on_hits(tmp_path, monkeypatch):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    (evidence / "file.txt").write_text("data", encoding="utf-8")
+    cache = CacheStore(tmp_path / "cache")
+    real_hash = files_module.sha256_file
+    hash_calls = 0
+
+    def counting_hash(path, chunk_size=1024 * 1024):
+        nonlocal hash_calls
+        hash_calls += 1
+        return real_hash(path, chunk_size)
+
+    monkeypatch.setattr(scanner_module, "sha256_file", counting_hash)
+
+    scan_path(evidence, cache=cache, cache_mode="mtime")
+    second = scan_path(evidence, cache=cache, cache_mode="mtime")
+
+    assert hash_calls == 1
+    assert second[0].metadata["cache_hit"] is True
+
+
+def test_scan_batches_cache_index_writes(tmp_path, monkeypatch):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    for index in range(4):
+        (evidence / f"file-{index}.txt").write_text(str(index), encoding="utf-8")
+    cache_dir = tmp_path / "cache"
+    cache = CacheStore(cache_dir)
+    original_save = cache._save_entries
+    save_calls = 0
+
+    def counting_save():
+        nonlocal save_calls
+        save_calls += 1
+        original_save()
+
+    monkeypatch.setattr(cache, "_save_entries", counting_save)
+
+    scan_path(evidence, cache=cache)
+
+    assert save_calls == 1
+    assert CacheStore(cache_dir).stats()["entries"] == 4
