@@ -16,6 +16,8 @@ from .models import ScanRecord
 
 Extractor = Callable[[PathLike], Tuple[Dict[str, object], List[str]]]
 ProgressCallback = Callable[[int, int, str | None], None]
+HashProgressCallback = Callable[[int, int], None]
+ByteProgressCallback = Callable[[int, int, str, int, int], None]
 CancelCheck = Callable[[], bool]
 
 
@@ -68,7 +70,10 @@ def scan_file(
     cache_mode: str = "sha256",
     cache_enabled: bool = True,
     defer_cache_write: bool = False,
+    hash_progress_callback: HashProgressCallback | None = None,
+    cancel_check: CancelCheck | None = None,
 ) -> ScanRecord:
+    _check_cancelled(cancel_check)
     p, resolved_base = _validate_scan_file(Path(path), base)
     mime = guess_mime(p)
     record_path = get_relpath(p, resolved_base)
@@ -91,9 +96,28 @@ def scan_file(
     md: Dict[str, object] = {}
     sha: str | None = None
 
+    def calculate_hash() -> str:
+        _check_cancelled(cancel_check)
+        if hash_progress_callback is not None:
+            hash_progress_callback(0, st["size_bytes"])
+
+        if hash_progress_callback is None and cancel_check is None:
+            return sha256_file(p)
+
+        def report_hash_progress(processed: int) -> None:
+            if hash_progress_callback is not None:
+                hash_progress_callback(processed, st["size_bytes"])
+            _check_cancelled(cancel_check)
+
+        result = sha256_file(p, progress_callback=report_hash_progress)
+        _check_cancelled(cancel_check)
+        return result
+
     if cache_enabled and cache is not None and cache_mode == "sha256":
         try:
-            sha = sha256_file(p)
+            sha = calculate_hash()
+        except ScanCancelled:
+            raise
         except Exception as exc:
             errors.append(f"hash_failed:{type(exc).__name__}")
 
@@ -123,11 +147,14 @@ def scan_file(
 
     if sha is None and not errors:
         try:
-            sha = sha256_file(p)
+            sha = calculate_hash()
+        except ScanCancelled:
+            raise
         except Exception as exc:
             errors.append(f"hash_failed:{type(exc).__name__}")
     sha = sha or ""
 
+    _check_cancelled(cancel_check)
     try:
         extractor = _select_extractor(mime, p)
         md, w = extractor(p)
@@ -170,6 +197,7 @@ def scan_path(
     max_files: int = Settings.max_files,
     include_hidden: bool = Settings.include_hidden,
     progress_callback: ProgressCallback | None = None,
+    byte_progress_callback: ByteProgressCallback | None = None,
     cancel_check: CancelCheck | None = None,
 ) -> List[ScanRecord]:
     target = Path(root)
@@ -205,6 +233,24 @@ def scan_path(
     try:
         for completed, path in enumerate(files, start=1):
             _check_cancelled(cancel_check)
+            relative_path = get_relpath(path, base)
+
+            def report_hash_progress(
+                processed: int,
+                total_bytes: int,
+                *,
+                file_index: int = completed,
+                record_path: str = relative_path,
+            ) -> None:
+                if byte_progress_callback is not None:
+                    byte_progress_callback(
+                        file_index,
+                        len(files),
+                        record_path,
+                        processed,
+                        total_bytes,
+                    )
+
             record = scan_file(
                 path,
                 base=base,
@@ -212,6 +258,12 @@ def scan_path(
                 cache_mode=cache_mode,
                 cache_enabled=cache_enabled,
                 defer_cache_write=True,
+                hash_progress_callback=(
+                    report_hash_progress
+                    if byte_progress_callback is not None or cancel_check is not None
+                    else None
+                ),
+                cancel_check=cancel_check,
             )
             records.append(record)
             if progress_callback is not None:

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import stat
+import tempfile
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Iterable, List
@@ -23,10 +26,30 @@ def dumps_json(obj: Any) -> str:
 def write_jsonl(path: PathLike, rows: Iterable[Any]) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("w", encoding="utf-8") as stream:
-        for row in rows:
-            stream.write(dumps_json(row))
-            stream.write("\n")
+    output_mode = stat.S_IMODE(output.stat().st_mode) if output.exists() else 0o644
+    temp_handle = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        newline="\n",
+        prefix=f".{output.name}.",
+        suffix=".tmp",
+        dir=output.parent,
+        delete=False,
+    )
+    temp_path = Path(temp_handle.name)
+    try:
+        with temp_handle as stream:
+            for row in rows:
+                stream.write(dumps_json(row))
+                stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        temp_path.chmod(output_mode)
+        temp_path.replace(output)
+    except Exception:
+        temp_handle.close()
+        temp_path.unlink(missing_ok=True)
+        raise
 
 
 def _load_jsonl_stream(stream: BinaryIO, source: str) -> List[Any]:

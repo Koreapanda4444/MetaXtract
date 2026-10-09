@@ -4,6 +4,7 @@ import metaxtract.core.cache as cache_module
 import metaxtract.core.files as files_module
 import metaxtract.core.scanner as scanner_module
 from metaxtract.core.cache import CacheStore
+from metaxtract.core.jsonio import write_jsonl
 from metaxtract.core.scanner import ScanCancelled, scan_file, scan_path
 
 
@@ -232,3 +233,41 @@ def test_scan_can_be_cancelled_between_files(tmp_path):
             progress_callback=update_progress,
             cancel_check=lambda: should_cancel,
         )
+
+
+def test_scan_can_be_cancelled_while_hashing_large_file(tmp_path):
+    source = tmp_path / "large.bin"
+    source.write_bytes(b"x" * (3 * 1024 * 1024))
+    byte_progress = []
+    should_cancel = False
+
+    def update_byte_progress(_index, _total, path, processed, total_bytes):
+        nonlocal should_cancel
+        byte_progress.append((path, processed, total_bytes))
+        should_cancel = processed >= 1024 * 1024
+
+    with pytest.raises(ScanCancelled, match="scan cancelled"):
+        scan_path(
+            source,
+            cache_enabled=False,
+            byte_progress_callback=update_byte_progress,
+            cancel_check=lambda: should_cancel,
+        )
+
+    assert byte_progress[0] == ("large.bin", 0, source.stat().st_size)
+    assert byte_progress[-1][1] == 1024 * 1024
+
+
+def test_write_jsonl_is_atomic_when_serialization_fails(tmp_path):
+    output = tmp_path / "scan.jsonl"
+    output.write_text("existing result\n", encoding="utf-8")
+
+    def invalid_rows():
+        yield {"path": "valid.txt"}
+        yield {"not_json": object()}
+
+    with pytest.raises(TypeError):
+        write_jsonl(output, invalid_rows())
+
+    assert output.read_text(encoding="utf-8") == "existing result\n"
+    assert list(tmp_path.glob(".scan.jsonl.*.tmp")) == []

@@ -3,17 +3,28 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, Optional, Union
+from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Union
 
 
 PathLike = Union[str, os.PathLike[str]]
+HashProgressCallback = Callable[[int], None]
 
 
-def sha256_file(path: PathLike, chunk_size: int = 1024 * 1024) -> str:
+def sha256_file(
+    path: PathLike,
+    chunk_size: int = 1024 * 1024,
+    progress_callback: HashProgressCallback | None = None,
+) -> str:
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be at least 1")
     digest = hashlib.sha256()
+    processed = 0
     with Path(path).open("rb") as stream:
         while chunk := stream.read(chunk_size):
             digest.update(chunk)
+            processed += len(chunk)
+            if progress_callback is not None:
+                progress_callback(processed)
     return digest.hexdigest()
 
 
