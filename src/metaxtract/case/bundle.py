@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .manifest import build_manifest
 from .paths import normalize_relative_path, resolve_source
 from .redaction import sanitize_row
 from ..core.files import PathLike, sha256_file
@@ -161,26 +160,24 @@ def export_case_bundle(
     )
     artifacts.sort(key=lambda item: item["path"])
 
-    manifest = build_manifest(
-        output_rows,
-        {
-            "case_id": case_id,
-            "created_at": _created_at(output_rows),
-            "notes": notes,
-            "hashes": [row["sha256"] for row in output_rows],
-            "redacted": redact,
-            "includes_files": include_files,
-            "original_files": [
-                {
-                    "path": relative_path,
-                    "sha256": expected_hash,
-                    "size_bytes": expected_size,
-                }
-                for _source, relative_path, expected_hash, expected_size in sources
-            ],
-            "artifacts": artifacts,
-        },
-    )
+    manifest = {
+        "case_id": case_id,
+        "created_at": _created_at(output_rows),
+        "notes": notes or "",
+        "record_count": len(output_rows),
+        "hashes": [row["sha256"] for row in output_rows],
+        "redacted": redact,
+        "includes_files": include_files,
+        "original_files": [
+            {
+                "path": relative_path,
+                "sha256": expected_hash,
+                "size_bytes": expected_size,
+            }
+            for _source, relative_path, expected_hash, expected_size in sources
+        ],
+        "artifacts": artifacts,
+    }
     manifest_data = (dumps_json(manifest) + "\n").encode("utf-8")
     control_data = {
         "manifest.json": manifest_data,

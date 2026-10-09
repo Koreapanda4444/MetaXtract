@@ -73,7 +73,6 @@ def test_commands_reject_invalid_records_consistently(tmp_path):
 
     commands = [
         ("report", str(invalid_scan)),
-        ("report-html", str(invalid_scan)),
         ("diff", str(invalid_scan), str(invalid_scan)),
         ("export-case", str(invalid_scan), str(tmp_path / "case.zip")),
         ("verify", str(invalid_scan), str(tmp_path)),

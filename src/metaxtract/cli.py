@@ -67,18 +67,6 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
-def _cmd_report_html(args: argparse.Namespace) -> int:
-    from .core.jsonio import read_jsonl
-    from .reporting.html import render_html
-
-    output = render_html(read_jsonl(args.scan))
-    if args.out:
-        Path(args.out).write_text(output + "\n", encoding="utf-8")
-    else:
-        print(output)
-    return EXIT_SUCCESS
-
-
 def _cmd_diff(args: argparse.Namespace) -> int:
     from .core.jsonio import dumps_json
     from .reporting.diff import diff_jsonl
@@ -182,11 +170,6 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--html", action="store_true", help="shortcut for --format html")
     report.set_defaults(func=_cmd_report)
 
-    report_html = sub.add_parser("report-html", help="build an HTML report from a scan.jsonl")
-    report_html.add_argument("scan", help="input scan.jsonl")
-    report_html.add_argument("--out", help="output report.html path (default: stdout)")
-    report_html.set_defaults(func=_cmd_report_html)
-
     diff = sub.add_parser("diff", help="diff two scan.jsonl files")
     diff.add_argument("old", help="old scan.jsonl")
     diff.add_argument("new", help="new scan.jsonl")
@@ -205,14 +188,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="verify external originals when the bundle does not include files",
     )
     verify_bundle.set_defaults(func=_cmd_verify_bundle)
-
-    export_bundle = sub.add_parser(
-        "export-bundle",
-        help="export scan and report into a ZIP bundle",
-    )
-    export_bundle.add_argument("scan", help="input scan.jsonl")
-    export_bundle.add_argument("out", help="output ZIP path")
-    export_bundle.set_defaults(func=_cmd_export_case)
 
     export_case = sub.add_parser(
         "export-case",

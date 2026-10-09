@@ -14,7 +14,7 @@ def _make_symlink(link, target, *, directory=False):
         pytest.skip("symbolic links are not available in this environment")
 
 
-def test_cache_set_get(tmp_path):
+def test_cache_round_trip(tmp_path):
     cache = CacheStore(cache_dir=tmp_path)
     test_file = tmp_path / "test.txt"
     test_file.write_text("hello world")
