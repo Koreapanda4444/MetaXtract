@@ -27,15 +27,23 @@ def collect_findings(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     for record in records:
         metadata = record.get("metadata") or {}
         has_coordinates = (
-            metadata.get("gps_latitude") is not None
-            and metadata.get("gps_longitude") is not None
+            metadata.get("gps_latitude") is not None and metadata.get("gps_longitude") is not None
         )
         if has_coordinates or metadata.get("gps") is not None:
             gps_files.append(str(record.get("path") or ""))
 
         authors.update(_values(metadata, ("author", "pdf_author", "docx_author")))
         producers.update(
-            _values(metadata, ("producer", "pdf_producer", "pdf_creator", "software"))
+            _values(
+                metadata,
+                (
+                    "producer",
+                    "pdf_producer",
+                    "pdf_creator",
+                    "software",
+                    "exif_software",
+                ),
+            )
         )
         models.update(_values(metadata, ("model", "exif_model")))
 

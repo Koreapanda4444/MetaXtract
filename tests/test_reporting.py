@@ -52,6 +52,7 @@ def test_render_html_uses_extractor_field_names_and_escapes_rows():
                 "pdf_author": "PDF Author",
                 "docx_author": "DOCX Author",
                 "pdf_producer": "PDF Tool",
+                "exif_software": "Camera Firmware",
             },
             "warnings": ["<script>alert(1)</script>"],
             "errors": ["<img src=x onerror=alert(1)>"],
@@ -64,6 +65,7 @@ def test_render_html_uses_extractor_field_names_and_escapes_rows():
     assert "PDF Author" in html
     assert "DOCX Author" in html
     assert "PDF Tool" in html
+    assert "Camera Firmware" in html
     assert "Camera X" in html
     assert "<script>" not in html
     assert "<img src=x" not in html

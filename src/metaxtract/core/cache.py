@@ -10,6 +10,9 @@ from typing import Any
 from .files import sha256_file
 
 
+CACHE_VERSION = 2
+
+
 class CacheStore:
     def __init__(self, cache_dir: str | Path = ".metaxtract_cache"):
         self.cache_dir = Path(cache_dir)
@@ -25,6 +28,8 @@ class CacheStore:
             try:
                 data = json.loads(self.index_path.read_text(encoding="utf-8"))
             except (OSError, UnicodeError, json.JSONDecodeError):
+                return {}
+            if not isinstance(data, dict) or data.get("version") != CACHE_VERSION:
                 return {}
             entries = data.get("entries") if isinstance(data, dict) else None
             if not isinstance(entries, dict):
@@ -48,12 +53,16 @@ class CacheStore:
                     continue
                 key = record.get("key") if isinstance(record, dict) else None
                 result = record.get("result") if isinstance(record, dict) else None
-                if isinstance(key, str) and isinstance(result, dict):
+                if (
+                    isinstance(key, str)
+                    and key.startswith(f"v{CACHE_VERSION}:")
+                    and isinstance(result, dict)
+                ):
                     entries[key] = dict(result)
         return entries
 
     def _save_entries(self) -> None:
-        payload = {"version": 1, "entries": self._entries}
+        payload = {"version": CACHE_VERSION, "entries": self._entries}
         temp_path = self.index_path.with_suffix(".tmp")
         temp_path.write_text(
             json.dumps(payload, ensure_ascii=False, sort_keys=True),
@@ -77,7 +86,7 @@ class CacheStore:
         ).hexdigest()
         if mode == "sha256":
             digest = content_sha256 or sha256_file(source)
-            return f"sha256:{path_hash}:{digest}"
+            return f"v{CACHE_VERSION}:sha256:{path_hash}:{digest}"
         if mode == "mtime":
             if file_stat is None:
                 stat = source.stat()
@@ -86,7 +95,7 @@ class CacheStore:
             else:
                 mtime_ns = file_stat["mtime_ns"]
                 size_bytes = file_stat["size_bytes"]
-            return f"mtime:{path_hash}:{mtime_ns}:{size_bytes}"
+            return f"v{CACHE_VERSION}:mtime:{path_hash}:{mtime_ns}:{size_bytes}"
         raise ValueError(f"Unknown cache mode: {mode}")
 
     def get(

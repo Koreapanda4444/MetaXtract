@@ -1,4 +1,3 @@
-
 import json
 import zipfile
 
@@ -77,8 +76,12 @@ def test_redacted_bundle_removes_sensitive_metadata(tmp_path):
         metadata={
             "gps_latitude": 37.5,
             "gps_longitude": 127.0,
+            "gps_altitude_m": 32.0,
+            "exif_artist": "Private Artist",
             "exif_datetime_original": "2026:01:02 03:04:05",
             "docx_author": "Private Person",
+            "docx_created": "2026-01-02T03:04:05+00:00",
+            "pdf_creation_date": "2026-01-02T03:04:05+00:00",
             "width": 100,
         },
     )
@@ -253,9 +256,7 @@ def test_verify_bundle_binds_manifest_inventory_to_scan(tmp_path):
     )
 
     issues = verify_bundle(str(tampered_path))
-    assert "manifest_file_hash_mismatch" in {
-        issue["issue"] for issue in issues
-    }
+    assert "manifest_file_hash_mismatch" in {issue["issue"] for issue in issues}
 
 
 def test_jsonl_reader_bounds_lines_bytes_and_record_count(tmp_path, monkeypatch):
@@ -309,9 +310,7 @@ def test_bundle_verifier_rejects_extreme_compression_ratio(tmp_path):
 
     issues = verify_bundle(str(bundle_path))
 
-    assert "suspicious_compression_ratio" in {
-        issue["issue"] for issue in issues
-    }
+    assert "suspicious_compression_ratio" in {issue["issue"] for issue in issues}
 
 
 def test_bundle_verifier_bounds_archive_bytes(tmp_path, monkeypatch):
@@ -322,6 +321,4 @@ def test_bundle_verifier_bounds_archive_bytes(tmp_path, monkeypatch):
 
     issues = verify_bundle(str(bundle_path))
 
-    assert "bundle_archive_too_large" in {
-        issue["issue"] for issue in issues
-    }
+    assert "bundle_archive_too_large" in {issue["issue"] for issue in issues}
