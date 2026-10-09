@@ -5,6 +5,7 @@ import queue
 import tempfile
 import threading
 import tkinter as tk
+import zipfile
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -181,34 +182,53 @@ class MetaXtractGUI(tk.Tk):
         self.status_filter.grid(row=0, column=3, padx=(6, 12))
         self.status_filter.bind("<<ComboboxSelected>>", lambda _event: self._refresh_table())
 
+        actions = ttk.Frame(filters)
+        actions.grid(row=1, column=0, columnspan=4, sticky=tk.W, pady=(7, 0))
         self.jsonl_button = ttk.Button(
-            filters,
+            actions,
             text="JSONL",
             command=self._export_jsonl,
             state=tk.DISABLED,
         )
-        self.jsonl_button.grid(row=0, column=4, padx=2)
+        self.jsonl_button.pack(side=tk.LEFT, padx=(0, 4))
         self.report_json_button = ttk.Button(
-            filters,
+            actions,
             text="Report JSON",
             command=lambda: self._export_report("json"),
             state=tk.DISABLED,
         )
-        self.report_json_button.grid(row=0, column=5, padx=2)
+        self.report_json_button.pack(side=tk.LEFT, padx=4)
         self.report_html_button = ttk.Button(
-            filters,
+            actions,
             text="Report HTML",
             command=lambda: self._export_report("html"),
             state=tk.DISABLED,
         )
-        self.report_html_button.grid(row=0, column=6, padx=2)
+        self.report_html_button.pack(side=tk.LEFT, padx=4)
         self.case_button = ttk.Button(
-            filters,
+            actions,
             text="Case ZIP",
             command=self._export_case,
             state=tk.DISABLED,
         )
-        self.case_button.grid(row=0, column=7, padx=(2, 0))
+        self.case_button.pack(side=tk.LEFT, padx=4)
+        ttk.Separator(actions, orient=tk.VERTICAL).pack(
+            side=tk.LEFT,
+            fill=tk.Y,
+            padx=8,
+        )
+        self.key_button = ttk.Button(
+            actions,
+            text="Create Keys",
+            command=self._generate_keypair,
+        )
+        self.key_button.pack(side=tk.LEFT, padx=4)
+        self.verify_button = ttk.Button(
+            actions,
+            text="Verify ZIP",
+            command=self._verify_case,
+        )
+        self.verify_button.pack(side=tk.LEFT, padx=4)
 
     def _build_results(self) -> None:
         pane = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
@@ -293,7 +313,7 @@ class MetaXtractGUI(tk.Tk):
         self._clear_results()
         self.progress.configure(maximum=1, value=0)
         self.status_var.set("Discovering files…")
-        self._set_scanning(True)
+        self._set_busy(True, cancellable=True)
         self._cancel_event = threading.Event()
         self._worker = threading.Thread(
             target=self._scan_worker,
@@ -384,6 +404,16 @@ class MetaXtractGUI(tk.Tk):
                     error_type, detail = payload
                     self._finish_scan(None, "Scan failed.")
                     messagebox.showerror("MetaXtract", f"{error_type}: {detail}")
+                elif event == "verify_complete":
+                    bundle, issues = payload
+                    self._finish_verification(bundle, issues)
+                elif event == "verify_error":
+                    error_type, detail = payload
+                    self._finish_verification(None, None)
+                    messagebox.showerror(
+                        "MetaXtract",
+                        f"Verification failed: {error_type}: {detail}",
+                    )
         except queue.Empty:
             pass
         if self.winfo_exists():
@@ -411,7 +441,7 @@ class MetaXtractGUI(tk.Tk):
     def _finish_scan(self, records: Any, status: str | None = None) -> None:
         self._worker = None
         self._cancel_event = None
-        self._set_scanning(False)
+        self._set_busy(False)
         if records is None:
             self.status_var.set(status or "Scan failed.")
             return
@@ -423,10 +453,9 @@ class MetaXtractGUI(tk.Tk):
         )
         self.status_var.set(f"Completed: {len(self._last_records)} file(s).")
         self._refresh_table()
-        self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
 
-    def _set_scanning(self, scanning: bool) -> None:
-        idle_state = tk.DISABLED if scanning else tk.NORMAL
+    def _set_busy(self, busy: bool, *, cancellable: bool = False) -> None:
+        idle_state = tk.DISABLED if busy else tk.NORMAL
         for widget in (
             self.path_entry,
             self.file_button,
@@ -435,11 +464,19 @@ class MetaXtractGUI(tk.Tk):
             self.cache_check,
             self.hidden_check,
             self.max_files_spin,
+            self.key_button,
+            self.verify_button,
         ):
             widget.configure(state=idle_state)
-        self.cancel_button.configure(state=tk.NORMAL if scanning else tk.DISABLED)
-        if scanning:
+        self.cancel_button.configure(
+            state=tk.NORMAL if busy and cancellable else tk.DISABLED
+        )
+        if busy:
             self._set_export_state(tk.DISABLED)
+        else:
+            self._set_export_state(
+                tk.NORMAL if self._last_records else tk.DISABLED
+            )
 
     def _set_export_state(self, state: str) -> None:
         for button in (
@@ -608,6 +645,146 @@ class MetaXtractGUI(tk.Tk):
             messagebox.showerror("MetaXtract", f"Case export failed: {exc}")
             return
         messagebox.showinfo("MetaXtract", f"Saved: {out}")
+
+    def _generate_keypair(self) -> None:
+        from .case.signing import generate_signing_keypair
+
+        private_key = filedialog.asksaveasfilename(
+            title="Save private signing key",
+            defaultextension=".pem",
+            filetypes=[("PEM key", "*.pem"), ("All files", "*")],
+        )
+        if not private_key:
+            return
+        private_path = Path(private_key)
+        public_key = filedialog.asksaveasfilename(
+            title="Save public verification key",
+            initialdir=str(private_path.parent),
+            initialfile=f"{private_path.stem}.public.pem",
+            defaultextension=".pem",
+            filetypes=[("PEM key", "*.pem"), ("All files", "*")],
+        )
+        if not public_key:
+            return
+        try:
+            generate_signing_keypair(private_key, public_key)
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror("MetaXtract", f"Key generation failed: {exc}")
+            return
+        messagebox.showinfo(
+            "MetaXtract",
+            f"Private key: {private_key}\nPublic key: {public_key}",
+        )
+
+    def _verify_case(self) -> None:
+        bundle = filedialog.askopenfilename(
+            title="Select case ZIP",
+            filetypes=[("ZIP archive", "*.zip"), ("All files", "*")],
+        )
+        if not bundle:
+            return
+        try:
+            with zipfile.ZipFile(bundle, "r") as archive:
+                signed = "signature.json" in archive.namelist()
+        except (OSError, zipfile.BadZipFile) as exc:
+            messagebox.showerror("MetaXtract", f"Invalid ZIP: {exc}")
+            return
+
+        public_key = None
+        if signed:
+            public_key = filedialog.askopenfilename(
+                title="Select public verification key",
+                filetypes=[("PEM key", "*.pem"), ("All files", "*")],
+            )
+            if not public_key:
+                return
+
+        files_base = None
+        if messagebox.askyesno(
+            "Verify ZIP",
+            "Also compare records with original files in a folder?",
+        ):
+            files_base = filedialog.askdirectory(title="Select original files folder")
+            if not files_base:
+                return
+
+        self.progress.configure(mode="indeterminate")
+        self.progress.start(12)
+        self.status_var.set(f"Verifying: {Path(bundle).name}")
+        self._set_busy(True)
+        self._worker = threading.Thread(
+            target=self._verify_worker,
+            args=(bundle, files_base, public_key),
+            name="metaxtract-verify",
+            daemon=True,
+        )
+        self._worker.start()
+
+    def _verify_worker(
+        self,
+        bundle: str,
+        files_base: str | None,
+        public_key: str | None,
+    ) -> None:
+        from .case.verify import verify_bundle
+
+        try:
+            issues = verify_bundle(
+                bundle,
+                files_base=files_base,
+                public_key=public_key,
+            )
+        except Exception as exc:
+            self._events.put(("verify_error", (type(exc).__name__, str(exc))))
+        else:
+            self._events.put(("verify_complete", (bundle, issues)))
+
+    def _finish_verification(
+        self,
+        bundle: str | None,
+        issues: list[dict[str, str]] | None,
+    ) -> None:
+        self.progress.stop()
+        self.progress.configure(mode="determinate", maximum=1, value=0)
+        self._worker = None
+        self._set_busy(False)
+        if bundle is None or issues is None:
+            self.status_var.set("Verification failed.")
+            return
+        if issues:
+            self.status_var.set(f"Verification found {len(issues)} issue(s).")
+            self._show_verification_issues(bundle, issues)
+            return
+        self.progress.configure(value=1)
+        self.status_var.set(f"Verified: {Path(bundle).name}")
+        messagebox.showinfo("MetaXtract", "Bundle verification passed.")
+
+    def _show_verification_issues(
+        self,
+        bundle: str,
+        issues: list[dict[str, str]],
+    ) -> None:
+        window = tk.Toplevel(self)
+        window.title("Bundle verification issues")
+        window.geometry("760x480")
+        window.minsize(520, 320)
+        ttk.Label(
+            window,
+            text=f"{Path(bundle).name}: {len(issues)} issue(s)",
+            padding=10,
+        ).pack(anchor=tk.W)
+        text_frame = ttk.Frame(window, padding=(10, 0, 10, 10))
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        output = tk.Text(text_frame, wrap="none")
+        scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=output.yview)
+        output.configure(yscrollcommand=scrollbar.set)
+        output.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        output.insert(
+            "1.0",
+            json.dumps(issues, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        )
+        output.configure(state=tk.DISABLED)
 
     def _close(self) -> None:
         if self._cancel_event is not None:
