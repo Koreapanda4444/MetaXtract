@@ -83,3 +83,44 @@ jobs:
           metaxtract keygen private.pem public.pem
           metaxtract export-case scan.jsonl case.zip --include-files --files-base smoke-data --signing-key private.pem
           metaxtract verify-bundle case.zip --public-key public.pem
+
+  package-windows:
+    name: Standalone Windows GUI
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install packaging dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[package]"
+      - name: Build standalone executable
+        run: >-
+          python -m PyInstaller
+          --noconfirm
+          --clean
+          --onefile
+          --windowed
+          --name MetaXtract
+          --collect-submodules metaxtract
+          src/metaxtract/gui.py
+      - name: Smoke-test executable
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ".\dist\MetaXtract.exe" -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) {
+            throw "MetaXtract.exe exited before the GUI smoke check completed."
+          }
+          Stop-Process -Id $process.Id
+          Get-FileHash ".\dist\MetaXtract.exe" -Algorithm SHA256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MetaXtract-Windows
+          path: dist/MetaXtract.exe
+          if-no-files-found: error

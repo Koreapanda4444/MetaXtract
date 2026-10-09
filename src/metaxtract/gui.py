@@ -11,9 +11,9 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
-from .core.cache import CacheStore
-from .core.jsonio import write_jsonl
-from .core.scanner import ScanCancelled, scan_path
+from metaxtract.core.cache import CacheStore
+from metaxtract.core.jsonio import write_jsonl
+from metaxtract.core.scanner import ScanCancelled, scan_path
 
 
 FILTER_ALL = "All"
@@ -574,8 +574,8 @@ class MetaXtractGUI(tk.Tk):
         messagebox.showinfo("MetaXtract", f"Saved: {out}")
 
     def _export_report(self, format_name: str) -> None:
-        from .reporting.builder import build_report_from_rows
-        from .reporting.html import render_html
+        from metaxtract.reporting.builder import build_report_from_rows
+        from metaxtract.reporting.html import render_html
 
         extension = ".html" if format_name == "html" else ".json"
         label = "HTML" if format_name == "html" else "JSON"
@@ -599,7 +599,7 @@ class MetaXtractGUI(tk.Tk):
         messagebox.showinfo("MetaXtract", f"Saved: {out}")
 
     def _export_case(self) -> None:
-        from .case.bundle import export_case_bundle
+        from metaxtract.case.bundle import export_case_bundle
 
         out = filedialog.asksaveasfilename(
             defaultextension=".zip",
@@ -647,7 +647,7 @@ class MetaXtractGUI(tk.Tk):
         messagebox.showinfo("MetaXtract", f"Saved: {out}")
 
     def _generate_keypair(self) -> None:
-        from .case.signing import generate_signing_keypair
+        from metaxtract.case.signing import generate_signing_keypair
 
         private_key = filedialog.asksaveasfilename(
             title="Save private signing key",
@@ -726,7 +726,7 @@ class MetaXtractGUI(tk.Tk):
         files_base: str | None,
         public_key: str | None,
     ) -> None:
-        from .case.verify import verify_bundle
+        from metaxtract.case.verify import verify_bundle
 
         try:
             issues = verify_bundle(

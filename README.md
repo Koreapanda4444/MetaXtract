@@ -49,6 +49,21 @@ python -m pip install .
 metaxtract doctor
 ```
 
+### Windows 단일 실행 파일
+
+GitHub Actions의 성공한 `CI` 실행에서 `MetaXtract-Windows` 아티팩트를 받으면 Python이나
+별도 패키지 설치 없이 `MetaXtract.exe`를 바로 실행할 수 있습니다. EXE는 버전별 파일로
+나누지 않고 항상 같은 이름으로 생성합니다. `ffprobe`는 포함하지 않으므로 비디오 상세
+메타데이터가 필요하면 시스템에 별도로 설치해야 합니다.
+
+로컬에서 같은 EXE를 만들려면 Windows PowerShell에서 실행합니다.
+
+```powershell
+python -m pip install -e ".[package]"
+python -m PyInstaller --noconfirm --clean --onefile --windowed `
+  --name MetaXtract --collect-submodules metaxtract src/metaxtract/gui.py
+```
+
 ## 지원 포맷
 
 | 포맷 | 확장자 | 주요 추출 항목 |
@@ -218,7 +233,7 @@ ZIP의 구조·해시·선택적 서명을 검사합니다. 서명된 ZIP을 고
 | `src/metaxtract/gui.py` | 데스크톱 GUI와 백그라운드 작업 제어 |
 | `tests/` | 핵심 회귀 테스트와 소형 실제 포맷 fixture |
 | `pyproject.toml` | 패키지, 의존성, pytest, Ruff 설정 |
-| `.github/workflows/ci.yml` | 빌드, 테스트, 설치형 CLI 플랫폼 검증 |
+| `.github/workflows/ci.yml` | 빌드, 테스트, 설치형 CLI 및 Windows EXE 검증 |
 
 별도 `scripts/` 디렉터리나 중복 설정 파일은 두지 않습니다. 개발 명령과 도구 설정은
 `pyproject.toml`에 모았습니다.
