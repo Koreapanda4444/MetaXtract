@@ -4,23 +4,82 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
-      - name: Lint
-        run: ruff check .
-      - name: CLI smoke test
+      - name: Lint source
+        run: python -m ruff check .
+      - name: Test
+        run: python -m pytest
+      - name: Build wheel
+        run: python -m build --wheel
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metaxtract-wheel
+          path: dist/*.whl
+          if-no-files-found: error
+
+  installed-cli:
+    name: Installed CLI (${{ matrix.label }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux / Python 3.11
+            os: ubuntu-latest
+            python: "3.11"
+          - label: Windows / Python 3.11
+            os: windows-latest
+            python: "3.11"
+          - label: macOS / Python 3.11
+            os: macos-latest
+            python: "3.11"
+          - label: Linux / Python 3.14
+            os: ubuntu-latest
+            python: "3.14"
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: metaxtract-wheel
+          path: dist
+      - name: Install built wheel
         run: |
+          python -m pip install --upgrade pip
+          python -c "from pathlib import Path; import subprocess, sys; wheels = list(Path('dist').glob('*.whl')); assert len(wheels) == 1; subprocess.check_call([sys.executable, '-m', 'pip', 'install', str(wheels[0])])"
+      - name: Check installed entry points
+        run: |
+          metaxtract --version
           metaxtract --help
           metaxtract doctor
-      - name: Test
-        run: pytest
+          python -m metaxtract --version
+      - name: Run installed CLI workflow
+        run: |
+          python -c "from pathlib import Path; root = Path('smoke-data'); root.mkdir(); (root / 'evidence.txt').write_text('cross-platform smoke test', encoding='utf-8')"
+          metaxtract scan smoke-data --cache off --out scan.jsonl
+          metaxtract report scan.jsonl --out report.json
+          metaxtract verify scan.jsonl smoke-data
+          metaxtract export-case scan.jsonl case.zip --include-files --files-base smoke-data
+          metaxtract verify-bundle case.zip
