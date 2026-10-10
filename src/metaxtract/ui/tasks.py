@@ -75,3 +75,26 @@ def run_verification(
         events.put(("verify_error", (type(exc).__name__, str(exc))))
     else:
         events.put(("verify_complete", (bundle, issues)))
+
+
+def run_import(
+    events: EventQueue,
+    path: str,
+    import_kind: str,
+    public_key: str | None = None,
+) -> None:
+    from metaxtract.case.importer import ImportValidationError, load_bundle, load_jsonl
+
+    try:
+        if import_kind == "jsonl":
+            payload = load_jsonl(path)
+        elif import_kind == "bundle":
+            payload = load_bundle(path, public_key=public_key)
+        else:
+            raise ValueError(f"unsupported import kind: {import_kind}")
+    except ImportValidationError as exc:
+        events.put(("import_invalid", (path, exc.issues)))
+    except Exception as exc:
+        events.put(("import_error", (type(exc).__name__, str(exc))))
+    else:
+        events.put(("import_complete", payload))

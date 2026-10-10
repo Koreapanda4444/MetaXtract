@@ -4,10 +4,12 @@ import json
 import queue
 import threading
 import tkinter as tk
+import zipfile
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
+from metaxtract.case.importer import ImportPayload, bundle_is_signed, import_payload
 from metaxtract.core.workspace import CaseWorkspace
 from metaxtract.ui import dialogs
 from metaxtract.ui.icons import apply_window_icons
@@ -20,7 +22,7 @@ from metaxtract.ui.records import (
     record_dict,
     record_status,
 )
-from metaxtract.ui.tasks import run_scan, run_verification
+from metaxtract.ui.tasks import run_import, run_scan, run_verification
 
 
 class MetaXtractGUI(tk.Tk):
@@ -82,6 +84,9 @@ class MetaXtractGUI(tk.Tk):
         self._recent_menu = tk.Menu(case_menu, tearoff=False)
         case_menu.add_cascade(label="Open Recent", menu=self._recent_menu)
         case_menu.add_separator()
+        case_menu.add_command(label="Import JSONL…", command=self._import_jsonl)
+        case_menu.add_command(label="Import Case ZIP…", command=self._import_bundle)
+        case_menu.add_separator()
         case_menu.add_command(
             label="Save Case",
             accelerator="Ctrl+S",
@@ -115,6 +120,12 @@ class MetaXtractGUI(tk.Tk):
         self.save_case_button.grid(row=0, column=4, padx=2)
         self.close_case_button = ttk.Button(case, text="Close", command=self._close_case)
         self.close_case_button.grid(row=0, column=5, padx=(2, 0))
+        self.import_button = ttk.Menubutton(case, text="Import")
+        import_menu = tk.Menu(self.import_button, tearoff=False)
+        import_menu.add_command(label="JSONL…", command=self._import_jsonl)
+        import_menu.add_command(label="Case ZIP…", command=self._import_bundle)
+        self.import_button.configure(menu=import_menu)
+        self.import_button.grid(row=0, column=6, padx=(8, 0))
 
     def _build_target_controls(self) -> None:
         target = ttk.Frame(self, padding=(10, 10, 10, 4))
@@ -395,6 +406,7 @@ class MetaXtractGUI(tk.Tk):
             maximum=max(len(self._last_records), 1),
             value=len(self._last_records),
         )
+        self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
         self._refresh_table()
 
     def _save_case(self, *, announce: bool = True) -> bool:
@@ -457,6 +469,129 @@ class MetaXtractGUI(tk.Tk):
         self._update_case_ui()
         self.status_var.set("Case closed.")
 
+    def _import_jsonl(self) -> None:
+        if self._worker is not None:
+            return
+        selected = filedialog.askopenfilename(
+            parent=self,
+            title="Import scan JSONL",
+            filetypes=[("JSONL", "*.jsonl"), ("All files", "*")],
+        )
+        if selected:
+            self._start_import(selected, "jsonl")
+
+    def _import_bundle(self) -> None:
+        if self._worker is not None:
+            return
+        selected = filedialog.askopenfilename(
+            parent=self,
+            title="Import case ZIP",
+            filetypes=[("ZIP archive", "*.zip"), ("All files", "*")],
+        )
+        if not selected:
+            return
+        try:
+            signed = bundle_is_signed(selected)
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
+            messagebox.showerror("MetaXtract", f"Invalid case bundle: {exc}", parent=self)
+            return
+        public_key = None
+        if signed:
+            public_key = filedialog.askopenfilename(
+                parent=self,
+                title="Select public key for the signed bundle",
+                filetypes=[("PEM key", "*.pem"), ("All files", "*")],
+            )
+            if not public_key:
+                return
+        self._start_import(selected, "bundle", public_key)
+
+    def _start_import(
+        self,
+        source: str,
+        import_kind: str,
+        public_key: str | None = None,
+    ) -> None:
+        if not self._confirm_case_transition():
+            return
+        if not self._ensure_workspace_for_import(source):
+            return
+        self.progress.configure(mode="indeterminate")
+        self.progress.start(12)
+        self.status_var.set(f"Importing: {Path(source).name}")
+        self._set_busy(True)
+        self._worker = threading.Thread(
+            target=run_import,
+            args=(self._events, source, import_kind, public_key),
+            name="metaxtract-import",
+            daemon=True,
+        )
+        self._worker.start()
+
+    def _ensure_workspace_for_import(self, source: str) -> bool:
+        if self._workspace is not None:
+            return True
+        source_path = Path(source)
+        selected = filedialog.asksaveasfilename(
+            parent=self,
+            title="Save imported data as a MetaXtract case",
+            initialfile=f"{source_path.stem}.mxc",
+            defaultextension=".mxc",
+            filetypes=[("MetaXtract case", "*.mxc"), ("All files", "*")],
+        )
+        if not selected:
+            return False
+        try:
+            self._workspace = CaseWorkspace.create(selected, title=source_path.stem)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("MetaXtract", f"Case creation failed: {exc}", parent=self)
+            return False
+        self._recent_cases.add(self._workspace.path)
+        self._refresh_recent_menu()
+        self._update_case_ui()
+        return True
+
+    def _finish_import(self, payload: ImportPayload) -> None:
+        self.progress.stop()
+        self.progress.configure(mode="determinate", maximum=1, value=0)
+        self._worker = None
+        self._set_busy(False)
+        if self._workspace is None:
+            self.status_var.set("Import failed: no case is open.")
+            return
+        try:
+            scan_id = import_payload(self._workspace, payload)
+            records = self._workspace.load_records(scan_id)
+        except (OSError, TypeError, ValueError) as exc:
+            self.status_var.set("Import failed.")
+            messagebox.showerror("MetaXtract", f"Import failed: {exc}", parent=self)
+            return
+
+        self._last_records = records
+        self._visible_records = {}
+        self._current_scan_id = scan_id
+        self._records_dirty = False
+        self._scan_source_path = payload.source_path
+        self._scan_source_kind = payload.source_kind
+        self._scan_base = None
+        self.path_var.set("")
+        self.progress.configure(maximum=max(len(records), 1), value=len(records))
+        self._set_export_state(tk.NORMAL if records else tk.DISABLED)
+        self._refresh_table()
+        self._update_case_ui()
+        verification = "signed and verified" if payload.signed else "validated"
+        self.status_var.set(
+            f"Imported {len(records)} file(s) from {Path(payload.source_path).name} "
+            f"({verification})."
+        )
+
+    def _finish_import_failure(self, status: str = "Import failed.") -> None:
+        self.progress.stop()
+        self.progress.configure(mode="determinate", maximum=1, value=0)
+        self._worker = None
+        self._set_busy(False)
+        self.status_var.set(status)
+
     def _confirm_case_transition(self) -> bool:
         if not self._records_dirty:
             return True
@@ -506,6 +641,7 @@ class MetaXtractGUI(tk.Tk):
         self.close_case_button.configure(
             state=tk.NORMAL if can_close and not busy else tk.DISABLED
         )
+        self.import_button.configure(state=tk.DISABLED if busy else tk.NORMAL)
 
     def _browse_file(self) -> None:
         selected = filedialog.askopenfilename()
@@ -598,6 +734,20 @@ class MetaXtractGUI(tk.Tk):
                         "MetaXtract",
                         f"Verification failed: {error_type}: {detail}",
                     )
+                elif event == "import_complete":
+                    self._finish_import(payload)
+                elif event == "import_invalid":
+                    bundle, issues = payload
+                    self._finish_import_failure("Bundle validation failed.")
+                    dialogs.show_verification_issues(self, bundle, issues)
+                elif event == "import_error":
+                    error_type, detail = payload
+                    self._finish_import_failure()
+                    messagebox.showerror(
+                        "MetaXtract",
+                        f"Import failed: {error_type}: {detail}",
+                        parent=self,
+                    )
         except queue.Empty:
             pass
         if self.winfo_exists():
@@ -638,6 +788,7 @@ class MetaXtractGUI(tk.Tk):
             value=len(self._last_records),
         )
         self.status_var.set(f"Completed: {len(self._last_records)} file(s).")
+        self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
         self._refresh_table()
         self._update_case_ui()
 
@@ -657,6 +808,7 @@ class MetaXtractGUI(tk.Tk):
             self.open_case_button,
             self.save_case_button,
             self.close_case_button,
+            self.import_button,
         ):
             widget.configure(state=idle_state)
         self.cancel_button.configure(
