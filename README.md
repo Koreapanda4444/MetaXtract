@@ -12,7 +12,7 @@ CLI와 데스크톱 GUI를 제공합니다.
 - 원본 및 케이스 번들의 경로·크기·해시 검증
 - 개인정보 필드를 제거한 메타데이터 전용 번들
 - 동일 입력에서 동일한 바이트가 생성되는 결정적 ZIP
-- 옵션, 검색·상태 필터, 상세 보기, 내보내기를 갖춘 백그라운드 GUI
+- 단일 `.mxc` 케이스, 자동 저장·복구, 이력·메모·주석을 갖춘 백그라운드 GUI
 
 ## 요구 사항과 설치
 
@@ -221,6 +221,12 @@ OK/Warning/Error 상태로 결과를 거르고 행을 선택하면 전체 JSON �
 스캔 결과는 JSONL, JSON·HTML 리포트, 원본 포함 여부·redaction·선택적 Ed25519 서명을
 지정한 케이스 ZIP으로 내보낼 수 있습니다.
 
+`New` 또는 `Open`으로 단일 `.mxc` 케이스 파일을 관리합니다. 케이스를 연 상태에서는
+완료된 레코드가 스캔 도중부터 증분 저장되므로 중단되거나 비정상 종료되어도 이미 처리한
+결과를 다시 열 수 있습니다. 이전 스캔은 `Scan history`에서 전환하고, 케이스 제목·메모와
+레코드별 태그·메모를 함께 저장할 수 있습니다. 기존 JSONL과 검증된 케이스 ZIP도 새
+스캔 이력으로 가져올 수 있으며 서명된 ZIP에는 해당 공개 키가 필요합니다.
+
 `Create Keys`는 GUI에서 Ed25519 개인 키와 공개 키를 만들고, `Verify ZIP`은 기존 케이스
 ZIP의 구조·해시·선택적 서명을 검사합니다. 서명된 ZIP을 고르면 공개 키를 요구하며,
 필요하면 별도 원본 폴더까지 함께 대조할 수 있습니다.
@@ -229,12 +235,13 @@ ZIP의 구조·해시·선택적 서명을 검사합니다. 서명된 ZIP을 고
 
 | 경로 | 역할 |
 |---|---|
-| `src/metaxtract/core/` | 스캔, 캐시, 파일·JSONL 처리, 레코드 검증 |
+| `src/metaxtract/core/` | 스캔, 캐시, 파일·JSONL 처리, 레코드 검증, `.mxc` 저장소 |
 | `src/metaxtract/extractors/` | 포맷별 추출과 메타데이터 정규화 |
-| `src/metaxtract/case/` | 번들 생성, redaction, 경로·무결성 검증 |
+| `src/metaxtract/case/` | 번들 생성·가져오기, redaction, 경로·무결성 검증 |
 | `src/metaxtract/reporting/` | JSON·HTML 리포트, findings, diff |
 | `src/metaxtract/cli.py` | CLI 라우팅과 공통 실패 처리 |
-| `src/metaxtract/gui.py` | 데스크톱 GUI와 백그라운드 작업 제어 |
+| `src/metaxtract/ui/` | 데스크톱 화면, 대화상자, 백그라운드 작업, 최근 케이스 |
+| `src/metaxtract/gui.py` | GUI 호환 진입점 |
 | `pyproject.toml` | 패키지, 의존성, 빌드와 Ruff 설정 |
 | `.github/workflows/ci.yml` | 린트, 빌드, 설치형 CLI 및 Windows EXE 검증 |
 

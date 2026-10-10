@@ -11,11 +11,14 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .jsonio import dumps_json
-from .models import require_valid_records
+from .models import normalize_relative_path, require_valid_records
 
 
 APPLICATION_ID = 0x4D584354
-SCHEMA_REVISION = 1
+SCHEMA_REVISION = 2
+MAX_ANNOTATION_NOTE_CHARS = 100_000
+MAX_ANNOTATION_TAGS = 64
+MAX_ANNOTATION_TAG_CHARS = 100
 
 
 def _utc_now() -> str:
@@ -60,6 +63,50 @@ class ScanSummary:
     record_count: int
     warning_count: int
     error_count: int
+
+
+@dataclass(frozen=True)
+class RecordAnnotation:
+    scan_id: str
+    record_path: str
+    note: str
+    tags: tuple[str, ...]
+    updated_at: str
+
+
+def _normalize_annotation(note: str, tags: Iterable[str]) -> tuple[str, list[str]]:
+    if not isinstance(note, str):
+        raise TypeError("annotation note must be text")
+    if len(note) > MAX_ANNOTATION_NOTE_CHARS:
+        raise ValueError(
+            f"annotation note exceeds {MAX_ANNOTATION_NOTE_CHARS} characters"
+        )
+
+    if isinstance(tags, (str, bytes)):
+        raise TypeError("annotation tags must be an iterable of text values")
+
+    normalized_tags = []
+    seen_tags = set()
+    for raw_tag in tags:
+        if not isinstance(raw_tag, str):
+            raise TypeError("annotation tags must be text")
+        tag = raw_tag.strip()
+        if not tag:
+            continue
+        if any(character in tag for character in "\x00\r\n\t"):
+            raise ValueError("annotation tags cannot contain control characters")
+        if len(tag) > MAX_ANNOTATION_TAG_CHARS:
+            raise ValueError(
+                f"annotation tag exceeds {MAX_ANNOTATION_TAG_CHARS} characters"
+            )
+        key = tag.casefold()
+        if key in seen_tags:
+            continue
+        seen_tags.add(key)
+        normalized_tags.append(tag)
+        if len(normalized_tags) > MAX_ANNOTATION_TAGS:
+            raise ValueError(f"annotation has more than {MAX_ANNOTATION_TAGS} tags")
+    return note, normalized_tags
 
 
 class CaseWorkspace:
@@ -141,6 +188,20 @@ class CaseWorkspace:
 
                     CREATE INDEX records_scan_ordinal_idx
                         ON records(scan_id, ordinal);
+
+                    CREATE TABLE record_annotations (
+                        scan_id TEXT NOT NULL,
+                        record_path TEXT NOT NULL COLLATE NOCASE,
+                        note TEXT NOT NULL DEFAULT '',
+                        tags_json TEXT NOT NULL DEFAULT '[]',
+                        updated_at TEXT NOT NULL,
+                        PRIMARY KEY (scan_id, record_path),
+                        FOREIGN KEY (scan_id, record_path)
+                            REFERENCES records(scan_id, path) ON DELETE CASCADE
+                    );
+
+                    CREATE INDEX record_annotations_scan_idx
+                        ON record_annotations(scan_id);
                     """
                 )
                 connection.execute(
@@ -212,7 +273,7 @@ class CaseWorkspace:
             revision = int(self._connection.execute("PRAGMA user_version").fetchone()[0])
             if application_id != APPLICATION_ID:
                 raise ValueError("file is not a MetaXtract case workspace")
-            if revision != SCHEMA_REVISION:
+            if revision not in {1, SCHEMA_REVISION}:
                 raise ValueError("unsupported case workspace format")
             required_tables = {"case_info", "sources", "scan_runs", "records"}
             rows = self._connection.execute(
@@ -221,8 +282,54 @@ class CaseWorkspace:
             if not required_tables.issubset({str(row[0]) for row in rows}):
                 raise ValueError("case workspace is missing required data")
             self.info()
+            if revision == 1:
+                self._migrate_v1_to_v2()
+            annotation_table = self._connection.execute(
+                "SELECT 1 FROM sqlite_schema WHERE type = 'table' "
+                "AND name = 'record_annotations'"
+            ).fetchone()
+            if annotation_table is None:
+                raise ValueError("case workspace is missing annotation data")
+            annotation_columns = {
+                str(row[1])
+                for row in self._connection.execute(
+                    "PRAGMA table_info(record_annotations)"
+                ).fetchall()
+            }
+            if not {
+                "scan_id",
+                "record_path",
+                "note",
+                "tags_json",
+                "updated_at",
+            }.issubset(annotation_columns):
+                raise ValueError("case workspace has invalid annotation data")
         except sqlite3.Error as exc:
             raise ValueError(f"invalid case workspace: {exc}") from exc
+
+    def _migrate_v1_to_v2(self) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS record_annotations (
+                    scan_id TEXT NOT NULL,
+                    record_path TEXT NOT NULL COLLATE NOCASE,
+                    note TEXT NOT NULL DEFAULT '',
+                    tags_json TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (scan_id, record_path),
+                    FOREIGN KEY (scan_id, record_path)
+                        REFERENCES records(scan_id, path) ON DELETE CASCADE
+                )
+                """
+            )
+            self._connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS record_annotations_scan_idx
+                    ON record_annotations(scan_id)
+                """
+            )
+            self._connection.execute(f"PRAGMA user_version = {SCHEMA_REVISION}")
 
     def __enter__(self) -> CaseWorkspace:
         self._ensure_open()
@@ -573,6 +680,113 @@ class CaseWorkspace:
             }
             for row in rows
         ]
+
+    def get_annotation(
+        self,
+        scan_id: str,
+        record_path: str,
+    ) -> RecordAnnotation | None:
+        normalized_path = normalize_relative_path(record_path)
+        with self._lock:
+            self._ensure_open()
+            row = self._connection.execute(
+                """
+                SELECT scan_id, record_path, note, tags_json, updated_at
+                FROM record_annotations
+                WHERE scan_id = ? AND record_path = ? COLLATE NOCASE
+                """,
+                (scan_id, normalized_path),
+            ).fetchone()
+        return self._annotation_from_row(row) if row is not None else None
+
+    def list_annotations(self, scan_id: str) -> dict[str, RecordAnnotation]:
+        with self._lock:
+            self._ensure_open()
+            rows = self._connection.execute(
+                """
+                SELECT scan_id, record_path, note, tags_json, updated_at
+                FROM record_annotations
+                WHERE scan_id = ?
+                ORDER BY record_path COLLATE NOCASE
+                """,
+                (scan_id,),
+            ).fetchall()
+        annotations = [self._annotation_from_row(row) for row in rows]
+        return {annotation.record_path: annotation for annotation in annotations}
+
+    def set_annotation(
+        self,
+        scan_id: str,
+        record_path: str,
+        *,
+        note: str = "",
+        tags: Iterable[str] = (),
+    ) -> RecordAnnotation | None:
+        normalized_path = normalize_relative_path(record_path)
+        normalized_note, normalized_tags = _normalize_annotation(note, tags)
+        updated = _utc_now()
+        with self._lock, self._connection:
+            self._ensure_open()
+            record_exists = self._connection.execute(
+                """
+                SELECT 1 FROM records
+                WHERE scan_id = ? AND path = ? COLLATE NOCASE
+                """,
+                (scan_id, normalized_path),
+            ).fetchone()
+            if record_exists is None:
+                raise ValueError(f"record is not in the selected scan: {normalized_path}")
+            if not normalized_note and not normalized_tags:
+                self._connection.execute(
+                    """
+                    DELETE FROM record_annotations
+                    WHERE scan_id = ? AND record_path = ? COLLATE NOCASE
+                    """,
+                    (scan_id, normalized_path),
+                )
+                self._touch(updated)
+                return None
+            self._connection.execute(
+                """
+                INSERT INTO record_annotations (
+                    scan_id, record_path, note, tags_json, updated_at
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(scan_id, record_path) DO UPDATE SET
+                    note = excluded.note,
+                    tags_json = excluded.tags_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    scan_id,
+                    normalized_path,
+                    normalized_note,
+                    dumps_json(normalized_tags),
+                    updated,
+                ),
+            )
+            self._touch(updated)
+        return RecordAnnotation(
+            scan_id=scan_id,
+            record_path=normalized_path,
+            note=normalized_note,
+            tags=tuple(normalized_tags),
+            updated_at=updated,
+        )
+
+    @staticmethod
+    def _annotation_from_row(row: sqlite3.Row) -> RecordAnnotation:
+        raw_tags = json.loads(row["tags_json"])
+        if not isinstance(raw_tags, list) or not all(
+            isinstance(tag, str) for tag in raw_tags
+        ):
+            raise ValueError("case workspace contains invalid annotation tags")
+        return RecordAnnotation(
+            scan_id=str(row["scan_id"]),
+            record_path=str(row["record_path"]),
+            note=str(row["note"]),
+            tags=tuple(raw_tags),
+            updated_at=str(row["updated_at"]),
+        )
 
     def _touch(self, timestamp: str | None = None) -> None:
         self._connection.execute(

@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from metaxtract.case.importer import ImportPayload, bundle_is_signed, import_payload
-from metaxtract.core.workspace import CaseWorkspace
+from metaxtract.core.workspace import CaseWorkspace, RecordAnnotation, ScanSummary
 from metaxtract.ui import dialogs
 from metaxtract.ui.icons import apply_window_icons
 from metaxtract.ui.recent import RecentCaseStore
@@ -41,6 +41,8 @@ class MetaXtractGUI(tk.Tk):
         self.status_filter_var = tk.StringVar(value=FILTER_ALL)
         self.status_var = tk.StringVar(value="Ready")
         self.case_var = tk.StringVar(value="No case open")
+        self.history_var = tk.StringVar(value="No saved scans")
+        self.annotation_tags_var = tk.StringVar(value="")
 
         self._last_records: list[dict[str, Any]] = []
         self._visible_records: dict[str, dict[str, Any]] = {}
@@ -50,6 +52,8 @@ class MetaXtractGUI(tk.Tk):
         self._workspace: CaseWorkspace | None = None
         self._current_scan_id: str | None = None
         self._active_scan_id: str | None = None
+        self._scan_history: list[ScanSummary] = []
+        self._selected_record_path: str | None = None
         self._records_dirty = False
         self._recent_cases = RecentCaseStore()
         self._events: queue.Queue[tuple[str, Any]] = queue.Queue()
@@ -93,6 +97,7 @@ class MetaXtractGUI(tk.Tk):
             accelerator="Ctrl+S",
             command=self._save_case,
         )
+        case_menu.add_command(label="Case Notes…", command=self._edit_case_details)
         case_menu.add_command(label="Close Case", command=self._close_case)
         case_menu.add_separator()
         case_menu.add_command(label="Exit", command=self._close)
@@ -127,6 +132,33 @@ class MetaXtractGUI(tk.Tk):
         import_menu.add_command(label="Case ZIP…", command=self._import_bundle)
         self.import_button.configure(menu=import_menu)
         self.import_button.grid(row=0, column=6, padx=(8, 0))
+        self.case_notes_button = ttk.Button(
+            case,
+            text="Notes",
+            command=self._edit_case_details,
+        )
+        self.case_notes_button.grid(row=0, column=7, padx=(6, 0))
+
+        ttk.Label(case, text="Scan history").grid(
+            row=1,
+            column=0,
+            sticky=tk.W,
+            pady=(8, 0),
+        )
+        self.history_combo = ttk.Combobox(
+            case,
+            textvariable=self.history_var,
+            state="disabled",
+        )
+        self.history_combo.grid(
+            row=1,
+            column=1,
+            columnspan=7,
+            sticky=tk.EW,
+            padx=(8, 0),
+            pady=(8, 0),
+        )
+        self.history_combo.bind("<<ComboboxSelected>>", self._select_scan_history)
 
     def _build_target_controls(self) -> None:
         target = ttk.Frame(self, padding=(10, 10, 10, 4))
@@ -307,6 +339,53 @@ class MetaXtractGUI(tk.Tk):
         detail_y.pack(side=tk.RIGHT, fill=tk.Y)
         detail_x.pack(fill=tk.X)
 
+        annotation = ttk.LabelFrame(details_frame, text="Record annotation", padding=8)
+        annotation.pack(fill=tk.X, pady=(10, 0))
+        annotation.columnconfigure(1, weight=1)
+        ttk.Label(annotation, text="Tags").grid(row=0, column=0, sticky=tk.W)
+        self.annotation_tags_entry = ttk.Entry(
+            annotation,
+            textvariable=self.annotation_tags_var,
+            state=tk.DISABLED,
+        )
+        self.annotation_tags_entry.grid(
+            row=0,
+            column=1,
+            sticky=tk.EW,
+            padx=(8, 0),
+        )
+        ttk.Label(annotation, text="Note").grid(
+            row=1,
+            column=0,
+            sticky=tk.NW,
+            pady=(8, 0),
+        )
+        self.annotation_note = tk.Text(
+            annotation,
+            wrap="word",
+            height=4,
+            state=tk.DISABLED,
+        )
+        self.annotation_note.grid(
+            row=1,
+            column=1,
+            sticky=tk.EW,
+            padx=(8, 0),
+            pady=(8, 0),
+        )
+        self.annotation_save_button = ttk.Button(
+            annotation,
+            text="Save annotation",
+            command=self._save_annotation,
+            state=tk.DISABLED,
+        )
+        self.annotation_save_button.grid(
+            row=2,
+            column=1,
+            sticky=tk.E,
+            pady=(8, 0),
+        )
+
     def _refresh_recent_menu(self) -> None:
         self._recent_menu.delete(0, tk.END)
         recent = self._recent_cases.load()
@@ -386,15 +465,59 @@ class MetaXtractGUI(tk.Tk):
             self._workspace.close()
         self._workspace = workspace
 
-    def _load_workspace_records(self) -> None:
-        if self._workspace is None:
-            self._clear_current_records()
-            return
-        scans = self._workspace.list_scans()
+    @staticmethod
+    def _scan_history_label(summary: ScanSummary) -> str:
+        timestamp = summary.started_at.replace("T", " ").replace("+00:00", " UTC")
+        source_name = Path(summary.source_path).name or summary.source_path
+        return (
+            f"{timestamp} · {summary.status} · {summary.record_count} file(s) · "
+            f"{source_name}"
+        )
+
+    def _refresh_scan_history(
+        self,
+        selected_scan_id: str | None = None,
+    ) -> list[ScanSummary]:
+        scans = self._workspace.list_scans() if self._workspace is not None else []
+        self._scan_history = scans
+        self.history_combo.configure(
+            values=[self._scan_history_label(summary) for summary in scans]
+        )
         if not scans:
-            self._clear_current_records()
+            self.history_var.set("No saved scans")
+            self.history_combo.configure(state="disabled")
+            return scans
+
+        target_scan_id = selected_scan_id or self._current_scan_id or scans[0].scan_id
+        selected_index = next(
+            (
+                index
+                for index, summary in enumerate(scans)
+                if summary.scan_id == target_scan_id
+            ),
+            0,
+        )
+        self.history_combo.current(selected_index)
+        self.history_combo.configure(
+            state="disabled" if self._worker is not None else "readonly"
+        )
+        return scans
+
+    def _select_scan_history(self, _event: Any = None) -> None:
+        if self._worker is not None or self._workspace is None:
             return
-        summary = scans[0]
+        index = self.history_combo.current()
+        if index < 0 or index >= len(self._scan_history):
+            return
+        summary = self._scan_history[index]
+        self._load_scan_summary(summary)
+        self.status_var.set(
+            f"Loaded {summary.record_count} file(s) from {summary.started_at}."
+        )
+
+    def _load_scan_summary(self, summary: ScanSummary) -> None:
+        if self._workspace is None:
+            return
         self._last_records = self._workspace.load_records(summary.scan_id)
         self._current_scan_id = summary.scan_id
         self._records_dirty = False
@@ -407,14 +530,50 @@ class MetaXtractGUI(tk.Tk):
             self._scan_base = source
         else:
             self._scan_base = None
-        if summary.origin == "scan":
-            self.path_var.set(summary.source_path)
+        self.path_var.set(summary.source_path if summary.origin == "scan" else "")
         self.progress.configure(
             maximum=max(len(self._last_records), 1),
             value=len(self._last_records),
         )
         self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
         self._refresh_table()
+        self._refresh_scan_history(summary.scan_id)
+
+    def _load_workspace_records(self) -> None:
+        if self._workspace is None:
+            self._clear_current_records()
+            return
+        scans = self._refresh_scan_history()
+        if not scans:
+            self._clear_current_records()
+            return
+        self._load_scan_summary(scans[0])
+
+    def _edit_case_details(self) -> None:
+        if self._worker is not None or self._workspace is None:
+            return
+        info = self._workspace.info()
+        result = dialogs.edit_case_details(
+            self,
+            title=info.title,
+            notes=info.notes,
+        )
+        if result is None:
+            return
+        try:
+            self._workspace.set_case_details(
+                title=result.title,
+                notes=result.notes,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not save case notes: {exc}",
+                parent=self,
+            )
+            return
+        self._update_case_ui()
+        self.status_var.set("Case title and notes saved.")
 
     def _save_case(self, *, announce: bool = True) -> bool:
         if self._worker is not None:
@@ -456,6 +615,7 @@ class MetaXtractGUI(tk.Tk):
                 return False
             self._records_dirty = False
 
+        self._refresh_scan_history(self._current_scan_id)
         self._update_case_ui()
         self.status_var.set(f"Saved case: {self._workspace.path.name}")
         if announce:
@@ -585,6 +745,7 @@ class MetaXtractGUI(tk.Tk):
         self.progress.configure(maximum=max(len(records), 1), value=len(records))
         self._set_export_state(tk.NORMAL if records else tk.DISABLED)
         self._refresh_table()
+        self._refresh_scan_history(scan_id)
         self._update_case_ui()
         verification = "signed and verified" if payload.signed else "validated"
         self.status_var.set(
@@ -626,6 +787,7 @@ class MetaXtractGUI(tk.Tk):
         self.progress.configure(mode="determinate", maximum=1, value=0)
         self._clear_results()
         self._set_export_state(tk.DISABLED)
+        self._refresh_scan_history()
 
     def _update_case_ui(self) -> None:
         if self._workspace is None:
@@ -650,6 +812,13 @@ class MetaXtractGUI(tk.Tk):
             state=tk.NORMAL if can_close and not busy else tk.DISABLED
         )
         self.import_button.configure(state=tk.DISABLED if busy else tk.NORMAL)
+        has_case = self._workspace is not None
+        self.case_notes_button.configure(
+            state=tk.NORMAL if has_case and not busy else tk.DISABLED
+        )
+        self.history_combo.configure(
+            state="readonly" if self._scan_history and not busy else "disabled"
+        )
 
     def _browse_file(self) -> None:
         selected = filedialog.askopenfilename()
@@ -813,6 +982,7 @@ class MetaXtractGUI(tk.Tk):
                     tk.NORMAL if self._last_records else tk.DISABLED
                 )
                 self._refresh_table()
+                self._refresh_scan_history(self._current_scan_id)
                 self.status_var.set(
                     f"{status or 'Scan failed.'} "
                     f"Recovered {len(self._last_records)} saved file(s)."
@@ -835,12 +1005,13 @@ class MetaXtractGUI(tk.Tk):
             value=len(self._last_records),
         )
         save_status = " Autosaved to case." if not self._records_dirty else ""
+        self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
+        self._refresh_table()
+        self._refresh_scan_history(self._current_scan_id)
+        self._update_case_ui()
         self.status_var.set(
             f"Completed: {len(self._last_records)} file(s).{save_status}"
         )
-        self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
-        self._refresh_table()
-        self._update_case_ui()
 
     def _set_busy(self, busy: bool, *, cancellable: bool = False) -> None:
         idle_state = tk.DISABLED if busy else tk.NORMAL
@@ -859,6 +1030,7 @@ class MetaXtractGUI(tk.Tk):
             self.save_case_button,
             self.close_case_button,
             self.import_button,
+            self.case_notes_button,
         ):
             widget.configure(state=idle_state)
         self.cancel_button.configure(
@@ -866,11 +1038,16 @@ class MetaXtractGUI(tk.Tk):
         )
         if busy:
             self._set_export_state(tk.DISABLED)
+            self.annotation_tags_entry.configure(state=tk.DISABLED)
+            self.annotation_note.configure(state=tk.DISABLED)
+            self.annotation_save_button.configure(state=tk.DISABLED)
+            self.history_combo.configure(state="disabled")
         else:
             self._set_export_state(
                 tk.NORMAL if self._last_records else tk.DISABLED
             )
             self._update_case_ui()
+            self._show_selected_record()
 
     def _set_export_state(self, state: str) -> None:
         for button in (
@@ -885,6 +1062,8 @@ class MetaXtractGUI(tk.Tk):
         for item in self.tree.get_children():
             self.tree.delete(item)
         self._set_details("")
+        self._selected_record_path = None
+        self._set_annotation_editor(None)
 
     def _refresh_table(self) -> None:
         if not hasattr(self, "tree"):
@@ -923,6 +1102,7 @@ class MetaXtractGUI(tk.Tk):
         if selected_item is not None:
             self.tree.selection_set(selected_item)
             self.tree.see(selected_item)
+            self._show_selected_record()
         elif visible:
             first = self.tree.get_children()[0]
             self.tree.selection_set(first)
@@ -937,13 +1117,86 @@ class MetaXtractGUI(tk.Tk):
         selection = self.tree.selection()
         if not selection:
             self._set_details("")
+            self._selected_record_path = None
+            self._set_annotation_editor(None)
             return
         record = self._visible_records.get(selection[0])
         if record is None:
             self._set_details("")
+            self._selected_record_path = None
+            self._set_annotation_editor(None)
             return
+        self._selected_record_path = str(record.get("path", "")) or None
         self._set_details(
             json.dumps(record, ensure_ascii=False, sort_keys=True, indent=2)
+        )
+        annotation = None
+        if (
+            self._workspace is not None
+            and self._current_scan_id is not None
+            and self._selected_record_path is not None
+        ):
+            try:
+                annotation = self._workspace.get_annotation(
+                    self._current_scan_id,
+                    self._selected_record_path,
+                )
+            except (TypeError, ValueError):
+                annotation = None
+        self._set_annotation_editor(annotation)
+
+    def _set_annotation_editor(
+        self,
+        annotation: RecordAnnotation | None,
+    ) -> None:
+        enabled = (
+            self._workspace is not None
+            and self._current_scan_id is not None
+            and self._selected_record_path is not None
+            and self._worker is None
+        )
+        self.annotation_tags_var.set(
+            ", ".join(annotation.tags) if annotation is not None else ""
+        )
+        self.annotation_note.configure(state=tk.NORMAL)
+        self.annotation_note.delete("1.0", tk.END)
+        if annotation is not None and annotation.note:
+            self.annotation_note.insert("1.0", annotation.note)
+        self.annotation_note.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+        self.annotation_tags_entry.configure(
+            state=tk.NORMAL if enabled else tk.DISABLED
+        )
+        self.annotation_save_button.configure(
+            state=tk.NORMAL if enabled else tk.DISABLED
+        )
+
+    def _save_annotation(self) -> None:
+        if (
+            self._workspace is None
+            or self._current_scan_id is None
+            or self._selected_record_path is None
+            or self._worker is not None
+        ):
+            return
+        note = self.annotation_note.get("1.0", "end-1c")
+        tags = [tag.strip() for tag in self.annotation_tags_var.get().split(",")]
+        try:
+            annotation = self._workspace.set_annotation(
+                self._current_scan_id,
+                self._selected_record_path,
+                note=note,
+                tags=tags,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not save annotation: {exc}",
+                parent=self,
+            )
+            return
+        self._set_annotation_editor(annotation)
+        self.status_var.set(
+            "Annotation saved." if annotation is not None else "Annotation cleared."
         )
 
     def _set_details(self, text: str) -> None:

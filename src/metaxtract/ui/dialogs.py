@@ -19,6 +19,81 @@ class VerificationRequest:
     public_key: str | None
 
 
+@dataclass(frozen=True)
+class CaseDetailsResult:
+    title: str
+    notes: str
+
+
+def edit_case_details(
+    parent: tk.Misc,
+    *,
+    title: str,
+    notes: str,
+) -> CaseDetailsResult | None:
+    result: CaseDetailsResult | None = None
+    dialog = tk.Toplevel(parent)
+    dialog.title("Case Notes")
+    dialog.transient(parent)
+    dialog.resizable(True, True)
+    dialog.minsize(460, 320)
+    dialog.columnconfigure(0, weight=1)
+    dialog.rowconfigure(3, weight=1)
+
+    title_var = tk.StringVar(dialog, value=title)
+    ttk.Label(dialog, text="Case title").grid(
+        row=0,
+        column=0,
+        sticky=tk.W,
+        padx=12,
+        pady=(12, 4),
+    )
+    title_entry = ttk.Entry(dialog, textvariable=title_var)
+    title_entry.grid(row=1, column=0, sticky=tk.EW, padx=12)
+    ttk.Label(dialog, text="Notes").grid(
+        row=2,
+        column=0,
+        sticky=tk.W,
+        padx=12,
+        pady=(12, 4),
+    )
+    notes_text = tk.Text(dialog, wrap="word", height=10)
+    notes_text.grid(row=3, column=0, sticky=tk.NSEW, padx=12)
+    notes_text.insert("1.0", notes)
+
+    actions = ttk.Frame(dialog)
+    actions.grid(row=4, column=0, sticky=tk.E, padx=12, pady=12)
+
+    def save() -> None:
+        nonlocal result
+        next_title = title_var.get().strip()
+        if not next_title:
+            messagebox.showwarning(
+                "MetaXtract",
+                "Case title cannot be empty.",
+                parent=dialog,
+            )
+            title_entry.focus_set()
+            return
+        result = CaseDetailsResult(
+            title=next_title,
+            notes=notes_text.get("1.0", "end-1c"),
+        )
+        dialog.destroy()
+
+    ttk.Button(actions, text="Cancel", command=dialog.destroy).pack(
+        side=tk.RIGHT,
+        padx=(6, 0),
+    )
+    ttk.Button(actions, text="Save", command=save).pack(side=tk.RIGHT)
+    dialog.bind("<Escape>", lambda _event: dialog.destroy())
+    dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+    dialog.grab_set()
+    title_entry.focus_set()
+    parent.wait_window(dialog)
+    return result
+
+
 def export_jsonl(parent: tk.Misc, records: list[dict[str, Any]]) -> None:
     out = filedialog.asksaveasfilename(
         parent=parent,
