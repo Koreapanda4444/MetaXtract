@@ -8,8 +8,10 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
+from metaxtract.core.workspace import CaseWorkspace
 from metaxtract.ui import dialogs
 from metaxtract.ui.icons import apply_window_icons
+from metaxtract.ui.recent import RecentCaseStore
 from metaxtract.ui.records import (
     FILTER_ALL,
     FILTER_VALUES,
@@ -36,14 +38,23 @@ class MetaXtractGUI(tk.Tk):
         self.search_var = tk.StringVar(value="")
         self.status_filter_var = tk.StringVar(value=FILTER_ALL)
         self.status_var = tk.StringVar(value="Ready")
+        self.case_var = tk.StringVar(value="No case open")
 
         self._last_records: list[dict[str, Any]] = []
         self._visible_records: dict[str, dict[str, Any]] = {}
         self._scan_base: Path | None = None
+        self._scan_source_path: str | None = None
+        self._scan_source_kind = "path"
+        self._workspace: CaseWorkspace | None = None
+        self._current_scan_id: str | None = None
+        self._records_dirty = False
+        self._recent_cases = RecentCaseStore()
         self._events: queue.Queue[tuple[str, Any]] = queue.Queue()
         self._cancel_event: threading.Event | None = None
         self._worker: threading.Thread | None = None
 
+        self._build_menu()
+        self._build_case_controls()
         self._build_target_controls()
         self._build_progress_controls()
         self._build_filter_controls()
@@ -51,7 +62,59 @@ class MetaXtractGUI(tk.Tk):
 
         self.search_var.trace_add("write", lambda *_args: self._refresh_table())
         self.protocol("WM_DELETE_WINDOW", self._close)
+        self._refresh_recent_menu()
+        self._update_case_ui()
         self.after(50, self._poll_events)
+
+    def _build_menu(self) -> None:
+        menu_bar = tk.Menu(self)
+        case_menu = tk.Menu(menu_bar, tearoff=False)
+        case_menu.add_command(
+            label="New Case…",
+            accelerator="Ctrl+N",
+            command=self._new_case,
+        )
+        case_menu.add_command(
+            label="Open Case…",
+            accelerator="Ctrl+O",
+            command=self._open_case,
+        )
+        self._recent_menu = tk.Menu(case_menu, tearoff=False)
+        case_menu.add_cascade(label="Open Recent", menu=self._recent_menu)
+        case_menu.add_separator()
+        case_menu.add_command(
+            label="Save Case",
+            accelerator="Ctrl+S",
+            command=self._save_case,
+        )
+        case_menu.add_command(label="Close Case", command=self._close_case)
+        case_menu.add_separator()
+        case_menu.add_command(label="Exit", command=self._close)
+        menu_bar.add_cascade(label="Case", menu=case_menu)
+        self.configure(menu=menu_bar)
+        self.bind_all("<Control-n>", lambda _event: self._new_case())
+        self.bind_all("<Control-o>", lambda _event: self._open_case())
+        self.bind_all("<Control-s>", lambda _event: self._save_case())
+
+    def _build_case_controls(self) -> None:
+        case = ttk.Frame(self, padding=(10, 10, 10, 4))
+        case.pack(side=tk.TOP, fill=tk.X)
+        case.columnconfigure(1, weight=1)
+        ttk.Label(case, text="Case").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(case, textvariable=self.case_var).grid(
+            row=0,
+            column=1,
+            sticky=tk.W,
+            padx=(8, 12),
+        )
+        self.new_case_button = ttk.Button(case, text="New", command=self._new_case)
+        self.new_case_button.grid(row=0, column=2, padx=2)
+        self.open_case_button = ttk.Button(case, text="Open", command=self._open_case)
+        self.open_case_button.grid(row=0, column=3, padx=2)
+        self.save_case_button = ttk.Button(case, text="Save", command=self._save_case)
+        self.save_case_button.grid(row=0, column=4, padx=2)
+        self.close_case_button = ttk.Button(case, text="Close", command=self._close_case)
+        self.close_case_button.grid(row=0, column=5, padx=(2, 0))
 
     def _build_target_controls(self) -> None:
         target = ttk.Frame(self, padding=(10, 10, 10, 4))
@@ -232,6 +295,218 @@ class MetaXtractGUI(tk.Tk):
         detail_y.pack(side=tk.RIGHT, fill=tk.Y)
         detail_x.pack(fill=tk.X)
 
+    def _refresh_recent_menu(self) -> None:
+        self._recent_menu.delete(0, tk.END)
+        recent = self._recent_cases.load()
+        if not recent:
+            self._recent_menu.add_command(label="No recent cases", state=tk.DISABLED)
+            return
+        for path in recent:
+            case_path = Path(path)
+            label = f"{case_path.name} — {case_path.parent}"
+            self._recent_menu.add_command(
+                label=label,
+                command=lambda selected=path: self._open_workspace_path(selected),
+            )
+
+    def _new_case(self) -> None:
+        if self._worker is not None or not self._confirm_case_transition():
+            return
+        selected = filedialog.asksaveasfilename(
+            parent=self,
+            title="Create MetaXtract case",
+            defaultextension=".mxc",
+            filetypes=[("MetaXtract case", "*.mxc"), ("All files", "*")],
+        )
+        if not selected:
+            return
+        try:
+            workspace = CaseWorkspace.create(selected)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("MetaXtract", f"Case creation failed: {exc}", parent=self)
+            return
+        self._replace_workspace(workspace)
+        self._clear_current_records()
+        self._recent_cases.add(workspace.path)
+        self._refresh_recent_menu()
+        self._update_case_ui()
+        self.status_var.set(f"Created case: {workspace.path.name}")
+
+    def _open_case(self) -> None:
+        if self._worker is not None:
+            return
+        selected = filedialog.askopenfilename(
+            parent=self,
+            title="Open MetaXtract case",
+            filetypes=[("MetaXtract case", "*.mxc"), ("All files", "*")],
+        )
+        if selected:
+            self._open_workspace_path(selected)
+
+    def _open_workspace_path(self, selected: str) -> None:
+        if self._worker is not None or not self._confirm_case_transition():
+            return
+        case_path = Path(selected).expanduser().absolute()
+        try:
+            workspace = CaseWorkspace.open(case_path)
+        except (OSError, ValueError) as exc:
+            self._recent_cases.remove(case_path)
+            self._refresh_recent_menu()
+            messagebox.showerror("MetaXtract", f"Case open failed: {exc}", parent=self)
+            return
+        self._replace_workspace(workspace)
+        self._load_workspace_records()
+        self._recent_cases.add(workspace.path)
+        self._refresh_recent_menu()
+        self._update_case_ui()
+        self.status_var.set(
+            f"Opened case: {workspace.path.name} — {len(self._last_records)} file(s)."
+        )
+
+    def _replace_workspace(self, workspace: CaseWorkspace) -> None:
+        if self._workspace is not None:
+            self._workspace.close()
+        self._workspace = workspace
+
+    def _load_workspace_records(self) -> None:
+        if self._workspace is None:
+            self._clear_current_records()
+            return
+        scans = self._workspace.list_scans()
+        if not scans:
+            self._clear_current_records()
+            return
+        summary = scans[0]
+        self._last_records = self._workspace.load_records(summary.scan_id)
+        self._current_scan_id = summary.scan_id
+        self._records_dirty = False
+        self._scan_source_path = summary.source_path
+        self._scan_source_kind = summary.source_kind
+        source = Path(summary.source_path)
+        if summary.source_kind == "file":
+            self._scan_base = source.parent
+        elif summary.source_kind == "directory":
+            self._scan_base = source
+        else:
+            self._scan_base = None
+        if summary.origin == "scan":
+            self.path_var.set(summary.source_path)
+        self.progress.configure(
+            maximum=max(len(self._last_records), 1),
+            value=len(self._last_records),
+        )
+        self._refresh_table()
+
+    def _save_case(self, *, announce: bool = True) -> bool:
+        if self._worker is not None:
+            return False
+        if self._workspace is None:
+            selected = filedialog.asksaveasfilename(
+                parent=self,
+                title="Save MetaXtract case",
+                defaultextension=".mxc",
+                filetypes=[("MetaXtract case", "*.mxc"), ("All files", "*")],
+            )
+            if not selected:
+                return False
+            try:
+                self._workspace = CaseWorkspace.create(selected)
+            except (OSError, ValueError) as exc:
+                messagebox.showerror("MetaXtract", f"Case creation failed: {exc}", parent=self)
+                return False
+            self._recent_cases.add(self._workspace.path)
+            self._refresh_recent_menu()
+
+        if self._records_dirty and self._last_records:
+            source_path = self._scan_source_path or self.path_var.get().strip()
+            if not source_path:
+                messagebox.showerror(
+                    "MetaXtract",
+                    "The scan source path is unavailable.",
+                    parent=self,
+                )
+                return False
+            try:
+                self._current_scan_id = self._workspace.save_scan(
+                    self._last_records,
+                    source_path=source_path,
+                    source_kind=self._scan_source_kind,
+                )
+            except (OSError, TypeError, ValueError) as exc:
+                messagebox.showerror("MetaXtract", f"Case save failed: {exc}", parent=self)
+                return False
+            self._records_dirty = False
+
+        self._update_case_ui()
+        self.status_var.set(f"Saved case: {self._workspace.path.name}")
+        if announce:
+            messagebox.showinfo(
+                "MetaXtract",
+                f"Saved: {self._workspace.path}",
+                parent=self,
+            )
+        return True
+
+    def _close_case(self) -> None:
+        if self._worker is not None or not self._confirm_case_transition():
+            return
+        if self._workspace is not None:
+            self._workspace.close()
+            self._workspace = None
+        self._clear_current_records()
+        self._update_case_ui()
+        self.status_var.set("Case closed.")
+
+    def _confirm_case_transition(self) -> bool:
+        if not self._records_dirty:
+            return True
+        decision = messagebox.askyesnocancel(
+            "Unsaved scan",
+            "The current scan has not been saved to a case. Save it now?",
+            parent=self,
+        )
+        if decision is None:
+            return False
+        if decision:
+            return self._save_case(announce=False)
+        return True
+
+    def _clear_current_records(self) -> None:
+        self._last_records = []
+        self._visible_records = {}
+        self._scan_base = None
+        self._scan_source_path = None
+        self._scan_source_kind = "path"
+        self._current_scan_id = None
+        self._records_dirty = False
+        self.path_var.set("")
+        self.progress.configure(mode="determinate", maximum=1, value=0)
+        self._clear_results()
+        self._set_export_state(tk.DISABLED)
+
+    def _update_case_ui(self) -> None:
+        if self._workspace is None:
+            marker = " — unsaved scan" if self._records_dirty else ""
+            self.case_var.set(f"No case open{marker}")
+            self.title("MetaXtract")
+        else:
+            info = self._workspace.info()
+            marker = " *" if self._records_dirty else ""
+            self.case_var.set(f"{info.title}{marker} — {self._workspace.path}")
+            self.title(f"MetaXtract — {info.title}{marker}")
+
+        busy = self._worker is not None
+        self.new_case_button.configure(state=tk.DISABLED if busy else tk.NORMAL)
+        self.open_case_button.configure(state=tk.DISABLED if busy else tk.NORMAL)
+        can_save = self._workspace is not None or bool(self._last_records)
+        self.save_case_button.configure(
+            state=tk.NORMAL if can_save and not busy else tk.DISABLED
+        )
+        can_close = self._workspace is not None or bool(self._last_records)
+        self.close_case_button.configure(
+            state=tk.NORMAL if can_close and not busy else tk.DISABLED
+        )
+
     def _browse_file(self) -> None:
         selected = filedialog.askopenfilename()
         if selected:
@@ -243,7 +518,7 @@ class MetaXtractGUI(tk.Tk):
             self.path_var.set(selected)
 
     def _scan(self) -> None:
-        if self._worker is not None:
+        if self._worker is not None or not self._confirm_case_transition():
             return
         target_text = self.path_var.get().strip()
         if not target_text:
@@ -259,6 +534,10 @@ class MetaXtractGUI(tk.Tk):
 
         target = Path(target_text).expanduser()
         self._scan_base = target.parent if target.is_file() else target
+        self._scan_source_path = str(target.absolute())
+        self._scan_source_kind = "file" if target.is_file() else "directory"
+        self._current_scan_id = None
+        self._records_dirty = False
         self._last_records = []
         self._visible_records = {}
         self._clear_results()
@@ -349,15 +628,18 @@ class MetaXtractGUI(tk.Tk):
         self._set_busy(False)
         if records is None:
             self.status_var.set(status or "Scan failed.")
+            self._update_case_ui()
             return
 
         self._last_records = [record_dict(record) for record in records]
+        self._records_dirty = True
         self.progress.configure(
             maximum=max(len(self._last_records), 1),
             value=len(self._last_records),
         )
         self.status_var.set(f"Completed: {len(self._last_records)} file(s).")
         self._refresh_table()
+        self._update_case_ui()
 
     def _set_busy(self, busy: bool, *, cancellable: bool = False) -> None:
         idle_state = tk.DISABLED if busy else tk.NORMAL
@@ -371,6 +653,10 @@ class MetaXtractGUI(tk.Tk):
             self.max_files_spin,
             self.key_button,
             self.verify_button,
+            self.new_case_button,
+            self.open_case_button,
+            self.save_case_button,
+            self.close_case_button,
         ):
             widget.configure(state=idle_state)
         self.cancel_button.configure(
@@ -382,6 +668,7 @@ class MetaXtractGUI(tk.Tk):
             self._set_export_state(
                 tk.NORMAL if self._last_records else tk.DISABLED
             )
+            self._update_case_ui()
 
     def _set_export_state(self, state: str) -> None:
         for button in (
@@ -526,8 +813,19 @@ class MetaXtractGUI(tk.Tk):
         dialogs.show_verification_issues(self, bundle, issues)
 
     def _close(self) -> None:
-        if self._cancel_event is not None:
-            self._cancel_event.set()
+        if self._worker is not None:
+            if not messagebox.askyesno(
+                "MetaXtract",
+                "A task is still running. Cancel it and exit?",
+                parent=self,
+            ):
+                return
+            if self._cancel_event is not None:
+                self._cancel_event.set()
+        elif not self._confirm_case_transition():
+            return
+        if self._workspace is not None:
+            self._workspace.close()
         self.destroy()
 
 
