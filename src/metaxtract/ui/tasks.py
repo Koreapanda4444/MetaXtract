@@ -6,6 +6,7 @@ from typing import Any
 
 from metaxtract.core.cache import CacheStore
 from metaxtract.core.scanner import ScanCancelled, scan_path
+from metaxtract.core.workspace import CaseWorkspace
 
 
 EventQueue = queue.Queue[tuple[str, Any]]
@@ -18,6 +19,8 @@ def run_scan(
     include_hidden: bool,
     max_files: int,
     cancel_event: threading.Event,
+    workspace: CaseWorkspace | None = None,
+    scan_id: str | None = None,
 ) -> None:
     def report_progress(completed: int, total: int, path: str | None) -> None:
         events.put(("progress", (completed, total, path)))
@@ -37,6 +40,14 @@ def run_scan(
         last_byte_report[path] = processed
         events.put(("bytes", (file_index, total_files, path, processed, total_bytes)))
 
+    def persist_record(record: Any, completed: int, _total: int) -> None:
+        if workspace is not None and scan_id is not None:
+            workspace.append_record(scan_id, record, ordinal=completed - 1)
+
+    def finish_persistent_scan(status: str) -> None:
+        if workspace is not None and scan_id is not None:
+            workspace.finish_scan(scan_id, status=status)
+
     try:
         cache = CacheStore(".metaxtract_cache") if use_cache else None
         records = scan_path(
@@ -47,14 +58,29 @@ def run_scan(
             include_hidden=include_hidden,
             progress_callback=report_progress,
             byte_progress_callback=report_bytes,
+            record_callback=persist_record,
             cancel_check=cancel_event.is_set,
         )
     except ScanCancelled:
-        events.put(("cancelled", None))
+        try:
+            finish_persistent_scan("cancelled")
+        except Exception as exc:
+            events.put(("error", (type(exc).__name__, str(exc))))
+        else:
+            events.put(("cancelled", None))
     except Exception as exc:
+        try:
+            finish_persistent_scan("failed")
+        except Exception:
+            pass
         events.put(("error", (type(exc).__name__, str(exc))))
     else:
-        events.put(("complete", records))
+        try:
+            finish_persistent_scan("completed")
+        except Exception as exc:
+            events.put(("error", (type(exc).__name__, str(exc))))
+        else:
+            events.put(("complete", records))
 
 
 def run_verification(

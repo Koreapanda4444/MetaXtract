@@ -19,6 +19,7 @@ ProgressCallback = Callable[[int, int, str | None], None]
 HashProgressCallback = Callable[[int, int], None]
 ByteProgressCallback = Callable[[int, int, str, int, int], None]
 CancelCheck = Callable[[], bool]
+RecordCallback = Callable[[ScanRecord, int, int], None]
 
 
 class ScanCancelled(RuntimeError):
@@ -198,6 +199,7 @@ def scan_path(
     include_hidden: bool = Settings.include_hidden,
     progress_callback: ProgressCallback | None = None,
     byte_progress_callback: ByteProgressCallback | None = None,
+    record_callback: RecordCallback | None = None,
     cancel_check: CancelCheck | None = None,
 ) -> List[ScanRecord]:
     target = Path(root)
@@ -266,6 +268,8 @@ def scan_path(
                 cancel_check=cancel_check,
             )
             records.append(record)
+            if record_callback is not None:
+                record_callback(record, completed, len(files))
             if progress_callback is not None:
                 progress_callback(completed, len(files), record.path)
             _check_cancelled(cancel_check)

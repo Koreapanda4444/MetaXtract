@@ -5,7 +5,7 @@ import os
 import sqlite3
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -20,6 +20,22 @@ SCHEMA_REVISION = 1
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _workspace_record(record: Any) -> dict[str, Any]:
+    if is_dataclass(record):
+        row = asdict(record)
+    elif hasattr(record, "model_dump"):
+        row = dict(record.model_dump())
+    else:
+        row = dict(record)
+    if row.get("sha256") == "" and row.get("errors"):
+        placeholder = dict(row)
+        placeholder["sha256"] = "0" * 64
+        normalized = require_valid_records([placeholder])[0]
+        normalized["sha256"] = ""
+        return normalized
+    return require_valid_records([row])[0]
 
 
 @dataclass(frozen=True)
@@ -52,6 +68,7 @@ class CaseWorkspace:
         self._connection = connection
         self._lock = threading.RLock()
         self._closed = False
+        self.recovered_scan_ids: tuple[str, ...] = ()
 
     @classmethod
     def create(
@@ -162,6 +179,7 @@ class CaseWorkspace:
         workspace = cls(workspace_path, connection)
         try:
             workspace._validate_database()
+            workspace.recovered_scan_ids = tuple(workspace.recover_interrupted_scans())
         except Exception:
             workspace.close()
             raise
@@ -271,7 +289,7 @@ class CaseWorkspace:
         started_at: str | None = None,
         completed_at: str | None = None,
     ) -> str:
-        valid_records = require_valid_records(records)
+        valid_records = [_workspace_record(record) for record in records]
         source = str(Path(source_path).expanduser().absolute())
         if not source_kind.strip():
             raise ValueError("source kind cannot be empty")
@@ -345,6 +363,144 @@ class CaseWorkspace:
             )
             self._touch(completed)
         return scan_id
+
+    def begin_scan(
+        self,
+        *,
+        source_path: str | os.PathLike[str],
+        source_kind: str,
+        origin: str = "scan",
+        imported_from: str | os.PathLike[str] | None = None,
+        started_at: str | None = None,
+    ) -> str:
+        source = str(Path(source_path).expanduser().absolute())
+        kind = source_kind.strip()
+        if not kind:
+            raise ValueError("source kind cannot be empty")
+        scan_id = str(uuid.uuid4())
+        start = started_at or _utc_now()
+        imported = (
+            str(Path(imported_from).expanduser().absolute())
+            if imported_from is not None
+            else None
+        )
+        with self._lock, self._connection:
+            self._ensure_open()
+            self._connection.execute(
+                """
+                INSERT INTO sources(path, kind, added_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(path) DO UPDATE SET kind = excluded.kind
+                """,
+                (source, kind, start),
+            )
+            source_id = int(
+                self._connection.execute(
+                    "SELECT source_id FROM sources WHERE path = ? COLLATE NOCASE",
+                    (source,),
+                ).fetchone()[0]
+            )
+            self._connection.execute(
+                """
+                INSERT INTO scan_runs (
+                    scan_id, source_id, origin, imported_from, status, started_at
+                ) VALUES (?, ?, ?, ?, 'running', ?)
+                """,
+                (scan_id, source_id, origin, imported, start),
+            )
+            self._touch(start)
+        return scan_id
+
+    def append_record(
+        self,
+        scan_id: str,
+        record: Any,
+        *,
+        ordinal: int | None = None,
+    ) -> int:
+        row = _workspace_record(record)
+        with self._lock, self._connection:
+            self._ensure_open()
+            scan = self._connection.execute(
+                "SELECT status, record_count FROM scan_runs WHERE scan_id = ?",
+                (scan_id,),
+            ).fetchone()
+            if scan is None:
+                raise ValueError(f"unknown scan: {scan_id}")
+            if scan["status"] != "running":
+                raise ValueError(f"scan is not running: {scan_id}")
+            next_ordinal = int(scan["record_count"]) if ordinal is None else ordinal
+            if next_ordinal < 0:
+                raise ValueError("record ordinal cannot be negative")
+            self._connection.execute(
+                """
+                INSERT INTO records (
+                    scan_id, ordinal, path, mime, size_bytes, sha256,
+                    metadata_json, warnings_json, errors_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    scan_id,
+                    next_ordinal,
+                    row["path"],
+                    row["mime"],
+                    row["size_bytes"],
+                    row["sha256"],
+                    dumps_json(row["metadata"]),
+                    dumps_json(row["warnings"]),
+                    dumps_json(row["errors"]),
+                ),
+            )
+            self._connection.execute(
+                """
+                UPDATE scan_runs
+                SET record_count = record_count + 1,
+                    warning_count = warning_count + ?,
+                    error_count = error_count + ?
+                WHERE scan_id = ?
+                """,
+                (len(row["warnings"]), len(row["errors"]), scan_id),
+            )
+            self._touch()
+        return next_ordinal
+
+    def finish_scan(self, scan_id: str, *, status: str = "completed") -> None:
+        if status not in {"completed", "cancelled", "failed"}:
+            raise ValueError(f"invalid final scan status: {status}")
+        completed = _utc_now()
+        with self._lock, self._connection:
+            self._ensure_open()
+            cursor = self._connection.execute(
+                """
+                UPDATE scan_runs
+                SET status = ?, completed_at = ?
+                WHERE scan_id = ? AND status = 'running'
+                """,
+                (status, completed, scan_id),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError(f"scan is not running: {scan_id}")
+            self._touch(completed)
+
+    def recover_interrupted_scans(self) -> list[str]:
+        completed = _utc_now()
+        with self._lock, self._connection:
+            self._ensure_open()
+            rows = self._connection.execute(
+                "SELECT scan_id FROM scan_runs WHERE status = 'running' ORDER BY rowid"
+            ).fetchall()
+            scan_ids = [str(row["scan_id"]) for row in rows]
+            if scan_ids:
+                self._connection.execute(
+                    """
+                    UPDATE scan_runs
+                    SET status = 'failed', completed_at = ?
+                    WHERE status = 'running'
+                    """,
+                    (completed,),
+                )
+                self._touch(completed)
+        return scan_ids
 
     def list_scans(self) -> list[ScanSummary]:
         with self._lock:

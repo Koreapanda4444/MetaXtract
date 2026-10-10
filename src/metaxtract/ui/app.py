@@ -49,6 +49,7 @@ class MetaXtractGUI(tk.Tk):
         self._scan_source_kind = "path"
         self._workspace: CaseWorkspace | None = None
         self._current_scan_id: str | None = None
+        self._active_scan_id: str | None = None
         self._records_dirty = False
         self._recent_cases = RecentCaseStore()
         self._events: queue.Queue[tuple[str, Any]] = queue.Queue()
@@ -370,9 +371,15 @@ class MetaXtractGUI(tk.Tk):
         self._recent_cases.add(workspace.path)
         self._refresh_recent_menu()
         self._update_case_ui()
-        self.status_var.set(
-            f"Opened case: {workspace.path.name} — {len(self._last_records)} file(s)."
-        )
+        if workspace.recovered_scan_ids:
+            self.status_var.set(
+                f"Recovered {len(workspace.recovered_scan_ids)} interrupted scan(s): "
+                f"{len(self._last_records)} saved file(s)."
+            )
+        else:
+            self.status_var.set(
+                f"Opened case: {workspace.path.name} — {len(self._last_records)} file(s)."
+            )
 
     def _replace_workspace(self, workspace: CaseWorkspace) -> None:
         if self._workspace is not None:
@@ -613,6 +620,7 @@ class MetaXtractGUI(tk.Tk):
         self._scan_source_path = None
         self._scan_source_kind = "path"
         self._current_scan_id = None
+        self._active_scan_id = None
         self._records_dirty = False
         self.path_var.set("")
         self.progress.configure(mode="determinate", maximum=1, value=0)
@@ -673,6 +681,20 @@ class MetaXtractGUI(tk.Tk):
         self._scan_source_path = str(target.absolute())
         self._scan_source_kind = "file" if target.is_file() else "directory"
         self._current_scan_id = None
+        self._active_scan_id = None
+        if self._workspace is not None:
+            try:
+                self._active_scan_id = self._workspace.begin_scan(
+                    source_path=self._scan_source_path,
+                    source_kind=self._scan_source_kind,
+                )
+            except (OSError, ValueError) as exc:
+                messagebox.showerror(
+                    "MetaXtract",
+                    f"Could not start case autosave: {exc}",
+                    parent=self,
+                )
+                return
         self._records_dirty = False
         self._last_records = []
         self._visible_records = {}
@@ -690,6 +712,8 @@ class MetaXtractGUI(tk.Tk):
                 self.hidden_var.get(),
                 max_files,
                 self._cancel_event,
+                self._workspace,
+                self._active_scan_id,
             ),
             name="metaxtract-scan",
             daemon=True,
@@ -777,17 +801,43 @@ class MetaXtractGUI(tk.Tk):
         self._cancel_event = None
         self._set_busy(False)
         if records is None:
-            self.status_var.set(status or "Scan failed.")
+            if self._workspace is not None and self._active_scan_id is not None:
+                self._last_records = self._workspace.load_records(self._active_scan_id)
+                self._current_scan_id = self._active_scan_id
+                self._records_dirty = False
+                self.progress.configure(
+                    maximum=max(len(self._last_records), 1),
+                    value=len(self._last_records),
+                )
+                self._set_export_state(
+                    tk.NORMAL if self._last_records else tk.DISABLED
+                )
+                self._refresh_table()
+                self.status_var.set(
+                    f"{status or 'Scan failed.'} "
+                    f"Recovered {len(self._last_records)} saved file(s)."
+                )
+            else:
+                self.status_var.set(status or "Scan failed.")
+            self._active_scan_id = None
             self._update_case_ui()
             return
 
         self._last_records = [record_dict(record) for record in records]
-        self._records_dirty = True
+        if self._workspace is not None and self._active_scan_id is not None:
+            self._current_scan_id = self._active_scan_id
+            self._records_dirty = False
+        else:
+            self._records_dirty = True
+        self._active_scan_id = None
         self.progress.configure(
             maximum=max(len(self._last_records), 1),
             value=len(self._last_records),
         )
-        self.status_var.set(f"Completed: {len(self._last_records)} file(s).")
+        save_status = " Autosaved to case." if not self._records_dirty else ""
+        self.status_var.set(
+            f"Completed: {len(self._last_records)} file(s).{save_status}"
+        )
         self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
         self._refresh_table()
         self._update_case_ui()
