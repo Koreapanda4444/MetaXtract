@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+import queue
+import threading
+from typing import Any
+
+from metaxtract.core.cache import CacheStore
+from metaxtract.core.scanner import ScanCancelled, scan_path
+
+
+EventQueue = queue.Queue[tuple[str, Any]]
+
+
+def run_scan(
+    events: EventQueue,
+    target: str,
+    use_cache: bool,
+    include_hidden: bool,
+    max_files: int,
+    cancel_event: threading.Event,
+) -> None:
+    def report_progress(completed: int, total: int, path: str | None) -> None:
+        events.put(("progress", (completed, total, path)))
+
+    last_byte_report: dict[str, int] = {}
+
+    def report_bytes(
+        file_index: int,
+        total_files: int,
+        path: str,
+        processed: int,
+        total_bytes: int,
+    ) -> None:
+        previous = last_byte_report.get(path, -8 * 1024 * 1024)
+        if processed not in {0, total_bytes} and processed - previous < 8 * 1024 * 1024:
+            return
+        last_byte_report[path] = processed
+        events.put(("bytes", (file_index, total_files, path, processed, total_bytes)))
+
+    try:
+        cache = CacheStore(".metaxtract_cache") if use_cache else None
+        records = scan_path(
+            target,
+            cache=cache,
+            cache_enabled=use_cache,
+            max_files=max_files,
+            include_hidden=include_hidden,
+            progress_callback=report_progress,
+            byte_progress_callback=report_bytes,
+            cancel_check=cancel_event.is_set,
+        )
+    except ScanCancelled:
+        events.put(("cancelled", None))
+    except Exception as exc:
+        events.put(("error", (type(exc).__name__, str(exc))))
+    else:
+        events.put(("complete", records))
+
+
+def run_verification(
+    events: EventQueue,
+    bundle: str,
+    files_base: str | None,
+    public_key: str | None,
+) -> None:
+    from metaxtract.case.verify import verify_bundle
+
+    try:
+        issues = verify_bundle(
+            bundle,
+            files_base=files_base,
+            public_key=public_key,
+        )
+    except Exception as exc:
+        events.put(("verify_error", (type(exc).__name__, str(exc))))
+    else:
+        events.put(("verify_complete", (bundle, issues)))
