@@ -106,7 +106,9 @@ jobs:
           --onefile
           --windowed
           --name MetaXtract
+          --icon src/metaxtract/assets/metaxtract.ico
           --collect-submodules metaxtract
+          --collect-data metaxtract
           src/metaxtract/gui.py
       - name: Smoke-test executable
         shell: pwsh

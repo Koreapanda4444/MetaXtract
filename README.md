@@ -61,7 +61,11 @@ GitHub Actions의 성공한 `CI` 실행에서 `MetaXtract-Windows` 아티팩트�
 ```powershell
 python -m pip install -e ".[package]"
 python -m PyInstaller --noconfirm --clean --onefile --windowed `
-  --name MetaXtract --collect-submodules metaxtract src/metaxtract/gui.py
+  --name MetaXtract `
+  --icon src/metaxtract/assets/metaxtract.ico `
+  --collect-submodules metaxtract `
+  --collect-data metaxtract `
+  src/metaxtract/gui.py
 ```
 
 ## 지원 포맷

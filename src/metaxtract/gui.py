@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import queue
 import tempfile
@@ -7,6 +8,7 @@ import threading
 import tkinter as tk
 import zipfile
 from dataclasses import asdict, is_dataclass
+from importlib.resources import files
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Any
@@ -18,6 +20,7 @@ from metaxtract.core.scanner import ScanCancelled, scan_path
 
 FILTER_ALL = "All"
 FILTER_VALUES = (FILTER_ALL, "OK", "Warning", "Error")
+ICON_SIZES = (16, 32, 48, 64, 128, 256)
 
 
 def _record_dict(record: Any) -> dict[str, Any]:
@@ -75,6 +78,8 @@ class MetaXtractGUI(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("MetaXtract")
+        self._window_icons: list[tk.PhotoImage] = []
+        self._load_window_icons()
         self.geometry("1120x720")
         self.minsize(860, 560)
 
@@ -101,6 +106,18 @@ class MetaXtractGUI(tk.Tk):
         self.search_var.trace_add("write", lambda *_args: self._refresh_table())
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.after(50, self._poll_events)
+
+    def _load_window_icons(self) -> None:
+        assets = files("metaxtract").joinpath("assets")
+        for size in ICON_SIZES:
+            try:
+                image_data = assets.joinpath(f"metaxtract_{size}.png").read_bytes()
+                encoded = base64.b64encode(image_data).decode("ascii")
+                self._window_icons.append(tk.PhotoImage(data=encoded, format="png"))
+            except (OSError, tk.TclError):
+                continue
+        if self._window_icons:
+            self.iconphoto(True, *self._window_icons)
 
     def _build_target_controls(self) -> None:
         target = ttk.Frame(self, padding=(10, 10, 10, 4))
