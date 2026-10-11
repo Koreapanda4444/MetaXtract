@@ -1,8 +1,13 @@
 #![forbid(unsafe_code)]
 
 mod detection;
+mod images;
 
 pub use detection::{ContentAssessment, TypeConflict, TypeConflictKind, assess_content};
+pub use images::{
+    ImageAnalysis, ImageAnalysisLimits, ImageIssue, ImageIssueKind, ImageNormalizationError,
+    reconcile_image_metadata, reconcile_image_metadata_with_limits,
+};
 pub use metaxtract_schema as schema;
 
 pub const SCHEMA_REVISION: u32 = 1;

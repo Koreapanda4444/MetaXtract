@@ -89,3 +89,20 @@ LibRaw gets cooperative read/progress budgets, a 16 MiB raw-memory setting, and 
 working-memory allowance. This is not a complete meter of every internal library allocation
 or a preemptive hard timeout. Isolated scan workers remain later work; exhausted budgets and
 library failures are surfaced with any observations already obtained.
+
+## Image reconciliation
+
+Rust `metaxtract_core::reconcile_image_metadata` builds provenance-linked canonical claims
+without modifying observations. It separates main, sensor, thumbnail, frame, page and icon
+variant dimensions, composes primary HEIF transforms into EXIF orientation, checks color
+channel compatibility, and retains incompatible alternatives as unresolved conflicts.
+Unlinked HEIF metadata is not silently assigned to the primary image. Display dimensions
+are available only when the main geometry and any stated orientation have no conflict.
+
+EXIF/ISO timestamps validate calendar fields and retain offset/fraction companions. No local
+timezone is assumed, `-00:00` remains unknown, and leap seconds are retained without ordinary
+Unix-second projection. Differing precision alone does not establish a timestamp conflict.
+Correlated capabilities of the same parser family do not count as independent agreement.
+Duplicate observation IDs and mixed sources are rejected. Configurable analysis limits bound
+observation count, alternatives per key and claim links; exhaustion reports an error and
+does not silently truncate the source observations. Full case/record parity is still pending.
