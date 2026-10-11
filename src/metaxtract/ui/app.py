@@ -19,6 +19,7 @@ from metaxtract.core.workspace import (
     ScanSummary,
 )
 from metaxtract.ui import dialogs
+from metaxtract.ui.analysis import show_analysis
 from metaxtract.ui.comparison import show_scan_comparison
 from metaxtract.ui.dashboard import show_case_dashboard
 from metaxtract.ui.icons import apply_window_icons
@@ -380,6 +381,13 @@ class MetaXtractGUI(tk.Tk):
             command=self._verify_case,
         )
         self.verify_button.pack(side=tk.LEFT, padx=4)
+        self.analysis_button = ttk.Button(
+            actions,
+            text="Analysis…",
+            command=self._show_analysis,
+            state=tk.DISABLED,
+        )
+        self.analysis_button.pack(side=tk.LEFT, padx=4)
         ttk.Separator(actions, orient=tk.VERTICAL).pack(
             side=tk.LEFT,
             fill=tk.Y,
@@ -865,6 +873,18 @@ class MetaXtractGUI(tk.Tk):
                 parent=self,
             )
 
+    def _show_analysis(self) -> None:
+        if self._worker is not None or not self._last_records:
+            return
+        try:
+            show_analysis(self, self._last_records, self._scan_base)
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not build the analysis views: {exc}",
+                parent=self,
+            )
+
     def _save_case(self, *, announce: bool = True) -> bool:
         if self._worker is not None:
             return False
@@ -1320,6 +1340,7 @@ class MetaXtractGUI(tk.Tk):
             self.max_files_spin,
             self.key_button,
             self.verify_button,
+            self.analysis_button,
             self.new_case_button,
             self.open_case_button,
             self.save_case_button,
@@ -1356,6 +1377,7 @@ class MetaXtractGUI(tk.Tk):
             self.case_button,
         ):
             button.configure(state=state)
+        self.analysis_button.configure(state=state)
         self.export_scope_combo.configure(state="readonly" if state == tk.NORMAL else "disabled")
 
     def _clear_results(self) -> None:

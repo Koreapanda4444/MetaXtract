@@ -84,13 +84,16 @@ def _is_visual_candidate(record: dict[str, Any]) -> bool:
 def _perceptual_hash(path: Path) -> str:
     from PIL import Image, ImageOps
 
-    with Image.open(path) as image:
-        width, height = image.size
-        if width < 1 or height < 1 or width * height > MAX_VISUAL_IMAGE_PIXELS:
-            raise ValueError("image_pixel_limit")
-        image.seek(0)
-        grayscale = ImageOps.exif_transpose(image).convert("L")
-        pixels = list(grayscale.resize((9, 8), Image.Resampling.LANCZOS).getdata())
+    try:
+        with Image.open(path) as image:
+            width, height = image.size
+            if width < 1 or height < 1 or width * height > MAX_VISUAL_IMAGE_PIXELS:
+                raise ValueError("image_pixel_limit")
+            image.seek(0)
+            grayscale = ImageOps.exif_transpose(image).convert("L")
+            pixels = list(grayscale.resize((9, 8), Image.Resampling.LANCZOS).getdata())
+    except Image.DecompressionBombError as exc:
+        raise ValueError("image_pixel_limit") from exc
     bits = 0
     for row in range(8):
         offset = row * 9

@@ -436,13 +436,18 @@ def findings_document(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
     categories = Counter(item.category for item in findings)
     severities = Counter(item.severity for item in findings)
     rules = Counter(item.rule_id for item in findings)
+    serialized_findings = []
+    for item in findings:
+        serialized = asdict(item)
+        serialized["evidence"] = list(serialized["evidence"])
+        serialized_findings.append(serialized)
     return {
         "total_findings": len(findings),
         "files_with_findings": len({item.path for item in findings}),
         "by_category": dict(sorted(categories.items())),
         "by_severity": dict(sorted(severities.items())),
         "by_rule": dict(sorted(rules.items())),
-        "findings": [asdict(item) for item in findings],
+        "findings": serialized_findings,
     }
 
 
