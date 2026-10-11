@@ -1,0 +1,37 @@
+schema = 1
+
+[components.schema]
+path = "crates/metaxtract-schema"
+language = "rust"
+allows = []
+
+[components.core]
+path = "crates/metaxtract-core"
+language = "rust"
+allows = ["schema", "native"]
+
+[components.native]
+path = "crates/metaxtract-native"
+language = "rust-cpp-bridge"
+allows = ["schema"]
+
+[components.extractor]
+path = "native/metaxtract-extract"
+language = "cpp"
+allows = []
+
+[components.python_reference]
+path = "legacy/python"
+language = "python"
+allows = []
+production = false
+
+[rules]
+product_owner = "rust"
+raw_extraction_owner = "cpp"
+external_executables = false
+native_filesystem_writes = false
+native_network_access = false
+exceptions_across_ffi = false
+opaque_library_objects_across_ffi = false
+python_in_production = false
