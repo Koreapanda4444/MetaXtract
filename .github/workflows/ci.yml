@@ -20,15 +20,15 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: legacy/python/pyproject.toml
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e "./legacy/python[dev]"
       - name: Lint source
-        run: python -m ruff check .
+        run: python -m ruff check legacy/python
       - name: Build wheel
-        run: python -m build --wheel
+        run: python -m build --wheel legacy/python --outdir dist
       - uses: actions/upload-artifact@v4
         with:
           name: metaxtract-wheel
@@ -93,11 +93,11 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: legacy/python/pyproject.toml
       - name: Install packaging dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[package]"
+          python -m pip install -e "./legacy/python[package]"
       - name: Build standalone executable
         run: >-
           python -m PyInstaller
@@ -106,10 +106,10 @@ jobs:
           --onefile
           --windowed
           --name MetaXtract
-          --icon src/metaxtract/assets/metaxtract.ico
+          --icon legacy/python/src/metaxtract/assets/metaxtract.ico
           --collect-submodules metaxtract
           --collect-data metaxtract
-          src/metaxtract/gui.py
+          legacy/python/src/metaxtract/gui.py
       - name: Smoke-test executable
         shell: pwsh
         run: |
