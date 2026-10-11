@@ -4,7 +4,7 @@ option(METAXTRACT_CONFORMANCE "Enable the conformance-only fixture parser" OFF)
 include(dependencies.cmake)
 
 # Compile PDF adapter objects without waiting for codec libraries to build.
-add_library(mx_pdf_objects OBJECT src/pdf.cpp src/pdf_structure.cpp src/pdf_budget.cpp)
+add_library(mx_pdf_objects OBJECT src/pdf.cpp src/pdf_structure.cpp src/pdf_budget.cpp src/pdf_security.cpp)
 target_include_directories(mx_pdf_objects PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_include_directories(mx_pdf_objects SYSTEM PRIVATE "${qpdf_SOURCE_DIR}/include")
 target_compile_features(mx_pdf_objects PRIVATE cxx_std_20)

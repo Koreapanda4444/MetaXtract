@@ -25,7 +25,7 @@ public:
     }
     void rewind() override { position_ = 0; }
     void unreadCh(char) override { if (position_ > 0) { --position_; } }
-    std::size_t read(char* buffer, std::size_t length) override {
+    std::size_t read(char* destination, std::size_t length) override {
         r_.checkpoint();
         if (static_cast<std::uint64_t>(position_) >= r_.size) { setLastOffset(static_cast<qpdf_offset_t>(r_.size)); return 0; }
         setLastOffset(position_);
@@ -33,7 +33,7 @@ public:
         std::uint64_t completed = 0;
         while (completed < count) {
             const auto part = r_.read(static_cast<std::uint64_t>(position_), std::min<std::uint64_t>(65536, count - completed));
-            std::memcpy(buffer + static_cast<std::size_t>(completed), part.data(), part.size());
+            std::memcpy(destination + static_cast<std::size_t>(completed), part.data(), part.size());
             position_ += static_cast<qpdf_offset_t>(part.size()); completed += part.size();
         }
         return static_cast<std::size_t>(completed);

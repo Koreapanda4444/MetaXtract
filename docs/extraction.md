@@ -207,3 +207,33 @@ documents report password_required and remain partial. Password entry is not yet
 The adapter charges a 32 MiB working allowance, checks read/traversal/output limits and inserts
 parser-local budget checks before qpdf's internal Pl_Buffer growth, including object-stream
 decompression. This does not meter every allocation or provide preemptive worker isolation.
+
+## PDF security structures
+
+pdf.security includes pdf.metadata results and inventories every current cross-reference object,
+including unreachable dictionaries and compressed objects. Direct dictionaries/arrays obey depth
+and entry limits; indirect edges retain identities and are inspected once through the object table,
+so ordinary page-parent and action-reference cycles do not cause unbounded descent. Unknown
+keys, strings and string bytes, stream filters, object-stream identities and original object offsets
+remain available. Historical replaced/deleted objects are not reconstructed.
+
+Encryption inspection preserves raw Standard/security-handler and crypt-filter dictionaries even
+when the document requires a password. Empty-password RC4/AES documents additionally expose
+library-resolved methods and permission flags. No password or derived encryption key is returned.
+Password entry remains pending.
+
+Signature inspection retains dictionaries, certificate/signature bytes, signing claims and
+ByteRange values. It checks integer counts, ordering, source bounds, final covered offset,
+unsigned tail size and whether a two-range exclusion exactly matches the Contents hex string.
+These are structural facts. cryptographic_verification is always not_performed: CMS digests,
+certificate trust, revocation and signer authenticity are not validated.
+
+Revision output follows actual cross-reference sections, not EOF string counts. Forward Prev
+links are retained for linearized PDFs rather than rejected as out of order. The incremental count
+subtracts forward xref links; it is a structural section count, not complete historical revision
+reconstruction or linearization certification. Non-whitespace data after the final EOF is explicit.
+
+JavaScript strings/streams, launch/URI/remote actions, OpenAction/AA, XFA, RichMedia and embedded
+file markers are preserved as features. Only selected JavaScript streams are decoded; external
+streams are denied. Actions, scripts, URLs and filenames are never executed or opened. C++
+returns observed structures; severity and investigation policy belong to Rust.

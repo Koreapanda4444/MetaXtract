@@ -16,6 +16,7 @@ std::unique_ptr<Parser> media_details_parser();
 std::unique_ptr<Parser> media_inspection_parser();
 std::unique_ptr<Parser> media_decoding_parser();
 std::unique_ptr<Parser> pdf_metadata_parser();
+std::unique_ptr<Parser> pdf_security_parser();
 #ifdef METAXTRACT_CONFORMANCE
 std::unique_ptr<Parser> conformance_parser();
 #endif
@@ -53,6 +54,7 @@ const ParserRegistry& default_registry() noexcept {
         result.add(media_inspection_parser());
         result.add(media_decoding_parser());
         result.add(pdf_metadata_parser());
+        result.add(pdf_security_parser());
 #ifdef METAXTRACT_CONFORMANCE
         result.add(conformance_parser());
 #endif

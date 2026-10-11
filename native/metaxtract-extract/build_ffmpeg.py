@@ -133,8 +133,6 @@ def main() -> None:
             flags += ["--cc=" + args.cc]
             if sys.platform == "darwin":
                 flags += ["--install-name-dir=@rpath"]
-            elif sys.platform.startswith("linux"):
-                ldflags += " -Wl,-rpath,\\$$ORIGIN"
         if args.sanitize:
             cflags += " -fsanitize=address,undefined -fno-omit-frame-pointer"
             ldflags += " -fsanitize=address,undefined"
@@ -151,6 +149,15 @@ def main() -> None:
                         print((build / "ffbuild/config.log").read_text(errors="replace")[-16000:], file=sys.stderr)
                     raise
             config_file.write_text(json.dumps(configuration, indent=2) + "\n")
+        if sys.platform.startswith("linux"):
+            # GNU make consumes $; the shell's single quotes preserve $ORIGIN.
+            # Add this after configure's eval-based flag handling.
+            make_config = build / "ffbuild/config.mak"
+            override = "\n# MetaXtract shared-library sibling lookup\nLDFLAGS += -Wl,-rpath,'$ORIGIN'\n"
+            contents = make_config.read_text()
+            if override not in contents:
+                make_config.write_text(contents + override)
+            configuration["shared_library_runpath"] = "$ORIGIN"
         config = (build / "config.h").read_text()
         for item in ("GPL", "NONFREE", "NETWORK"):
             if f"#define CONFIG_{item} 0" not in config:
@@ -168,7 +175,7 @@ def main() -> None:
                     continue
                 dynamic = subprocess.check_output(["readelf", "-d", str(library)], text=True)
                 if "$ORIGIN" not in dynamic:
-                    raise RuntimeError("FFmpeg shared library is missing its relative runtime search path: " + str(library))
+                    raise RuntimeError("FFmpeg shared library is missing its relative runtime search path: " + str(library) + "\n" + dynamic)
         (build / "complete.json").write_text(json.dumps(configuration) + "\n")
 
 if __name__ == "__main__":

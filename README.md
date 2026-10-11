@@ -15,7 +15,8 @@ the results.
 The Python reference provides the working GUI and CLI during migration. The Rust/C++ engine
 now includes bounded input and schema/bridge contracts, content detection, deep image/RAW
 and audio metadata, media container/track details, in-process inspection and bounded decoding.
-PDF extraction adds Info/XMP, page geometry, attachments and revision chains. Rust reconciles
+PDF extraction adds Info/XMP, page geometry, attachments, revision chains, encryption settings,
+signature ranges and active-content structures. Rust reconciles
 image claims. The Rust GUI/CLI and full workflow parity remain pending;
 see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 

@@ -252,7 +252,6 @@ History history(Reader& r, QPDF& raw) {
         if (previous.isIndirect() || !previous.isInteger() || previous.getIntValue() < 0) { bad(r, "PDF previous-revision offset is invalid", offset); }
         const auto next = static_cast<std::uint64_t>(previous.getIntValue());
         number(revision, "previous_xref_offset", static_cast<std::int64_t>(next), id);
-        if (next >= offset) { bad(r, "PDF previous-revision offset does not precede the current revision", offset); }
         offset = next;
     }
     number(r, "revision_count", static_cast<std::int64_t>(result.revisions.size()), "pdf.container");

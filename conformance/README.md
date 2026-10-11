@@ -68,3 +68,14 @@ PDF fixtures declare known Info/XMP strings, page geometry, Unicode names and at
 bytes; exercise actual table/stream references, compressed objects and incremental changes;
 and check invalid trees, unsupported filters, partial results and each resource ceiling.
 The object-stream budget case checks qpdf's internal decoded-buffer guard.
+
+PDF security cases use deliberately unauthenticated structural signature placeholders to check
+valid, missing, negative, overlapping and out-of-bounds ByteRanges, incorrect exclusion gaps,
+unsigned fields and post-signing updates. They check unknown/orphan objects, reference cycles,
+compressed JavaScript, external-stream refusal and every resource ceiling. Four unchanged
+QPDF encryption samples at the pinned source revision exercise RC4, AES-128 and AES-256,
+empty/password-required inputs and linearized references. Their Apache license and original
+NOTICE are in licenses/qpdf-Apache-2.0.txt and licenses/qpdf-NOTICE.md.
+
+Native compilation has a separate 1800-second ceiling. The protocol process keeps its
+300-second runtime ceiling; parser requests retain their own tighter resource budgets.
