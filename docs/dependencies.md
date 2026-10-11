@@ -1,7 +1,8 @@
 # Dependency policy
 
 `third-party.lock.toml` is the reviewed source-of-truth for native and bridge dependencies. Every
-entry has an exact release and source revision. A dependency is not enabled merely because it is
+entry has an exact release, tag, and peeled commit revision. `python conformance/validate.py --online`
+checks the tag against that commit, including annotated tags. A dependency is not enabled merely because it is
 listed; the format-specific commit must still add a minimal adapter, verify its build options, and
 record the notices shipped with the application.
 
@@ -16,3 +17,9 @@ reference does not make them part of the new product.
 
 Dependency updates must change the version and revision together, rerun license validation, and
 pass the malformed-file conformance corpus before merging.
+
+`Cargo.lock` pins active Rust dependencies and registry checksums. `python conformance/validate.py
+--cargo` checks their declared SPDX licenses, including transitive build dependencies. This is a
+declaration check; the notices and native build configuration still need review when an adapter
+actually enables a library. Cargo builds the extraction core through the same CMake target used
+by standalone native builds, then links the generated `cxx` bridge against that archive.
