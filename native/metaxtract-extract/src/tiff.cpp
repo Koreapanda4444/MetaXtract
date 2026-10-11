@@ -23,9 +23,34 @@ const char* tag_name(const std::uint64_t tag) {
         case 305: return "software";
         case 306: return "timestamp";
         case 315: return "artist";
+        case 330: return "sub_ifds";
+        case 513: return "thumbnail_offset";
+        case 514: return "thumbnail_length";
         case 700: return "xmp";
         case 33723: return "iptc";
+        case 34665: return "exif_ifd";
         case 34675: return "icc_profile";
+        case 34853: return "gps_ifd";
+        case 33434: return "exposure_time";
+        case 33437: return "f_number";
+        case 34855: return "iso";
+        case 36864: return "exif_version";
+        case 36867: return "datetime_original";
+        case 36868: return "datetime_digitized";
+        case 36880: return "offset_time";
+        case 36881: return "offset_time_original";
+        case 36882: return "offset_time_digitized";
+        case 37386: return "focal_length";
+        case 37500: return "maker_note";
+        case 37510: return "user_comment";
+        case 37521: return "subsec_time_original";
+        case 40961: return "color_space";
+        case 40962: return "pixel_x_dimension";
+        case 40963: return "pixel_y_dimension";
+        case 40965: return "interop_ifd";
+        case 42033: return "body_serial_number";
+        case 42036: return "lens_model";
+        case 42037: return "lens_serial_number";
         default: return nullptr;
     }
 }
@@ -43,7 +68,6 @@ unsigned type_width(const std::uint64_t type) {
 }
 
 void inspect_tiff(Reader& reader, const bool metadata) {
-    static_cast<void>(metadata);
     auto header = reader.read(0, 8);
     const auto little = starts(header, "II");
     if (!little && !starts(header, "MM")) { throw Failure{ParseStatus::Malformed, "Invalid TIFF byte order", reader.base}; }
@@ -65,7 +89,13 @@ void inspect_tiff(Reader& reader, const bool metadata) {
     const auto count_width = big ? 8U : 2U;
     const auto entry_width = big ? 20U : 12U;
     const auto inline_width = big ? 8U : 4U;
-    while (offset != 0) {
+    struct Directory { std::uint64_t at; std::string group; std::uint32_t depth; };
+    std::vector<Directory> pending;
+    if (offset != 0) { pending.push_back({offset, reader.group + ".ifd0", 0}); }
+    while (!pending.empty()) {
+        const auto item = std::move(pending.back()); pending.pop_back();
+        offset = item.at;
+        if (!reader.context.budget().check_depth(item.depth)) { throw Failure{ParseStatus::Internal, "TIFF directory depth limit", reader.base + offset}; }
         reader.checkpoint();
         if (offset < (big ? 16U : 8U)) { throw Failure{ParseStatus::Malformed, "TIFF directory overlaps header", reader.base + offset}; }
         reader.entry();
@@ -80,7 +110,8 @@ void inspect_tiff(Reader& reader, const bool metadata) {
         }
         const auto table_bytes = count * entry_width;
         reader.require(offset + count_width, table_bytes + inline_width);
-        Reader directory(reader.context, reader.base, reader.size, reader.group + ".ifd" + std::to_string(directories));
+        Reader directory(reader.context, reader.base, reader.size, item.group);
+        std::uint64_t thumbnail_offset = 0, thumbnail_length = 0;
         for (std::uint64_t index = 0; index < count; ++index) {
             directory.entry();
             const auto at = offset + count_width + index * entry_width;
@@ -135,12 +166,59 @@ void inspect_tiff(Reader& reader, const bool metadata) {
                     if (denominator == 0) { directory.diagnostic("zero_denominator", "TIFF rational has a zero denominator", value_at + part * 8); }
                 }
                 if (quantity == 0) { kind = ValueKind::Bytes; }
+            } else if (type == 6 || type == 8 || type == 9 || type == 17) {
+                kind = quantity == 1 ? ValueKind::Signed : ValueKind::SignedSequence;
+                for (std::uint64_t part = 0; part < quantity; ++part) {
+                    if (part % 1024 == 0) { directory.checkpoint(); }
+                    if (!value.empty()) { value += ','; }
+                    auto number = integer(raw, static_cast<std::size_t>(part * width), width, little);
+                    if (width < 8 && (number & (1ULL << (width * 8 - 1))) != 0) { number |= (~0ULL) << (width * 8); }
+                    value += std::to_string(std::bit_cast<std::int64_t>(number));
+                }
+                if (quantity == 0) { kind = ValueKind::Bytes; }
+            } else if (type == 11 || type == 12) {
+                kind = quantity == 1 ? ValueKind::Float : ValueKind::FloatSequence;
+                for (std::uint64_t part = 0; part < quantity; ++part) {
+                    if (part % 1024 == 0) { directory.checkpoint(); }
+                    if (!value.empty()) { value += ','; }
+                    const auto bits = integer(raw, static_cast<std::size_t>(part * width), width, little);
+                    std::ostringstream number; number << std::setprecision(17) << (type == 11 ? static_cast<double>(std::bit_cast<float>(static_cast<std::uint32_t>(bits))) : std::bit_cast<double>(bits));
+                    value += number.str();
+                }
+                if (quantity == 0) { kind = ValueKind::Bytes; }
+            }
+            if (metadata && (tag == 330 || tag == 34665 || tag == 34853 || tag == 40965) && (type == 4 || type == 13 || type == 16 || type == 18)) {
+                for (std::uint64_t part = 0; part < quantity; ++part) {
+                    directory.entry();
+                    const auto pointer = integer(raw, static_cast<std::size_t>(part * width), width, little);
+                    if (pointer == 0) { continue; }
+                    if (!directory.context.budget().reserve_allocation(512)) { throw Failure{ParseStatus::Internal, "TIFF subdirectory allocation", directory.base}; }
+                    const auto suffix = tag == 34665 ? ".exif" : tag == 34853 ? ".gps" : tag == 40965 ? ".interop" : ".subifd";
+                    pending.push_back({pointer, directory.group + suffix + std::to_string(part), item.depth + 1});
+                }
+            }
+            if (quantity == 1 && kind == ValueKind::Unsigned) {
+                if (tag == 513) { thumbnail_offset = integer(raw, 0, width, little); }
+                if (tag == 514) { thumbnail_length = integer(raw, 0, width, little); }
+            }
+            if (metadata && length != 0 && (tag == 700 || tag == 34675 || tag == 33723)) {
+                Reader packet(directory.context, directory.base + value_at, length, directory.group + "." + key);
+                if (tag == 700) { inspect_xmp(packet); }
+                else if (tag == 34675) { inspect_icc(packet); }
+                else { inspect_iptc(packet); }
             }
             directory.put(key, kind, std::move(value), value_at, std::move(raw), encoding, tag, true);
+        }
+        if (metadata && thumbnail_length != 0) {
+            directory.put("thumbnail_jpeg", ValueKind::Bytes, "", thumbnail_offset, directory.read(thumbnail_offset, thumbnail_length));
         }
         const auto next = reader.read(offset + count_width + table_bytes, inline_width);
         offset = integer(next, 0, inline_width, little);
         ++directories;
+        if (offset != 0) {
+            if (!reader.context.budget().reserve_allocation(512)) { throw Failure{ParseStatus::Internal, "TIFF directory allocation", reader.base}; }
+            pending.push_back({offset, reader.group + ".ifd" + std::to_string(directories), item.depth});
+        }
     }
     reader.derived("directory_count", directories);
 }

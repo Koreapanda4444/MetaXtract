@@ -116,6 +116,15 @@ public:
         }
     }
 
+    void decoded(const std::string& key, ValueKind kind, std::string value,
+                 const std::string& packet, std::uint32_t method = 3, const std::string& encoding = "UTF-8") const {
+        if (!context.budget().consume_decoded(value.size()) || !context.observe({
+            .name_space = group, .key = key, .kind = kind, .value = std::move(value),
+            .encoded = {}, .encoding = encoding, .offset = 0, .length = 0, .located = false,
+            .tag_code = 0, .numeric_tag = false, .method = method, .stream_id = packet,
+        })) { throw Failure{ParseStatus::Internal, "Decoded observation budget exhausted", base}; }
+    }
+
     void diagnostic(const std::string& key, const std::string& message, const std::uint64_t at) const {
         if (!context.observe({.name_space = "diagnostic." + group, .key = key, .kind = ValueKind::Text,
             .value = message, .encoded = {}, .encoding = "UTF-8", .offset = base + std::min(at, size),
@@ -132,5 +141,15 @@ void inspect_webp(Reader& reader, bool metadata = false);
 void inspect_gif(Reader& reader, bool metadata = false);
 void inspect_bmp(Reader& reader);
 void inspect_ico(Reader& reader, bool metadata = false);
+void inspect_xmp(Reader& reader);
+void inspect_xmp_data(Reader& reader, std::span<const std::uint8_t> bytes, const std::string& packet);
+void inspect_icc(Reader& reader);
+void inspect_icc_data(Reader& reader, std::span<const std::uint8_t> bytes);
+void inspect_iptc(Reader& reader);
+void jpeg_metadata(Reader& reader, std::uint8_t code, std::uint64_t at, std::uint64_t length);
+void png_metadata(Reader& reader, const std::string& type, std::uint64_t at, std::uint64_t length);
+void webp_metadata(Reader& reader, const std::string& type, std::uint64_t at, std::uint64_t length);
+void gif_metadata(Reader& reader, std::uint8_t label, std::uint64_t start, std::uint64_t end);
+std::vector<std::uint8_t> inflate_metadata(Reader& reader, std::span<const std::uint8_t> bytes);
 
 }

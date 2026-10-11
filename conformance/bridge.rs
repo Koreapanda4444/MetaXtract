@@ -125,6 +125,7 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
             selected,
             read_max,
             observation_max,
+            options @ ..,
         ] => {
             let bytes = decode(value)?;
             let input = BoundedInput::from_bytes(bytes.clone(), InputLimits::default())?;
@@ -134,6 +135,26 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
                 ParserLimits {
                     max_read_bytes: read_max.parse()?,
                     max_observations: observation_max.parse()?,
+                    max_allocation_bytes: options
+                        .first()
+                        .map(|v| v.parse())
+                        .transpose()?
+                        .unwrap_or(ParserLimits::default().max_allocation_bytes),
+                    max_decoded_bytes: options
+                        .get(1)
+                        .map(|v| v.parse())
+                        .transpose()?
+                        .unwrap_or(ParserLimits::default().max_decoded_bytes),
+                    max_container_depth: options
+                        .get(2)
+                        .map(|v| v.parse())
+                        .transpose()?
+                        .unwrap_or(ParserLimits::default().max_container_depth),
+                    max_entries: options
+                        .get(3)
+                        .map(|v| v.parse())
+                        .transpose()?
+                        .unwrap_or(ParserLimits::default().max_entries),
                     ..ParserLimits::default()
                 },
             )?;
@@ -145,6 +166,14 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
                     {
                         return Err("raw observation does not match its source byte range".into());
                     }
+                }
+                if observation.method == metaxtract_schema::ExtractionMethod::DecodedPayload
+                    && (observation.source_range.is_some() || observation.stream_id.is_none())
+                {
+                    return Err(
+                        "decoded field has fabricated source coordinates or no packet provenance"
+                            .into(),
+                    );
                 }
             }
             let fields = selected

@@ -28,6 +28,11 @@ by standalone native builds, then links the generated `cxx` bridge against that 
 
 Run dependency validation from the repository root:
 
+The active image metadata adapter statically bundles reviewed pugixml 1.16 and zlib 1.3.2.
+CMake fetches their exact commits from the lock into its build directory; no system-library
+fallback or runtime download is used. Installed builds include their original license notices
+under `share/metaxtract/licenses`. Build tools and source fetches are build-time requirements.
+
 ```bash
 python conformance/validate.py --online
 python conformance/validate.py --cargo

@@ -112,12 +112,16 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
 
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
-    wanted = ["INFO\t1\t1\t2", "SCHEMA\tOK"]
-    image_corpus = _read_json(ROOT / "conformance" / "corpus" / "images.json")
-    for case in image_corpus["cases"]:
+    wanted = ["INFO\t1\t1\t3", "SCHEMA\tOK"]
+    extraction_cases = _read_json(ROOT / "conformance" / "corpus" / "images.json")["cases"]
+    for corpus_path in sorted((ROOT / "conformance" / "corpus").glob("native-*.json")):
+        extraction_cases.extend(_read_json(corpus_path)["cases"])
+    for case in extraction_cases:
         data = base64.b64decode(case["base64"], validate=True)
         selected = ",".join(case["fields"])
-        requests.append(f"EXTRACT\t{data.hex()}\t{case['parser']}\t{selected}\t{case['read_max']}\t{case['observation_max']}")
+        request = f"EXTRACT\t{data.hex()}\t{case['parser']}\t{selected}\t{case['read_max']}\t{case['observation_max']}"
+        request += f"\t{case.get('allocation_max', 512 * 1024 * 1024)}\t{case.get('decoded_max', 256 * 1024 * 1024)}\t{case.get('depth_max', 32)}\t{case.get('entries_max', 100000)}"
+        requests.append(request)
         fields = ";".join(key + "=" + "|".join(values) for key, values in case["fields"].items())
         wanted.append(f"EXTRACT\t{case['status']}\t{fields}")
     png = b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sIIBBBBBI", 13, b"IHDR", 1, 1, 8, 2, 0, 0, 0, 0)

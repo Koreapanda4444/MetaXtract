@@ -15,6 +15,8 @@ pub struct NativeObservation {
     pub value: RawValue,
     pub encoded: Vec<u8>,
     pub source_range: Option<ByteRange>,
+    pub method: ExtractionMethod,
+    pub stream_id: Option<String>,
 }
 
 impl NativeObservation {
@@ -40,9 +42,9 @@ impl NativeObservation {
             provenance: Provenance {
                 parser,
                 source,
-                stream_id: None,
+                stream_id: self.stream_id.clone(),
                 source_range: self.source_range,
-                method: ExtractionMethod::Structure,
+                method: self.method,
                 sequence: id.get(),
             },
         }
@@ -69,15 +71,25 @@ fn decoded(kind: u32, bytes: &[u8], encoded: &[u8], encoding: &str) -> Option<Ra
     if kind == 0 {
         return Some(RawValue::Bytes(encoded.to_vec()));
     }
+    if kind == 10 {
+        return Some(RawValue::Bytes(bytes.to_vec()));
+    }
     let text = String::from_utf8_lossy(bytes);
     if kind == 4 {
+        let latin1 = encoding == "ISO-8859-1";
         return Some(RawValue::Text(TextValue {
-            text: text.into_owned(),
+            text: if latin1 {
+                bytes.iter().map(|&byte| char::from(byte)).collect()
+            } else {
+                text.into_owned()
+            },
             original_encoding: (!encoding.is_empty()).then(|| encoding.to_owned()),
             language: None,
             encoded_bytes: Some(encoded.to_vec()),
-            lossless: std::str::from_utf8(bytes).is_ok()
-                && (encoding != "ASCII" || bytes.is_ascii()),
+            lossless: latin1
+                || (std::str::from_utf8(bytes).is_ok()
+                    && (encoding != "ASCII" || bytes.is_ascii())
+                    && encoding != "unspecified"),
         }));
     }
     let scalar = |kind, value: &str| match kind {
@@ -140,6 +152,15 @@ pub fn extract_parser(
             value: decoded,
             encoded: value.encoded,
             source_range,
+            method: match value.method {
+                0 => ExtractionMethod::Structure,
+                1 => ExtractionMethod::Direct,
+                2 => ExtractionMethod::NativeLibrary,
+                3 => ExtractionMethod::DecodedPayload,
+                4 => ExtractionMethod::Heuristic,
+                _ => return Err(native_error(NativeErrorCode::Internal, false)),
+            },
+            stream_id: (!value.stream_id.is_empty()).then_some(value.stream_id),
         });
     }
     Ok(ExtractionResult {

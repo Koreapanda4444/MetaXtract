@@ -76,11 +76,14 @@ fn main() {
         built.join("lib").display()
     );
     println!("cargo:rustc-link-lib=static=metaxtract_extract");
+    println!("cargo:rustc-link-lib=static=mx_pugixml");
+    println!("cargo:rustc-link-lib=static=mx_zlib");
     println!("cargo:rerun-if-env-changed=METAXTRACT_SANITIZERS");
 
     for path in [
         "src/ffi.rs",
         "../../CMakeLists.txt",
+        "../../third-party.lock.toml",
         "../../native/metaxtract-extract",
         "../../conformance/parser.cpp",
         "../../conformance/parser.hpp",

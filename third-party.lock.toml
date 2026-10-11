@@ -135,6 +135,16 @@ linkage = "bundled-static"
 name = "ExifTool"
 reason = "runtime executable dependencies are forbidden"
 
+[[dependency]]
+name = "zlib"
+version = "1.3.2"
+revision = "da607da739fa6047df13e66a2af6b8bec7c2a498"
+tag = "v1.3.2"
+source = "https://github.com/madler/zlib"
+license = "Zlib"
+role = "bounded metadata and PDF stream decompression"
+linkage = "bundled-static"
+
 [[excluded]]
 name = "ffprobe"
 reason = "runtime executable dependencies are forbidden"

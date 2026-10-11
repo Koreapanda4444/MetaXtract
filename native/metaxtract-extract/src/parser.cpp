@@ -33,7 +33,7 @@ ParserBudget& ParserContext::budget() noexcept {
 
 bool ParserContext::observe(Observation value) {
     const auto size = sizeof(Observation) + value.name_space.size() + value.key.size() +
-        value.value.size() + value.encoded.size() + value.encoding.size();
+        value.value.size() + value.encoded.size() + value.encoding.size() + value.stream_id.size();
     if (!budget_.add_observations(1) || !budget_.reserve_allocation(8 * size)) { return false; }
     values_.push_back(std::move(value));
     return true;

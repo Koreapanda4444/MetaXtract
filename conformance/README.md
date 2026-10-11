@@ -31,6 +31,10 @@ feature and is absent from ordinary production builds.
 
 Native image structure fields are checked against generated fixtures, including endian variants,
 CRC errors, directory cycles, truncation, partial results, and source-byte provenance.
+Image metadata fixtures additionally cover EXIF subdirectories, unknown signed/float tags,
+XMP namespace/entity/depth handling, IPTC, multipart ICC, compressed PNG metadata,
+thumbnail/comment payloads and decompression ceilings. Decoded fields must identify their
+source packet and must not claim original-file coordinates.
 Full PNG/PDF/other metadata record parity is still pending. The result reports this
 explicitly instead of treating the Python-only records as native extraction coverage. To check
 only the frozen Python baseline without native build tools, use `--python-only`.

@@ -50,4 +50,20 @@ ranges are checked against their enclosing source, and directory cycles are reje
 statistics, and an optional failure. Observations read before a recoverable failure remain available.
 Canonical conversion retains the original bytes separately from the interpreted value.
 These are structural and metadata checks; compressed pixels are not decoded to certify image validity.
-EXIF subdirectories, XMP/IPTC/ICC interpretation, and other image metadata are subsequent work.
+
+## Image metadata
+
+`images.metadata` adds nested EXIF/GPS/interoperability/SubIFD directories, signed and floating
+TIFF values, original unknown tags, JPEG comments/JFIF thumbnails/Photoshop resources,
+IPTC datasets, namespace-aware XMP fields, and ICC headers/tags. JPEG ICC fragments are
+ordered and checked for missing/duplicate parts. PNG supports EXIF, text, compressed text,
+international text/XMP, compressed ICC, physical dimensions and modification time;
+WebP adds EXIF/XMP/ICC/animation metadata, and GIF preserves comments/application blocks.
+The original XML/profile/dataset and unknown payloads remain available.
+
+Pugixml parses XMP without resolving custom or external entities. Zlib decompresses metadata
+in bounded chunks with allocation and decoded-byte accounting. XML traversal enforces depth,
+entry and deadline budgets. Decoded fields have packet/stream provenance and no fabricated
+source offsets; direct fields retain their exact encoded source bytes. Extended JPEG XMP
+fragments are preserved with an explicit assembly limitation. Image pixels and arbitrary
+Photoshop resources are not decoded by this parser.

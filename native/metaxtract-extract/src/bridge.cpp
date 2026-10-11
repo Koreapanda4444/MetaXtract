@@ -202,6 +202,7 @@ FfiExtraction ffi_extract(const ReadSource& source, const rust::Str parser_id, c
                 .encoded = std::move(encoded), .encoding = rust::String(value.encoding),
                 .offset = value.offset, .length = value.length, .located = value.located,
                 .tag_code = value.tag_code, .numeric_tag = value.numeric_tag,
+                .method = value.method, .stream_id = rust::String(value.stream_id),
             });
         }
         return {.run = {

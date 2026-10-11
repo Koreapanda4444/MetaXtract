@@ -234,6 +234,8 @@ pub(crate) mod bridge {
         located: bool,
         tag_code: u64,
         numeric_tag: bool,
+        method: u32,
+        stream_id: String,
     }
 
     struct FfiExtraction {

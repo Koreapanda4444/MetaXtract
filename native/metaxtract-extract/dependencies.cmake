@@ -1,0 +1,40 @@
+include(FetchContent)
+
+function(metaxtract_source name)
+  file(READ "${PROJECT_SOURCE_DIR}/third-party.lock.toml" dependency_lock)
+  string(REGEX MATCH "name = \"${name}\"[^\[]*" entry "${dependency_lock}")
+  foreach(field IN ITEMS revision source)
+    string(REGEX MATCH "${field} = \"([^\"]+)\"" match "${entry}")
+    if(NOT match)
+      message(FATAL_ERROR "Missing reviewed ${field} for ${name}")
+    endif()
+    set(${field} "${CMAKE_MATCH_1}")
+  endforeach()
+  string(TOLOWER "${name}" id)
+  FetchContent_Declare(${id}
+    GIT_REPOSITORY "${source}" GIT_TAG "${revision}"
+    SOURCE_SUBDIR _metaxtract_sources_only)
+  FetchContent_MakeAvailable(${id})
+  set(${name}_SOURCE_DIR "${${id}_SOURCE_DIR}" PARENT_SCOPE)
+endfunction()
+
+metaxtract_source(pugixml)
+add_library(mx_pugixml STATIC "${pugixml_SOURCE_DIR}/src/pugixml.cpp")
+target_include_directories(mx_pugixml PUBLIC "${pugixml_SOURCE_DIR}/src")
+
+metaxtract_source(zlib)
+set(zlib_sources adler32.c crc32.c deflate.c infback.c inffast.c inflate.c
+  inftrees.c trees.c uncompr.c compress.c zutil.c)
+list(TRANSFORM zlib_sources PREPEND "${zlib_SOURCE_DIR}/")
+add_library(mx_zlib STATIC ${zlib_sources})
+target_include_directories(mx_zlib PUBLIC "${zlib_SOURCE_DIR}")
+
+foreach(target IN ITEMS mx_pugixml mx_zlib)
+  set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  if(METAXTRACT_SANITIZERS)
+    target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  endif()
+endforeach()
+install(TARGETS mx_pugixml mx_zlib ARCHIVE DESTINATION lib)
+install(FILES "${pugixml_SOURCE_DIR}/LICENSE.md" DESTINATION share/metaxtract/licenses RENAME pugixml.txt)
+install(FILES "${zlib_SOURCE_DIR}/LICENSE" DESTINATION share/metaxtract/licenses RENAME zlib.txt)

@@ -99,7 +99,6 @@ void inspect_dib(Reader& reader, const std::uint64_t at, const bool icon) {
 }
 
 void inspect_png(Reader& reader, const bool metadata) {
-    static_cast<void>(metadata);
     if (!starts(reader.read(0, 8), std::string_view("\x89PNG\r\n\x1a\n", 8))) {
         throw Failure{ParseStatus::Malformed, "Invalid PNG signature", reader.base};
     }
@@ -127,6 +126,7 @@ void inspect_png(Reader& reader, const bool metadata) {
         Reader chunk(reader.context, reader.base, reader.size, reader.group + ".chunk" + std::to_string(count));
         chunk.put("type", ValueKind::Text, type, at + 4, reader.read(at + 4, 4), "ASCII");
         chunk.number("length", at, 4);
+        if (metadata) { png_metadata(chunk, type, at + 8, length); }
         if (!ihdr && type != "IHDR") { throw Failure{ParseStatus::Malformed, "PNG IHDR must be first", reader.base + at}; }
         if (type == "IHDR") {
             if (ihdr || length != 13) { throw Failure{ParseStatus::Malformed, "Duplicate or malformed PNG IHDR", reader.base + at}; }
@@ -172,12 +172,13 @@ void inspect_png(Reader& reader, const bool metadata) {
 }
 
 void inspect_jpeg(Reader& reader, const bool metadata) {
-    static_cast<void>(metadata);
     if (!starts(reader.read(0, 2), std::string_view("\xff\xd8", 2))) {
         throw Failure{ParseStatus::Malformed, "JPEG SOI missing", reader.base};
     }
     std::uint64_t at = 2, segments = 0, scans = 0;
     bool dimensions = false, ended = false;
+    std::vector<std::pair<std::uint8_t, std::vector<std::uint8_t>>> icc_parts;
+    std::uint8_t icc_count = 0;
     while (at < reader.size) {
         reader.entry();
         auto marker = reader.read(at, 2);
@@ -196,6 +197,16 @@ void inspect_jpeg(Reader& reader, const bool metadata) {
         if (length < 2) { throw Failure{ParseStatus::Malformed, "Invalid JPEG segment length", reader.base + at}; }
         reader.require(at, length);
         const auto payload = at + 2;
+        if (metadata && ((code >= 0xe0 && code <= 0xef) || code == 0xfe)) { jpeg_metadata(segment, code, payload, length - 2); }
+        if (metadata && code == 0xe2 && length >= 16) {
+            const auto prefix = reader.read(payload, 14);
+            if (starts(prefix, std::string_view("ICC_PROFILE\0", 12)) && prefix[13] > 1) {
+                if (icc_count != 0 && icc_count != prefix[13]) { throw Failure{ParseStatus::Malformed, "Contradictory ICC part counts", reader.base + payload}; }
+                icc_count = prefix[13];
+                if (!reader.context.budget().reserve_allocation((length - 16) * 2 + 128)) { throw Failure{ParseStatus::Internal, "ICC fragment allocation", reader.base + payload}; }
+                icc_parts.emplace_back(prefix[12], reader.read(payload + 14, length - 16));
+            }
+        }
         if (code >= 0xc0 && code <= 0xcf && code != 0xc4 && code != 0xc8 && code != 0xcc) {
             if (length < 8) { throw Failure{ParseStatus::Malformed, "Truncated JPEG frame header", reader.base + at}; }
             const auto body = reader.read(payload, 6);
@@ -220,12 +231,22 @@ void inspect_jpeg(Reader& reader, const bool metadata) {
     }
     if (!ended || !dimensions || scans == 0) { throw Failure{ParseStatus::Malformed, "JPEG is missing frame, scan, or EOI", reader.base + at}; }
     if (at != reader.size) { reader.diagnostic("trailing_data", "Bytes remain after JPEG EOI", at); }
+    if (icc_count != 0) {
+        std::sort(icc_parts.begin(), icc_parts.end(), [](const auto& first, const auto& second) { return first.first < second.first; });
+        if (icc_parts.size() != icc_count) { throw Failure{ParseStatus::Malformed, "Incomplete multipart ICC profile", reader.base}; }
+        std::vector<std::uint8_t> profile;
+        for (std::size_t index = 0; index < icc_parts.size(); ++index) {
+            reader.checkpoint();
+            if (icc_parts[index].first != index + 1) { throw Failure{ParseStatus::Malformed, "Duplicate or missing ICC fragment", reader.base}; }
+            profile.insert(profile.end(), icc_parts[index].second.begin(), icc_parts[index].second.end());
+        }
+        Reader icc(reader.context, reader.base, reader.size, reader.group + ".icc"); inspect_icc_data(icc, profile);
+    }
     reader.derived("segment_count", segments);
     reader.derived("scan_count", scans);
 }
 
 void inspect_webp(Reader& reader, const bool metadata) {
-    static_cast<void>(metadata);
     const auto header = reader.read(0, 12);
     if (!starts(header, "RIFF") || !starts(header, "WEBP", 8)) { throw Failure{ParseStatus::Malformed, "Invalid WebP RIFF form", reader.base}; }
     const auto extent = integer(header, 4, 4, true) + 8;
@@ -243,6 +264,7 @@ void inspect_webp(Reader& reader, const bool metadata) {
         Reader field(reader.context, reader.base, reader.size, reader.group + ".chunk" + std::to_string(count));
         field.put("type", ValueKind::Text, type, at, reader.read(at, 4), "ASCII");
         const auto payload = at + 8;
+        if (metadata) { webp_metadata(field, type, payload, length); }
         if (type == "VP8X") {
             if (length != 10) { throw Failure{ParseStatus::Malformed, "Invalid WebP VP8X length", reader.base + at}; }
             const auto body = reader.read(payload, 10);
@@ -286,7 +308,6 @@ void inspect_webp(Reader& reader, const bool metadata) {
 }
 
 void inspect_gif(Reader& reader, const bool metadata) {
-    static_cast<void>(metadata);
     const auto header = reader.read(0, 13);
     if ((!starts(header, "GIF87a") && !starts(header, "GIF89a")) || integer(header, 6, 2, true) == 0 || integer(header, 8, 2, true) == 0) {
         throw Failure{ParseStatus::Malformed, "Invalid GIF logical screen", reader.base};
@@ -329,7 +350,9 @@ void inspect_gif(Reader& reader, const bool metadata) {
                 extension.number("delay_centiseconds", at + 2, 2, true);
                 extension.number("transparent_index", at + 4, 1);
             }
+            const auto start = at;
             at = sub_blocks(reader, at);
+            if (metadata) { gif_metadata(extension, label, start, at); }
             ++extensions;
         } else {
             throw Failure{ParseStatus::Malformed, "Unknown GIF block introducer", reader.base + at - 1};
@@ -402,11 +425,15 @@ namespace metaxtract::native {
 namespace {
 
 class ImageStructureParser final : public Parser {
+    bool metadata_;
 public:
+    explicit ImageStructureParser(bool metadata = false) : metadata_(metadata) {}
     const ParserCapability& capability() const noexcept override {
         static const ParserCapability value{"images.structure", "MetaXtract image structure parser", "builtin",
             Probe | Extract, {"jpeg", "png", "tiff", "bigtiff", "webp", "gif", "bmp", "ico", "cur"}};
-        return value;
+        static const ParserCapability detailed{"images.metadata", "MetaXtract image metadata parser", "builtin",
+            Probe | Extract, {"jpeg", "png", "tiff", "bigtiff", "webp", "gif", "bmp", "ico", "cur"}};
+        return metadata_ ? detailed : value;
     }
 
     ParseStatus run(ParserContext& context) const override {
@@ -414,13 +441,13 @@ public:
         Reader reader(context, 0, context.source_size(), "image");
         try {
             const auto header = reader.read(0, std::min<std::uint64_t>(16, reader.size));
-            if (starts(header, std::string_view("\xff\xd8", 2))) { reader.group = "image.jpeg"; inspect_jpeg(reader); }
-            else if (starts(header, std::string_view("\x89PNG\r\n\x1a\n", 8))) { reader.group = "image.png"; inspect_png(reader); }
-            else if (starts(header, "II") || starts(header, "MM")) { reader.group = "image.tiff"; inspect_tiff(reader); }
-            else if (starts(header, "RIFF") && starts(header, "WEBP", 8)) { reader.group = "image.webp"; inspect_webp(reader); }
-            else if (starts(header, "GIF87a") || starts(header, "GIF89a")) { reader.group = "image.gif"; inspect_gif(reader); }
+            if (starts(header, std::string_view("\xff\xd8", 2))) { reader.group = "image.jpeg"; inspect_jpeg(reader, metadata_); }
+            else if (starts(header, std::string_view("\x89PNG\r\n\x1a\n", 8))) { reader.group = "image.png"; inspect_png(reader, metadata_); }
+            else if (starts(header, "II") || starts(header, "MM")) { reader.group = "image.tiff"; inspect_tiff(reader, metadata_); }
+            else if (starts(header, "RIFF") && starts(header, "WEBP", 8)) { reader.group = "image.webp"; inspect_webp(reader, metadata_); }
+            else if (starts(header, "GIF87a") || starts(header, "GIF89a")) { reader.group = "image.gif"; inspect_gif(reader, metadata_); }
             else if (starts(header, "BM")) { reader.group = "image.bmp"; inspect_bmp(reader); }
-            else if (starts(header, std::string_view("\0\0\1\0", 4)) || starts(header, std::string_view("\0\0\2\0", 4))) { reader.group = "image.ico"; inspect_ico(reader); }
+            else if (starts(header, std::string_view("\0\0\1\0", 4)) || starts(header, std::string_view("\0\0\2\0", 4))) { reader.group = "image.ico"; inspect_ico(reader, metadata_); }
             else { return ParseStatus::Unsupported; }
             return ParseStatus::Complete;
         } catch (const Failure& failure) {
@@ -436,6 +463,10 @@ public:
 
 std::unique_ptr<Parser> image_structure_parser() {
     return std::make_unique<ImageStructureParser>();
+}
+
+std::unique_ptr<Parser> image_metadata_parser() {
+    return std::make_unique<ImageStructureParser>(true);
 }
 
 }

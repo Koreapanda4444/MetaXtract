@@ -9,6 +9,7 @@ namespace metaxtract::native {
 enum class ValueKind : std::uint32_t {
     Bytes = 0, Unsigned = 1, Signed = 2, Float = 3, Text = 4, Rational = 5,
     UnsignedSequence = 6, SignedSequence = 7, FloatSequence = 8, RationalSequence = 9,
+    DecodedBytes = 10,
 };
 
 struct Observation final {
@@ -23,6 +24,8 @@ struct Observation final {
     bool located = false;
     std::uint64_t tag_code = 0;
     bool numeric_tag = false;
+    std::uint32_t method = 0;
+    std::string stream_id = {};
 };
 
 }

@@ -30,6 +30,11 @@ SPDX 라이선스를 검사합니다. 선언 검사이므로 실제 라이브러
 
 저장소 루트에서 의존성 검증을 실행합니다.
 
+이미지 메타데이터 어댑터는 검토한 pugixml 1.16과 zlib 1.3.2를 정적으로 포함합니다.
+CMake는 잠금 파일의 정확한 커밋을 빌드 디렉터리에 받아 사용하며 시스템 라이브러리로
+자동 대체하거나 실행 중 다운로드하지 않습니다. 설치 결과의 `share/metaxtract/licenses`에
+원본 라이선스 고지를 포함합니다. 빌드 도구와 소스 다운로드는 빌드할 때 필요합니다.
+
 ```bash
 python conformance/validate.py --online
 python conformance/validate.py --cargo
