@@ -8,6 +8,8 @@ namespace metaxtract::native {
 
 std::unique_ptr<Parser> image_structure_parser();
 std::unique_ptr<Parser> image_metadata_parser();
+std::unique_ptr<Parser> raw_metadata_parser();
+std::unique_ptr<Parser> heif_metadata_parser();
 #ifdef METAXTRACT_CONFORMANCE
 std::unique_ptr<Parser> conformance_parser();
 #endif
@@ -37,6 +39,8 @@ const ParserRegistry& default_registry() noexcept {
         ParserRegistry result;
         result.add(image_structure_parser());
         result.add(image_metadata_parser());
+        result.add(raw_metadata_parser());
+        result.add(heif_metadata_parser());
 #ifdef METAXTRACT_CONFORMANCE
         result.add(conformance_parser());
 #endif

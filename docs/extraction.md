@@ -67,3 +67,25 @@ entry and deadline budgets. Decoded fields have packet/stream provenance and no 
 source offsets; direct fields retain their exact encoded source bytes. Extended JPEG XMP
 fragments are preserved with an explicit assembly limitation. Image pixels and arbitrary
 Photoshop resources are not decoded by this parser.
+
+## HEIF and camera RAW
+
+`images.heif` walks HEIF/HEIC/AVIF item information, extent locations, primary-item and
+property associations, spatial/color/transform properties and item references. EXIF and XMP
+in file extents or `idat` are extracted; contiguous data keeps source offsets, assembled
+fragments identify their item instead. Protected/external/unsupported item constructions are
+reported without fetching external data. Image codec bitstreams are retained as properties,
+not decoded to certify pixels. Nikon type-2 maker-note TIFF directories are also interpreted
+by `images.metadata`, with their raw maker-note retained.
+
+`images.raw` dynamically bundles LibRaw 0.22.2 and uses a Rust-backed read-only stream to
+inspect supported camera RAW families, including DNG, CR2/CR3, NEF, ARW, RAF, ORF and RW2.
+It returns camera/lens/serial/exposure/sensor/GPS/thumbnail and maker-note-derived fields,
+alongside source-located raw callback tags. Library-normalized names can differ from original
+tags; both remain distinguishable. LibRaw defaults are not proof that a field was present.
+No RAW pixel unpacking or filesystem opening is requested.
+
+LibRaw gets cooperative read/progress budgets, a 16 MiB raw-memory setting, and a precharged
+working-memory allowance. This is not a complete meter of every internal library allocation
+or a preemptive hard timeout. Isolated scan workers remain later work; exhausted budgets and
+library failures are surfaced with any observations already obtained.

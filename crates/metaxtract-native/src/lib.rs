@@ -331,7 +331,9 @@ fn error_message(code: NativeErrorCode) -> &'static str {
         NativeErrorCode::Internal => "native extraction failed internally",
         NativeErrorCode::OutOfRange => "native extraction read is outside the source",
         NativeErrorCode::ReadFailure => "native extraction could not read the source",
-        NativeErrorCode::UnsupportedParser => "native parser is not registered",
+        NativeErrorCode::UnsupportedParser => {
+            "native parser, format, or requested structure is unsupported"
+        }
         NativeErrorCode::AllocationFailure => "native extraction could not allocate memory",
         NativeErrorCode::SourceTooLarge => "source exceeds the parser size limit",
         NativeErrorCode::ReadBudgetExceeded => "parser read budget exceeded",

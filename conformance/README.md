@@ -35,6 +35,8 @@ Image metadata fixtures additionally cover EXIF subdirectories, unknown signed/f
 XMP namespace/entity/depth handling, IPTC, multipart ICC, compressed PNG metadata,
 thumbnail/comment payloads and decompression ceilings. Decoded fields must identify their
 source packet and must not claim original-file coordinates.
+HEIF/RAW fixtures include an encoded AVIF, a generated DNG, item/property/extent bounds,
+maker-note tags, external-reference refusal and library working-memory limits.
 Full PNG/PDF/other metadata record parity is still pending. The result reports this
 explicitly instead of treating the Python-only records as native extraction coverage. To check
 only the frozen Python baseline without native build tools, use `--python-only`.

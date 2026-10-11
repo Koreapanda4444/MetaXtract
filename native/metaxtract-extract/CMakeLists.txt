@@ -9,6 +9,8 @@ add_library(metaxtract_extract STATIC
   src/detection.cpp
   src/images.cpp
   src/image_metadata.cpp
+  src/heif.cpp
+  src/raw.cpp
   src/tiff.cpp
   src/parser.cpp
   src/registry.cpp
@@ -19,7 +21,7 @@ target_include_directories(metaxtract_extract
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_compile_features(metaxtract_extract PUBLIC cxx_std_20)
-target_link_libraries(metaxtract_extract PUBLIC mx_pugixml mx_zlib)
+target_link_libraries(metaxtract_extract PUBLIC mx_pugixml mx_zlib mx_libraw)
 set_target_properties(metaxtract_extract PROPERTIES POSITION_INDEPENDENT_CODE ON)
 install(TARGETS metaxtract_extract ARCHIVE DESTINATION lib)
 

@@ -33,6 +33,13 @@ CMake fetches their exact commits from the lock into its build directory; no sys
 fallback or runtime download is used. Installed builds include their original license notices
 under `share/metaxtract/licenses`. Build tools and source fetches are build-time requirements.
 
+The active RAW adapter dynamically bundles LibRaw 0.22.2, with LGPL/CDDL notices and the
+original copyright list. Its pinned source is built without optional RawSpeed, DNG SDK,
+JPEG or color-management dependencies. Cargo launches resolve it from the installed native
+library directory; packaging a standalone Rust application must include this library and its
+notices. Libheif remains reviewed but inactive; HEIF metadata currently uses bounded native
+box/item parsing, without third-party pixel decoders.
+
 ```bash
 python conformance/validate.py --online
 python conformance/validate.py --cargo

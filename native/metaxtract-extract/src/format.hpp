@@ -38,6 +38,9 @@ inline std::string hex_key(const std::uint64_t value) {
 }
 
 class Reader final {
+    std::span<const std::uint8_t> memory_ = {};
+    bool decoded_input_ = false;
+    std::string packet_ = {};
 public:
     ParserContext& context;
     std::uint64_t base;
@@ -49,6 +52,16 @@ public:
         if (start > owner.source_size() || length > owner.source_size() - start) {
             throw Failure{ParseStatus::Malformed, "Container range escapes its source", std::min(start, owner.source_size())};
         }
+    }
+
+    Reader(ParserContext& owner, std::span<const std::uint8_t> data, std::string name, std::string packet)
+        : memory_(data), decoded_input_(true), packet_(std::move(packet)), context(owner),
+          base(0), size(data.size()), group(std::move(name)) {}
+
+    Reader window(std::uint64_t at, std::uint64_t length, std::string name) const {
+        require(at, length);
+        return decoded_input_ ? Reader(context, memory_.subspan(static_cast<std::size_t>(at), static_cast<std::size_t>(length)), std::move(name), packet_)
+            : Reader(context, base + at, length, std::move(name));
     }
 
     void require(const std::uint64_t at, const std::uint64_t length) const {
@@ -71,6 +84,10 @@ public:
             throw Failure{ParseStatus::Internal, "Read allocation limit exceeded", base + at};
         }
         std::vector<std::uint8_t> result;
+        if (decoded_input_) {
+            const auto bytes = memory_.subspan(static_cast<std::size_t>(at), static_cast<std::size_t>(length));
+            return {bytes.begin(), bytes.end()};
+        }
         result.reserve(static_cast<std::size_t>(length));
         std::uint64_t position = 0;
         while (position < length) {
@@ -98,7 +115,8 @@ public:
         if (!context.observe({
             .name_space = group, .key = key, .kind = kind, .value = std::move(value),
             .encoded = std::move(encoded), .encoding = encoding, .offset = base + at,
-            .length = length, .located = true, .tag_code = tag, .numeric_tag = numeric,
+            .length = decoded_input_ ? 0 : length, .located = !decoded_input_, .tag_code = tag, .numeric_tag = numeric,
+            .method = decoded_input_ ? 3U : 0U, .stream_id = packet_,
         })) { throw Failure{ParseStatus::Internal, "Observation budget exhausted", base + at}; }
     }
 
@@ -111,7 +129,8 @@ public:
     void derived(const std::string& key, const std::uint64_t value) const {
         if (!context.observe({.name_space = group, .key = key, .kind = ValueKind::Unsigned,
             .value = std::to_string(value), .encoded = {}, .encoding = "", .offset = 0,
-            .length = 0, .located = false, .tag_code = 0, .numeric_tag = false})) {
+            .length = 0, .located = false, .tag_code = 0, .numeric_tag = false,
+            .method = decoded_input_ ? 3U : 0U, .stream_id = packet_})) {
             throw Failure{ParseStatus::Internal, "Observation budget exhausted", base};
         }
     }
@@ -128,13 +147,14 @@ public:
     void diagnostic(const std::string& key, const std::string& message, const std::uint64_t at) const {
         if (!context.observe({.name_space = "diagnostic." + group, .key = key, .kind = ValueKind::Text,
             .value = message, .encoded = {}, .encoding = "UTF-8", .offset = base + std::min(at, size),
-            .length = 0, .located = true, .tag_code = 0, .numeric_tag = false})) {
+            .length = 0, .located = !decoded_input_, .tag_code = 0, .numeric_tag = false,
+            .method = decoded_input_ ? 3U : 0U, .stream_id = packet_})) {
             throw Failure{ParseStatus::Internal, "Diagnostic budget exhausted", base};
         }
     }
 };
 
-void inspect_tiff(Reader& reader, bool metadata = false);
+void inspect_tiff(Reader& reader, bool metadata = false, std::uint32_t depth = 0);
 void inspect_png(Reader& reader, bool metadata = false);
 void inspect_jpeg(Reader& reader, bool metadata = false);
 void inspect_webp(Reader& reader, bool metadata = false);

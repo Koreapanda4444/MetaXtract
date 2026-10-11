@@ -67,7 +67,8 @@ unsigned type_width(const std::uint64_t type) {
 
 }
 
-void inspect_tiff(Reader& reader, const bool metadata) {
+void inspect_tiff(Reader& reader, const bool metadata, const std::uint32_t depth) {
+    if (!reader.context.budget().check_depth(depth)) { throw Failure{ParseStatus::Internal, "TIFF metadata depth", reader.base}; }
     auto header = reader.read(0, 8);
     const auto little = starts(header, "II");
     if (!little && !starts(header, "MM")) { throw Failure{ParseStatus::Malformed, "Invalid TIFF byte order", reader.base}; }
@@ -91,7 +92,7 @@ void inspect_tiff(Reader& reader, const bool metadata) {
     const auto inline_width = big ? 8U : 4U;
     struct Directory { std::uint64_t at; std::string group; std::uint32_t depth; };
     std::vector<Directory> pending;
-    if (offset != 0) { pending.push_back({offset, reader.group + ".ifd0", 0}); }
+    if (offset != 0) { pending.push_back({offset, reader.group + ".ifd0", depth}); }
     while (!pending.empty()) {
         const auto item = std::move(pending.back()); pending.pop_back();
         offset = item.at;
@@ -110,7 +111,7 @@ void inspect_tiff(Reader& reader, const bool metadata) {
         }
         const auto table_bytes = count * entry_width;
         reader.require(offset + count_width, table_bytes + inline_width);
-        Reader directory(reader.context, reader.base, reader.size, item.group);
+        auto directory = reader.window(0, reader.size, item.group);
         std::uint64_t thumbnail_offset = 0, thumbnail_length = 0;
         for (std::uint64_t index = 0; index < count; ++index) {
             directory.entry();
@@ -202,10 +203,14 @@ void inspect_tiff(Reader& reader, const bool metadata) {
                 if (tag == 514) { thumbnail_length = integer(raw, 0, width, little); }
             }
             if (metadata && length != 0 && (tag == 700 || tag == 34675 || tag == 33723)) {
-                Reader packet(directory.context, directory.base + value_at, length, directory.group + "." + key);
+                auto packet = directory.window(value_at, length, directory.group + "." + key);
                 if (tag == 700) { inspect_xmp(packet); }
                 else if (tag == 34675) { inspect_icc(packet); }
                 else { inspect_iptc(packet); }
+            }
+            if (metadata && tag == 37500 && length >= 18 && starts(raw, std::string_view("Nikon\0\2\0\0\0", 10))) {
+                auto note = directory.window(value_at + 10, length - 10, directory.group + ".maker_note.nikon");
+                inspect_tiff(note, true, item.depth + 1);
             }
             directory.put(key, kind, std::move(value), value_at, std::move(raw), encoding, tag, true);
         }

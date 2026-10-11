@@ -35,6 +35,13 @@ CMake는 잠금 파일의 정확한 커밋을 빌드 디렉터리에 받아 사�
 자동 대체하거나 실행 중 다운로드하지 않습니다. 설치 결과의 `share/metaxtract/licenses`에
 원본 라이선스 고지를 포함합니다. 빌드 도구와 소스 다운로드는 빌드할 때 필요합니다.
 
+RAW 어댑터는 LibRaw 0.22.2를 동적으로 포함하며 LGPL·CDDL 고지와 원본 저작권 목록을
+함께 설치합니다. 고정한 소스는 선택적인 RawSpeed·DNG SDK·JPEG·색 관리 의존성 없이
+빌드합니다. Cargo 실행은 설치된 네이티브 라이브러리 디렉터리를 사용합니다. 독립적인
+Rust 앱을 배포할 때는 라이브러리와 고지도 포함해야 합니다. Libheif는 검토 목록에 있으나
+아직 활성화하지 않았습니다. HEIF 메타데이터는 바이트 영역을 제한한 자체 박스·항목
+파싱으로 추출하며 외부 픽셀 디코더를 사용하지 않습니다.
+
 ```bash
 python conformance/validate.py --online
 python conformance/validate.py --cargo

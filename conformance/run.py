@@ -112,7 +112,7 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
 
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
-    wanted = ["INFO\t1\t1\t3", "SCHEMA\tOK"]
+    wanted = ["INFO\t1\t1\t5", "SCHEMA\tOK"]
     extraction_cases = _read_json(ROOT / "conformance" / "corpus" / "images.json")["cases"]
     for corpus_path in sorted((ROOT / "conformance" / "corpus").glob("native-*.json")):
         extraction_cases.extend(_read_json(corpus_path)["cases"])
@@ -272,7 +272,7 @@ def run(*, python_only: bool = False, release: bool = False) -> dict[str, Any]:
         "path_cases": len(expected.get("path_cases", [])),
         "native_contract_cases": native_cases,
         "native_enabled": not python_only,
-        "native_record_parity": "partial image structure coverage; full record parity pending",
+        "native_record_parity": "partial native extraction coverage; full record parity pending",
         "failures": failures,
     }
 
