@@ -20,6 +20,7 @@ from metaxtract.core.workspace import (
 )
 from metaxtract.ui import dialogs
 from metaxtract.ui.comparison import show_scan_comparison
+from metaxtract.ui.dashboard import show_case_dashboard
 from metaxtract.ui.icons import apply_window_icons
 from metaxtract.ui.preview import show_preview
 from metaxtract.ui.recent import RecentCaseStore
@@ -121,6 +122,7 @@ class MetaXtractGUI(tk.Tk):
             command=self._save_case,
         )
         case_menu.add_command(label="Case Notes…", command=self._edit_case_details)
+        case_menu.add_command(label="Dashboard…", command=self._show_dashboard)
         case_menu.add_command(label="Compare Scans…", command=self._compare_scans)
         case_menu.add_command(label="Close Case", command=self._close_case)
         case_menu.add_separator()
@@ -162,6 +164,13 @@ class MetaXtractGUI(tk.Tk):
             command=self._edit_case_details,
         )
         self.case_notes_button.grid(row=0, column=7, padx=(6, 0))
+        self.dashboard_button = ttk.Button(
+            case,
+            text="Dashboard",
+            command=self._show_dashboard,
+            state=tk.DISABLED,
+        )
+        self.dashboard_button.grid(row=0, column=8, padx=(6, 0))
 
         ttk.Label(case, text="Scan history").grid(
             row=1,
@@ -840,6 +849,22 @@ class MetaXtractGUI(tk.Tk):
             self._current_scan_id,
         )
 
+    def _show_dashboard(self) -> None:
+        if self._worker is not None or self._workspace is None:
+            return
+        try:
+            show_case_dashboard(
+                self,
+                self._workspace,
+                self._current_scan_id,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not build the case dashboard: {exc}",
+                parent=self,
+            )
+
     def _save_case(self, *, announce: bool = True) -> bool:
         if self._worker is not None:
             return False
@@ -1082,6 +1107,7 @@ class MetaXtractGUI(tk.Tk):
         self.import_button.configure(state=tk.DISABLED if busy else tk.NORMAL)
         has_case = self._workspace is not None
         self.case_notes_button.configure(state=tk.NORMAL if has_case and not busy else tk.DISABLED)
+        self.dashboard_button.configure(state=tk.NORMAL if has_case and not busy else tk.DISABLED)
         self.compare_button.configure(
             state=tk.NORMAL if len(self._scan_history) >= 2 and not busy else tk.DISABLED
         )
@@ -1300,6 +1326,7 @@ class MetaXtractGUI(tk.Tk):
             self.close_case_button,
             self.import_button,
             self.case_notes_button,
+            self.dashboard_button,
             self.compare_button,
         ):
             widget.configure(state=idle_state)
