@@ -16,7 +16,7 @@ jobs:
     name: Rust / C++ (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     env:
-      RUSTUP_HOME: ${{ runner.temp }}/metaxtract-rustup-${{ github.run_id }}-${{ github.job }}-${{ runner.os }}
+      RUSTUP_HOME: ${{ github.workspace }}/../metaxtract-rustup-${{ github.run_id }}-native
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +59,7 @@ jobs:
     name: Native and FFI sanitizers
     runs-on: ubuntu-latest
     env:
-      RUSTUP_HOME: ${{ runner.temp }}/metaxtract-rustup-${{ github.run_id }}-${{ github.job }}-${{ runner.os }}
+      RUSTUP_HOME: ${{ github.workspace }}/../metaxtract-rustup-${{ github.run_id }}-sanitizers
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     steps:
