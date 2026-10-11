@@ -8,7 +8,7 @@ CLI와 데스크톱 GUI를 제공합니다.
 
 - 파일·디렉터리 스캔과 JSONL 출력
 - 이미지, PDF, DOCX, 비디오 메타데이터 정규화
-- JSON·HTML 리포트와 두 스캔 결과 비교
+- JSON·HTML 리포트, 두 스캔 결과 비교와 출처 보존 타임라인
 - 원본 및 케이스 번들의 경로·크기·해시 검증
 - 개인정보 필드를 제거한 메타데이터 전용 번들
 - 동일 입력에서 동일한 바이트가 생성되는 결정적 ZIP
@@ -84,6 +84,7 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed `
 ```bash
 metaxtract scan evidence --out scan.jsonl
 metaxtract report scan.jsonl --out report.json
+metaxtract timeline scan.jsonl --out timeline.json
 metaxtract verify scan.jsonl evidence
 metaxtract keygen private.pem public.pem
 metaxtract export-case scan.jsonl case.zip --include-files --files-base evidence \
@@ -127,6 +128,19 @@ metaxtract diff old.jsonl new.jsonl --out diff.json
 리포트에는 전체 파일 수, MIME·경고·오류 집계와 GPS, 작성자, 생성 도구, 기기 모델
 발견 항목이 포함됩니다. `diff`는 추가·삭제·변경된 상대 경로를 구분하고, 변경된 파일은
 `sha256`, 크기와 중첩 메타데이터까지 필드별 이전·이후 값을 함께 기록합니다.
+
+### 메타데이터 타임라인
+
+```bash
+metaxtract timeline scan.jsonl --out timeline.json
+metaxtract timeline scan.jsonl --format jsonl --out timeline.jsonl
+```
+
+파일 시스템 수정 시각과 EXIF 촬영 시각, PDF 생성·수정 시각, DOCX 생성·수정·인쇄 시각,
+비디오 태그의 생성 시각을 하나의 시간순 목록으로 만듭니다. 각 이벤트에는 원본 파일 경로,
+의미(`created`, `modified`, `captured` 등), 메타데이터 원본 필드와 값, 출처 종류,
+시간대 포함 여부와 정밀도가 함께 기록됩니다. 시간대가 없는 값은 임의의 지역 시간대로
+변환하지 않아 원본 의미를 보존합니다.
 
 ### 원본 검증
 

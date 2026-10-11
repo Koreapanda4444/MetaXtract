@@ -79,6 +79,28 @@ def _cmd_diff(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def _cmd_timeline(args: argparse.Namespace) -> int:
+    from .core.jsonio import dumps_json, read_jsonl, write_jsonl
+    from .reporting.timeline import build_timeline, timeline_document
+
+    records = read_jsonl(args.scan)
+    if args.format == "jsonl":
+        events = build_timeline(records)
+        if args.out:
+            write_jsonl(args.out, events)
+        else:
+            for event in events:
+                print(dumps_json(event))
+        return EXIT_SUCCESS
+
+    output = dumps_json(timeline_document(records))
+    if args.out:
+        Path(args.out).write_text(output + "\n", encoding="utf-8")
+    else:
+        print(output)
+    return EXIT_SUCCESS
+
+
 def _cmd_verify(args: argparse.Namespace) -> int:
     from .case.verify import verify_scan
     from .core.jsonio import dumps_json
@@ -185,6 +207,20 @@ def build_parser() -> argparse.ArgumentParser:
     diff.add_argument("new", help="new scan.jsonl")
     diff.add_argument("--out", help="output diff.json path (default: stdout)")
     diff.set_defaults(func=_cmd_diff)
+
+    timeline = sub.add_parser(
+        "timeline",
+        help="build a provenance-aware metadata timeline from a scan",
+    )
+    timeline.add_argument("scan", help="input scan.jsonl")
+    timeline.add_argument("--out", help="output path (default: stdout)")
+    timeline.add_argument(
+        "--format",
+        choices=["json", "jsonl"],
+        default="json",
+        help="timeline output format (default: json)",
+    )
+    timeline.set_defaults(func=_cmd_timeline)
 
     verify = sub.add_parser("verify", help="verify files on disk match hashes from scan.jsonl")
     verify.add_argument("scan", help="input scan.jsonl")
