@@ -162,3 +162,26 @@ Embedded resources are bounded byte observations at this stage; virtual child ev
 GUI previews come later. Codec configuration is declared data, not a successful decode result.
 Extended QuickTime sound layouts and laced Matroska per-frame boundaries remain explicitly
 uninterpreted for the in-process demuxer rather than guessed.
+
+## In-process media inspection and decoding
+
+media.inspect and media.decode link FFmpeg 9.0.2 shared libraries through Rust-backed custom
+I/O. Programs, network support, protocols, encoders, GPL/nonfree components and automatic
+system dependency selection are disabled. External-resource opening is denied.
+
+Inspection extracts container/track identities, clocks, rates, language/tags, color fields,
+codec private data, programs, chapters and attached pictures. Library values identify their
+track/chapter/program without invented original offsets. Source-located media.structure and
+media.details observations remain available separately.
+
+Decoding returns one frame per supported audio/video track: audio samples with format/layout,
+or RGB24 image pixels with the longest preview side limited to 256. This does not validate every
+frame. Common AVC/HEVC, MPEG, VP8/VP9, JPEG/PNG, raw video, MP3/AAC/AC3, FLAC/Vorbis/Opus,
+ALAC/APE/WavPack and PCM software decoders are enabled. A codec/profile can still be unavailable;
+AV1 without an enabled software backend is unsupported for decoding. Inspection results and
+explicit decode diagnostics remain available for unsupported codecs.
+
+Reads, packet traversal, decoder frame buffers, preview copies and output are budgeted.
+A 32 MiB working allowance and a 64 MiB maximum individual FFmpeg allocation complement
+these checks. They do not meter all library allocations or provide a forced timeout;
+the later scanner isolation boundary remains necessary.

@@ -167,8 +167,11 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
                         return Err("raw observation does not match its source byte range".into());
                     }
                 }
-                if observation.method == metaxtract_schema::ExtractionMethod::DecodedPayload
-                    && (observation.source_range.is_some() || observation.stream_id.is_none())
+                if matches!(
+                    observation.method,
+                    metaxtract_schema::ExtractionMethod::DecodedPayload
+                        | metaxtract_schema::ExtractionMethod::NativeLibrary
+                ) && (observation.source_range.is_some() || observation.stream_id.is_none())
                 {
                     return Err(
                         "decoded field has fabricated source coordinates or no packet provenance"

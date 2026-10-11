@@ -28,8 +28,23 @@ jobs:
           python-version: "3.11"
       - name: Install build tools and Python reference
         run: python -m pip install -e "./legacy/python[dev]" cmake==4.2.3 ninja==1.11.1.4
+      - name: Install Windows native configure tools
+        id: msys2
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          install: make
+          update: false
+          path-type: inherit
+      - name: Locate Windows native configure tools
+        if: runner.os == 'Windows'
+        env:
+          METAXTRACT_MSYS_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+        run: 'Add-Content -Path $env:GITHUB_ENV -Value "METAXTRACT_MSYS_ROOT=$env:METAXTRACT_MSYS_ROOT"'
       - name: Install pinned Rust toolchain
         run: |
+          python -c "import os, shutil; shutil.rmtree(os.environ['RUSTUP_HOME'], ignore_errors=True)"
           rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
           rustc --version
           cargo --version
@@ -71,6 +86,7 @@ jobs:
         run: python -m pip install -e ./legacy/python cmake==4.2.3 ninja==1.11.1.4
       - name: Install pinned Rust toolchain
         run: |
+          python -c "import os, shutil; shutil.rmtree(os.environ['RUSTUP_HOME'], ignore_errors=True)"
           rustup toolchain install 1.88.0 --profile minimal
           rustc --version
           cargo --version

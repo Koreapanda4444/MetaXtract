@@ -17,6 +17,7 @@ function(metaxtract_source name)
     SOURCE_SUBDIR _metaxtract_sources_only)
   FetchContent_MakeAvailable(${id})
   set(${name}_SOURCE_DIR "${${id}_SOURCE_DIR}" PARENT_SCOPE)
+  set(${name}_REVISION "${revision}" PARENT_SCOPE)
 endfunction()
 
 metaxtract_source(pugixml)
@@ -95,3 +96,5 @@ metaxtract_taglib()
 install(FILES "${TagLib_SOURCE_DIR}/COPYING.LGPL" "${TagLib_SOURCE_DIR}/COPYING.MPL"
   DESTINATION share/metaxtract/licenses)
 install(FILES "${utfcpp_SOURCE_DIR}/LICENSE" DESTINATION share/metaxtract/licenses RENAME utfcpp.txt)
+
+include(ffmpeg.cmake)

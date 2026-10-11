@@ -54,3 +54,10 @@ python conformance/validate.py --cargo
 고정합니다. UTFcpp의 Boost Software License 1.0을 검토해 허용 목록에 추가했습니다.
 Git 하위 모듈을 암묵적으로 받지 않으며, 시스템 zlib·UTFcpp 대신 검토한 소스를 사용합니다.
 설치 결과에 원본 LGPL·MPL·UTFcpp 라이선스를 포함합니다.
+
+미디어 어댑터는 FFmpeg 9.0.2의 avformat·avcodec·avutil·swscale·swresample 공유
+라이브러리를 함께 배포합니다. 빌드 전용 Python 코드가 고정 소스와 검토한 zlib로 빌드합니다.
+GNU make와 셸이 필요하며 Windows는 MSVC와 MSYS2 bash·make를 사용합니다. 새 제품
+실행에는 Python이나 메타데이터 실행 프로그램이 필요하지 않습니다. 설치 결과에 원본
+LGPL 안내와 실제 설정을 포함합니다. 캐시 키에는 소스·zlib 리비전, 컴파일러, CRT와
+sanitizer 설정을 반영하고 Cargo 구성마다 동일한 소스 경로를 사용합니다.

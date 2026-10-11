@@ -104,7 +104,7 @@ public:
         Reader reader(context, 0, context.source_size(), "image.raw");
         try {
             reader.entry();
-            if (reader.size < 16) { return ParseStatus::Unsupported; }
+            if (reader.size < 16 || reader.size > static_cast<std::uint64_t>(INT64_MAX)) { return ParseStatus::Unsupported; }
             const auto prefix = reader.read(0, 8);
             if ((starts(prefix, "II") || starts(prefix, "MM")) &&
                 (integer(prefix, 2, 2, starts(prefix, "II")) == 42 || integer(prefix, 2, 2, starts(prefix, "II")) == 43)) {

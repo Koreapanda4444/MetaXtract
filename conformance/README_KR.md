@@ -61,3 +61,8 @@ Rust 정책의 회귀 검증도 `cargo test --workspace --locked`로 실행합�
 
 세부 샘플은 코덱 설정, 제목·챕터·언어, 원본·라이브러리 그림 바이트, 첨부물, 비ASCII
 FourCC 전달, 시각 표시 비트와 잘못된 페이로드 범위를 검사합니다.
+
+내부 미디어 검증은 실제 MP3·FLAC·Opus 프레임, 정해진 PCM 샘플, PNG 미리보기 픽셀,
+AVI 프레임, 크기 축소, 미지원 코덱, 외부 재생목록 프로토콜 차단과 읽기·메모리·출력 상한을
+검사합니다. 네이티브 빌드에는 Python 3.11 이상, GNU make와 셸도 필요합니다. Windows는
+MSVC와 C:/msys64의 MSYS2 bash·make를 사용하거나 METAXTRACT_MSYS_ROOT로 지정합니다.

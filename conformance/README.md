@@ -58,3 +58,8 @@ malformed extents and depth/entry/read ceilings.
 
 Detail fixtures check codec records, title/chapter/language values, original and library picture
 bytes, attachments, non-ASCII FourCC transport, timestamp markers and malformed payload ranges.
+
+In-process media fixtures check real MP3/FLAC/Opus frames, declared PCM samples, known PNG
+preview pixels, AVI frames, scaling, unsupported codecs, disabled external playlist protocols,
+and read/allocation/output limits. Native builds also require Python 3.11+, GNU make and a shell.
+Windows needs MSVC and MSYS2 bash/make in C:/msys64, or METAXTRACT_MSYS_ROOT.

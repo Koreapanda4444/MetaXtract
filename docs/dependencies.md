@@ -52,3 +52,10 @@ The active audio adapter dynamically bundles TagLib 2.3.2 and its explicitly pin
 4.2.0 headers (Boost Software License 1.0). Implicit Git submodule fetching is disabled.
 TagLib uses the reviewed zlib target; system dependencies and installed UTFcpp packages are
 not substituted. Original LGPL/MPL and UTFcpp notices are included in installed builds.
+
+The media adapter bundles shared FFmpeg 9.0.2 avformat, avcodec, avutil, swscale and
+swresample libraries. Its build-only Python driver configures pinned sources and reviewed zlib.
+It requires GNU make and a shell; Windows uses MSVC with MSYS2 bash/make. The new runtime
+requires neither Python nor metadata executables. Installed builds include the original LGPL
+notice and actual configuration manifest. The build cache includes source/zlib revisions,
+compiler, CRT and sanitizer settings and uses a stable source path across Cargo profiles.

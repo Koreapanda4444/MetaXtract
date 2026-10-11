@@ -6,9 +6,9 @@ C++ is restricted to binary structure parsing, decoding, raw metadata extraction
 for approved native libraries. It does not own case state, normalization policy, analysis, search,
 reporting, GUI, or CLI behavior.
 
-The current `metaxtract-extract` core contains input handling, parser registration and dispatch,
-resource budgets, and bridge support. The `images.structure` adapter extracts image structural
-fields; deeper metadata and third-party extraction library integrations remain pending.
+The extraction core implements input, budgets, registration and bridge support, image/RAW,
+audio and media structure and deep metadata, and bounded in-process media decoding.
+LibRaw, TagLib and FFmpeg use read-only Rust inputs. See the extraction guide for the exact scope.
 The fixture parser exists only in conformance builds.
 The public boundary must remain smaller than the parser implementations behind it.
 

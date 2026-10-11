@@ -12,12 +12,11 @@ the results.
 
 ## Current status
 
-The Python reference provides the working GUI and CLI during migration. The Rust/C++ foundation
-currently includes the canonical schema, language bridge, bounded input, parser registry,
-resource budgets, content-signature detection, conformance checks, and cross-platform CI. Remaining format adapters and the
-Rust GUI/CLI are still to be implemented. The initial native image adapter now extracts structural
-fields from JPEG, PNG, TIFF/BigTIFF, WebP, GIF, BMP, and ICO/CUR; see
-[native extraction coverage](docs/extraction.md) for its scope.
+The Python reference provides the working GUI and CLI during migration. The Rust/C++ engine
+now includes bounded input and schema/bridge contracts, content detection, deep image/RAW
+and audio metadata, media container/track details, in-process inspection and bounded decoding.
+Rust reconciles image claims. The Rust GUI/CLI and full workflow parity remain pending;
+see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 
 The Python source remains frozen as a comparison baseline. It will be removed after the new
 application passes workflow, data compatibility, and extraction conformance checks.
@@ -43,6 +42,9 @@ has an optional ffprobe video backend; it is not part of the new architecture.
 
 Use the pinned Rust 1.88.0 toolchain, CMake 3.24 or newer, and a C++20 compiler. Windows builds
 using Visual Studio 2026 require CMake 4.2 or newer; CI uses CMake 4.2.3.
+
+Native builds also require Python 3.11+, GNU make and a shell. Windows needs MSVC and MSYS2
+bash/make; set METAXTRACT_MSYS_ROOT if MSYS2 is outside C:/msys64.
 
 Install the Python reference as above before running conformance checks. From the repository root:
 

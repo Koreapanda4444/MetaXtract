@@ -84,6 +84,9 @@ fn main() {
     println!("cargo:rustc-link-lib=static=mx_zlib");
     println!("cargo:rustc-link-lib=dylib=mx_libraw");
     println!("cargo:rustc-link-lib=dylib=tag");
+    for library in ["avformat", "avcodec", "avutil", "swscale", "swresample"] {
+        println!("cargo:rustc-link-lib=dylib={library}");
+    }
     println!("cargo:rerun-if-env-changed=METAXTRACT_SANITIZERS");
 
     for path in [
