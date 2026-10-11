@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "plain-text",
+      "path": "evidence.txt",
+      "base64": "TWV0YVh0cmFjdCBQeXRob24gcmVmZXJlbmNlIGJhc2VsaW5lLgo="
+    },
+    {
+      "id": "png-one-pixel",
+      "path": "pixel.png",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    },
+    {
+      "id": "pdf-one-page",
+      "path": "document.pdf",
+      "base64": "JVBERi0xLjMKJeLjz9MKMSAwIG9iago8PAovUHJvZHVjZXIgKHB5cGRmKQovVGl0bGUgKENvbmZvcm1hbmNlIFBERikKL0F1dGhvciAoTWV0YVh0cmFjdCkKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9Db3VudCAxCi9LaWRzIFsgNCAwIFIgXQo+PgplbmRvYmoKMyAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1Jlc291cmNlcyA8PAo+PgovTWVkaWFCb3ggWyAwLjAgMC4wIDcyIDcyIF0KL1BhcmVudCAyIDAgUgo+PgplbmRvYmoKeHJlZgowIDUKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAxMDAgMDAwMDAgbiAKMDAwMDAwMDE1OSAwMDAwMCBuIAowMDAwMDAwMjA4IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgNQovUm9vdCAzIDAgUgovSW5mbyAxIDAgUgo+PgpzdGFydHhyZWYKMzAwCiUlRU9GCg=="
+    }
+  ]
+}

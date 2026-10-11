@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "records": [
+    {
+      "errors": [],
+      "metadata": {
+        "pages": 1,
+        "pdf_author": "MetaXtract",
+        "pdf_encrypted": false,
+        "pdf_producer": "pypdf",
+        "pdf_title": "Conformance PDF"
+      },
+      "mime": "application/pdf",
+      "path": "document.pdf",
+      "sha256": "7e6a4a3095ef53278baac1f6f33cb9f1b45e8d0aa2ebdd8e53ef2ac760de304e",
+      "size_bytes": 475,
+      "warnings": []
+    },
+    {
+      "errors": [],
+      "metadata": {},
+      "mime": "application/octet-stream",
+      "path": "evidence.txt",
+      "sha256": "221079048544d75812f1de299b4fe5b1bd5ab8d450633c94e96fa5420474f9cf",
+      "size_bytes": 38,
+      "warnings": []
+    },
+    {
+      "errors": [],
+      "metadata": {
+        "animated": false,
+        "format": "PNG",
+        "frames": 1,
+        "height": 1,
+        "mode": "LA",
+        "width": 1
+      },
+      "mime": "image/png",
+      "path": "pixel.png",
+      "sha256": "431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460",
+      "size_bytes": 68,
+      "warnings": []
+    }
+  ],
+  "path_cases": [
+    {
+      "input": "folder\\file.txt",
+      "normalized": "folder/file.txt"
+    },
+    {
+      "input": "/absolute.txt",
+      "error": true
+    },
+    {
+      "input": "../escape.txt",
+      "error": true
+    },
+    {
+      "input": "folder//file.txt",
+      "error": true
+    },
+    {
+      "input": "C:\\evidence.txt",
+      "error": true
+    }
+  ]
+}
