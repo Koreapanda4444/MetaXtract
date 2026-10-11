@@ -32,6 +32,7 @@ if(METAXTRACT_SANITIZERS)
 endif()
 
 if(MSVC)
+  target_compile_options(metaxtract_extract PUBLIC /EHsc)
   target_compile_options(metaxtract_extract PRIVATE /W4 /permissive-)
   if(METAXTRACT_WARNINGS_AS_ERRORS)
     target_compile_options(metaxtract_extract PRIVATE /WX)

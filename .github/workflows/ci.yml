@@ -15,6 +15,8 @@ jobs:
   native:
     name: Rust / C++ (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      RUSTUP_HOME: ${{ runner.temp }}/metaxtract-rustup
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +29,10 @@ jobs:
       - name: Install build tools and Python reference
         run: python -m pip install -e "./legacy/python[dev]" cmake==4.2.3 ninja==1.11.1.4
       - name: Install pinned Rust toolchain
-        run: rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
+          rustc --version
+          cargo --version
       - name: Validate migration boundaries and locks
         run: python conformance/validate.py --cargo
       - name: Verify upstream release commits
@@ -53,6 +58,7 @@ jobs:
     name: Native and FFI sanitizers
     runs-on: ubuntu-latest
     env:
+      RUSTUP_HOME: ${{ runner.temp }}/metaxtract-rustup
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     steps:
@@ -63,7 +69,10 @@ jobs:
       - name: Install build tools and Python reference
         run: python -m pip install -e ./legacy/python cmake==4.2.3 ninja==1.11.1.4
       - name: Install pinned Rust toolchain
-        run: rustup toolchain install 1.88.0 --profile minimal
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          rustc --version
+          cargo --version
       - name: Check native core with AddressSanitizer and UndefinedBehaviorSanitizer
         run: |
           cmake --preset sanitize

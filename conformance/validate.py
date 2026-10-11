@@ -111,7 +111,10 @@ def verify_source(dependency: dict) -> str | None:
 
 
 def validate_cargo_licenses() -> list[str]:
-    result = subprocess.run(["cargo", "metadata", "--format-version", "1", "--locked"], cwd=ROOT, text=True, capture_output=True, check=True)
+    result = subprocess.run(["cargo", "metadata", "--format-version", "1", "--locked"], cwd=ROOT, text=True, capture_output=True)
+    if result.returncode:
+        detail = (result.stderr or result.stdout).strip()[-6000:]
+        return [f"Cargo dependency inspection failed (exit {result.returncode}): {detail}"]
     policy = load("dependency-policy.toml")
     errors = []
     for package in json.loads(result.stdout)["packages"]:

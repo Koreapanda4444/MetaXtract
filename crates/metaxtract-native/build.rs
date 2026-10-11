@@ -39,6 +39,9 @@ fn main() {
         .std("c++20")
         .warnings(true)
         .warnings_into_errors(true);
+    if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        bridge.flag("/EHsc");
+    }
     if !sanitizers.is_empty() {
         bridge
             .flag("-fsanitize=address,undefined")
