@@ -1,5 +1,7 @@
 # Rust and C++ boundary
 
+[English](ffi.md) | [한국어](ffi_KR.md) | [Project README](../README.md)
+
 The bridge is intentionally value-oriented. Rust owns requests, product state, and every result
 after conversion into the canonical schema. C++ owns parser-local allocations only for the
 duration of a call.
@@ -14,3 +16,6 @@ duration of a call.
 `cxx` generates the ABI glue and compile-time signature checks. It does not make parser
 implementations memory-safe, so native code remains subject to sanitizers, resource budgets, and
 the parser isolation planned for the scanner.
+
+See [architecture](architecture.md) for responsibility boundaries and
+[resource limits](resource-limits.md) for the limits of budget and deadline enforcement.

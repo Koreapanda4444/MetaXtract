@@ -1,30 +1,79 @@
 # MetaXtract
 
-MetaXtract is a local-first metadata extraction and forensic analysis application. The production
-architecture is being migrated to a Rust application with a narrow C++ extraction core.
+[English](README.md) | [한국어](README_KR.md)
 
-## Repository layout
+MetaXtract extracts metadata from local files and preserves the evidence behind its analysis.
+The goal is broad format coverage, deep extraction, and accurate interpretation. Performance
+and memory efficiency matter without sacrificing coverage or accuracy.
 
-- `crates/`: Rust-owned product logic, including GUI, CLI, scanning, storage, and analysis.
-- `native/`: C++ binary parsing, decoding, raw extraction, and native library adapters.
-- `legacy/python/`: frozen Python reference used until behavioral parity is demonstrated.
-- `reference/`: stable compatibility contracts captured from the Python implementation.
-- `conformance/`: migration fixtures and Python/Rust/C++ compatibility checks.
+The application is being migrated from Python to Rust and C++. Responsibilities are divided by
+task: C++ parses, decodes, and extracts raw metadata; Rust manages the application and analyzes
+the results.
 
-The Python reference remains runnable during the migration:
+## Current status
+
+The Python reference provides the working GUI and CLI during migration. The Rust/C++ foundation
+currently includes the canonical schema, language bridge, bounded input, parser registry,
+resource budgets, conformance checks, and cross-platform CI. Production format adapters and the
+Rust GUI/CLI are still to be implemented.
+
+The Python source remains frozen as a comparison baseline. It will be removed after the new
+application passes workflow, data compatibility, and extraction conformance checks.
+
+## Run the current application
+
+From the repository root, with Python 3.11 or newer:
 
 ```bash
 python -m pip install -e ./legacy/python
-metaxtract --help
+metaxtract gui
 ```
 
-No production feature may introduce a runtime dependency on an externally installed metadata
-executable. Native libraries are linked or shipped with MetaXtract instead.
+The GUI requires Python's Tk support. For CLI usage, run `metaxtract --help`. See the
+[Python application guide](legacy/python/README.md) for installation, supported formats,
+commands, and limitations.
 
-The native migration foundation is buildable with Rust 1.88, CMake 3.24 or newer, and a C++20
-compiler. Run `cargo build --workspace --locked`, then `python conformance/run.py` to check the
-language boundary. Native format adapters and the Rust desktop application are later migration
-steps; the Python GUI remains the usable application during this stage.
+The new Rust/C++ product must not depend on external metadata executables such as ExifTool or
+ffprobe. Approved native libraries will be linked or bundled. The frozen Python reference still
+has an optional ffprobe video backend; it is not part of the new architecture.
 
-Windows builds using Visual Studio 2026 require CMake 4.2 or newer. CI pins CMake 4.2.3
-and the Cargo CMake integration with support for that toolchain.
+## Build the Rust/C++ foundation
+
+Use the pinned Rust 1.88.0 toolchain, CMake 3.24 or newer, and a C++20 compiler. Windows builds
+using Visual Studio 2026 require CMake 4.2 or newer; CI uses CMake 4.2.3.
+
+Install the Python reference as above before running conformance checks. From the repository root:
+
+```bash
+cargo build --workspace --locked
+python conformance/run.py
+```
+
+This builds and verifies the migration foundation. It does not launch a Rust desktop application
+or establish metadata parity for format adapters that have not been implemented.
+
+## Repository layout
+
+| Path | Purpose |
+|---|---|
+| [`crates/`](crates/README.md) | Rust schema, native bridge, and application foundation |
+| [`native/`](native/README.md) | C++ extraction core and future native library adapters |
+| [`legacy/python/`](legacy/python/README.md) | Working Python application and frozen source reference |
+| [`reference/python/`](reference/python/README.md) | Stable behavior captured from the Python application |
+| [`conformance/`](conformance/README.md) | Fixtures and compatibility checks for the migration |
+| `docs/` | Design decisions, dependency policy, and native safety contracts |
+
+## Documentation
+
+The README covers getting started. The guides in `docs/` explain decisions and constraints that
+contributors need when changing the extraction engine. Project guides have English and Korean
+counterparts; update both when behavior or design changes.
+
+| Guide | English | 한국어 |
+|---|---|---|
+| Architecture and responsibilities | [Architecture](docs/architecture.md) | [아키텍처](docs/architecture_KR.md) |
+| Language boundary and ownership | [Rust/C++ boundary](docs/ffi.md) | [Rust/C++ 경계](docs/ffi_KR.md) |
+| Libraries and dependency policy | [Dependencies](docs/dependencies.md) | [의존성 정책](docs/dependencies_KR.md) |
+| Parser budgets and limitations | [Resource limits](docs/resource-limits.md) | [파서 자원 제한](docs/resource-limits_KR.md) |
+| Migration verification | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
+| Current GUI and CLI | [Python application](legacy/python/README.md) | [Python 앱 사용법](legacy/python/README_KR.md) |

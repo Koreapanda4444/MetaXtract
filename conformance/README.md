@@ -1,5 +1,7 @@
 # Conformance corpus
 
+[English](README.md) | [한국어](README_KR.md) | [Project README](../README.md)
+
 This directory replaces a generic root test tree for migration-critical verification. The corpus
 contains deterministic byte payloads and stable output projections. It never contains private
 evidence or files copied from users.
@@ -33,3 +35,6 @@ only the frozen Python baseline without native build tools, use `--python-only`.
 
 CI runs Linux, Windows, and macOS builds and both debug/release contract checks. Linux additionally
 runs AddressSanitizer and UndefinedBehaviorSanitizer on the native core and the generated FFI.
+
+For the rules these checks protect, see [architecture](../docs/architecture.md),
+[the language boundary](../docs/ffi.md), and [parser resource limits](../docs/resource-limits.md).

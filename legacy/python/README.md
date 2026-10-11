@@ -1,31 +1,44 @@
-# MetaXtract
+# MetaXtract Python reference
 
-MetaXtract는 로컬 파일에서 메타데이터와 SHA-256을 수집하고, 결과를 리포트하거나
-검증 가능한 케이스 ZIP으로 묶는 Python 도구입니다. 모든 분석은 로컬에서 수행되며
-CLI와 데스크톱 GUI를 제공합니다.
+[English](README.md) | [한국어](README_KR.md) | [Project README](../../README.md)
 
-## 주요 기능
+MetaXtract collects metadata and SHA-256 hashes from local files, generates reports, and packages
+results into verifiable case ZIPs. Analysis runs locally, with a CLI and a desktop GUI.
 
-- 파일·디렉터리 스캔과 JSONL 출력
-- 이미지, PDF, DOCX, 비디오 메타데이터 정규화
-- JSON·HTML 리포트, 두 스캔 결과 비교와 출처 보존 타임라인
-- 인터넷 연결 없이 GPS 위치 요약·GeoJSON·KML 내보내기
-- SHA-256 완전 중복과 이미지 지각 해시 기반 시각적 유사 파일 구분
-- 필드 근거를 남기는 개인정보 노출·메타데이터 이상 징후 분류
-- 원본 및 케이스 번들의 경로·크기·해시 검증
-- 개인정보 필드를 제거한 메타데이터 전용 번들
-- 동일 입력에서 동일한 바이트가 생성되는 결정적 ZIP
-- 단일 `.mxc` 케이스, 자동 저장·복구, 이력·메모·주석을 갖춘 백그라운드 GUI
+This guide describes the frozen Python application available during migration. See the
+[project README](../../README.md) for the new Rust/C++ product's implementation status and design.
+The optional `ffprobe` integration below belongs only to the Python reference and will not be
+included in the new product.
 
-## 요구 사항과 설치
+## Features
 
-- Python 3.11 이상
-- 필수 Python 패키지: cryptography, Pillow, pypdf, python-docx
-- 선택 도구: 비디오 메타데이터 추출용 `ffprobe`
+- File and directory scanning with JSONL output
+- Metadata normalization for images, PDF, DOCX, and video
+- JSON and HTML reports, scan comparisons, and provenance-preserving timelines
+- Offline GPS summaries and GeoJSON/KML exports
+- Exact SHA-256 duplicates and visually similar images using perceptual hashes
+- Privacy exposure and metadata anomaly classification with field-level evidence
+- Path, size, and hash verification for originals and case bundles
+- Metadata-only bundles with personal fields removed
+- Deterministic ZIP output: identical inputs produce identical bytes
+- A background GUI with single-file `.mxc` cases, autosave, recovery, history, notes, and annotations
+
+## Requirements and installation
+
+- Python 3.11 or newer
+- Required Python packages: cryptography, Pillow, pypdf, python-docx
+- Optional tool for the Python reference: `ffprobe` for video metadata extraction
 
 ```bash
 git clone https://github.com/Koreapanda4444/MetaXtract.git
-cd MetaXtract
+cd MetaXtract/legacy/python
+```
+
+Run the installation, development, and packaging commands in this guide from `legacy/python/`.
+A virtual environment is optional if you want to isolate packages from other projects.
+Skip creation and activation if you do not use one.
+
+```bash
 python -m venv .venv
 ```
 
@@ -37,7 +50,7 @@ python -m pip install --upgrade pip
 python -m pip install .
 ```
 
-Linux 또는 macOS:
+Linux or macOS:
 
 ```bash
 source .venv/bin/activate
@@ -45,21 +58,21 @@ python -m pip install --upgrade pip
 python -m pip install .
 ```
 
-설치 상태는 다음 명령으로 확인합니다. `ffprobe`가 없어도 나머지 기능은 사용할 수
-있습니다.
+Check the installation with the following command. Features other than detailed video metadata
+remain available without `ffprobe`.
 
 ```bash
 metaxtract doctor
 ```
 
-### Windows 단일 실행 파일
+### Standalone Windows executable
 
-GitHub Actions의 성공한 `CI` 실행에서 `MetaXtract-Windows` 아티팩트를 받으면 Python이나
-별도 패키지 설치 없이 `MetaXtract.exe`를 바로 실행할 수 있습니다. EXE는 버전별 파일로
-나누지 않고 항상 같은 이름으로 생성합니다. `ffprobe`는 포함하지 않으므로 비디오 상세
-메타데이터가 필요하면 시스템에 별도로 설치해야 합니다.
+Download the `MetaXtract-Windows` artifact from a successful GitHub Actions `CI` run to launch
+`MetaXtract.exe` without installing Python or packages. The executable always uses the same
+filename. It does not bundle `ffprobe`; install that separately if you need detailed video
+metadata in the Python reference.
 
-로컬에서 같은 EXE를 만들려면 Windows PowerShell에서 실행합니다.
+To build the same executable locally, run this in Windows PowerShell:
 
 ```powershell
 python -m pip install -e ".[package]"
@@ -71,18 +84,18 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed `
   src/metaxtract/gui.py
 ```
 
-## 지원 포맷
+## Supported formats
 
-| 포맷 | 확장자 | 주요 추출 항목 |
+| Format | Extensions | Main extracted fields |
 |---|---|---|
-| 이미지 | `.jpg`, `.jpeg`, `.png` | 형식, 색상 모드, 크기, 프레임, 기기·렌즈·방향·GPS 등 EXIF |
-| PDF | `.pdf` | 암호화 여부, 페이지 수, 제목, 작성자, 주제, 키워드, 생성·수정 정보 |
-| DOCX | `.docx` | 문단·표·섹션 수, 제목, 작성자, 수정자, 날짜, 리비전 등 문서 속성 |
-| 비디오 | `.mp4`, `.mov`, `.m4v` | 컨테이너, 길이, 비트레이트, 스트림, 코덱, 해상도, 프레임레이트, 오디오 |
+| Images | `.jpg`, `.jpeg`, `.png` | Format, color mode, dimensions, frames, and EXIF including device, lens, orientation, and GPS |
+| PDF | `.pdf` | Encryption status, page count, title, author, subject, keywords, and creation/modification information |
+| DOCX | `.docx` | Paragraph/table/section counts and document properties including title, author, last editor, dates, and revision |
+| Video | `.mp4`, `.mov`, `.m4v` | Container, duration, bitrate, streams, codecs, resolution, frame rate, and audio |
 
-그 밖의 파일도 상대 경로, 크기, 수정 시각, MIME 기본값, SHA-256을 기록합니다.
+Other files still receive a relative path, size, modification time, MIME fallback, and SHA-256.
 
-## 빠른 시작
+## Quick start
 
 ```bash
 metaxtract scan evidence --out scan.jsonl
@@ -98,12 +111,12 @@ metaxtract export-case scan.jsonl case.zip --include-files --files-base evidence
 metaxtract verify-bundle case.zip --public-key public.pem
 ```
 
-정상 완료 시 종료 코드는 `0`, 검증 문제나 명령 실패 시 `1`입니다. 예외 traceback을
-노출하는 대신 명령명과 실패 원인을 표준 오류로 출력합니다.
+The exit code is `0` on success and `1` for verification issues or command failures. Failures
+print the command name and reason to standard error instead of exposing an exception traceback.
 
-## 명령
+## Commands
 
-### 스캔과 캐시
+### Scanning and cache
 
 ```bash
 metaxtract scan evidence --out scan.jsonl
@@ -112,18 +125,18 @@ metaxtract scan evidence --include-hidden --out scan.jsonl
 metaxtract cache purge
 ```
 
-기본 캐시는 현재 디렉터리의 `.metaxtract_cache/`에 저장됩니다. 콘텐츠 해시는 한 번만
-계산하고 캐시 인덱스는 스캔당 한 번만 기록합니다. 기본 파일 한도는 5,000개이며
-`.git`, `__pycache__`, `.metaxtract_cache`와 숨김 경로는 제외됩니다. 숨김 경로는
-`--include-hidden`으로 포함할 수 있습니다. 심볼릭 링크와 스캔 루트 이탈은 거부합니다.
+The default cache is `.metaxtract_cache/` in the current directory. Content hashes are calculated
+once and the cache index is written once per scan. The default limit is 5,000 files.
+`.git`, `__pycache__`, `.metaxtract_cache`, and hidden paths are excluded. Include hidden
+paths with `--include-hidden`. Symlinks and paths escaping the scan root are rejected.
 
-각 JSONL 레코드는 다음 필드를 가집니다.
+Each JSONL record has these fields:
 
 ```json
 {"errors":[],"metadata":{},"mime":"application/octet-stream","path":"evidence.bin","sha256":"…","size_bytes":123,"warnings":[]}
 ```
 
-### 리포트와 비교
+### Reports and comparisons
 
 ```bash
 metaxtract report scan.jsonl --out report.json
@@ -131,24 +144,24 @@ metaxtract report scan.jsonl --format html --out report.html
 metaxtract diff old.jsonl new.jsonl --out diff.json
 ```
 
-리포트에는 전체 파일 수, MIME·경고·오류 집계와 GPS, 작성자, 생성 도구, 기기 모델
-발견 항목이 포함됩니다. `diff`는 추가·삭제·변경된 상대 경로를 구분하고, 변경된 파일은
-`sha256`, 크기와 중첩 메타데이터까지 필드별 이전·이후 값을 함께 기록합니다.
+Reports include the file total, MIME/warning/error counts, and findings for GPS, authors,
+creation software, and device models. `diff` distinguishes added, removed, and changed relative
+paths. Changed files include before/after values for SHA-256, size, and nested metadata fields.
 
-### 메타데이터 타임라인
+### Metadata timeline
 
 ```bash
 metaxtract timeline scan.jsonl --out timeline.json
 metaxtract timeline scan.jsonl --format jsonl --out timeline.jsonl
 ```
 
-파일 시스템 수정 시각과 EXIF 촬영 시각, PDF 생성·수정 시각, DOCX 생성·수정·인쇄 시각,
-비디오 태그의 생성 시각을 하나의 시간순 목록으로 만듭니다. 각 이벤트에는 원본 파일 경로,
-의미(`created`, `modified`, `captured` 등), 메타데이터 원본 필드와 값, 출처 종류,
-시간대 포함 여부와 정밀도가 함께 기록됩니다. 시간대가 없는 값은 임의의 지역 시간대로
-변환하지 않아 원본 의미를 보존합니다.
+The timeline orders filesystem modification times, EXIF capture times, PDF creation/modification
+times, DOCX creation/modification/print times, and video creation tags. Each event retains its
+source path, meaning such as `created`, `modified`, or `captured`, original metadata field and
+value, source kind, timezone presence, and precision. Values without timezones are not assigned
+an arbitrary local timezone.
 
-### GPS 위치 내보내기
+### GPS exports
 
 ```bash
 metaxtract geo scan.jsonl --out locations.json
@@ -156,12 +169,12 @@ metaxtract geo scan.jsonl --format geojson --out locations.geojson
 metaxtract geo scan.jsonl --format kml --out locations.kml
 ```
 
-위도·경도가 유효한 레코드만 경로·해시·원본 메타데이터 필드와 함께
-모으며, JSON에는 전체 경계를 포함합니다. GeoJSON과 KML은 일반 GIS·지도
-프로그램에서 열 수 있습니다. MetaXtract는 이 과정에서 지도 타일이나 외부 API를
-요청하지 않으므로 GPS 값이 네트워크로 전송되지 않습니다.
+Only records with valid latitude and longitude are collected, together with their paths, hashes,
+and original metadata fields. JSON includes the overall bounding box. GeoJSON and KML can be
+opened in ordinary GIS or map applications. MetaXtract does not request map tiles or external
+APIs, so this operation does not send GPS values over the network.
 
-### 중복·유사 파일
+### Duplicate and similar files
 
 ```bash
 metaxtract duplicates scan.jsonl --out duplicates.json
@@ -169,60 +182,60 @@ metaxtract duplicates scan.jsonl --files-base evidence --threshold 8 \
   --out duplicates.json
 ```
 
-완전 중복은 스캔에 기록된 SHA-256이 같은 파일끼리 묶으며 예상 회수 가능
-용량을 계산합니다. `--files-base`를 주면 이미지 원본의 현재 크기와 SHA-256을
-스캔 기록과 먼저 대조한 뒤 64비트 지각 해시를 비교합니다. 지각 해시 거리가
-`--threshold`보다 작거나 같은 쌍을 시각적 유사한 파일로 보고하며, 완전 중복 쌍은
-여기에 중복 표시하지 않습니다. 원본을 변경하지 않고, 외부 서비스로 이미지를
-전송하지도 않습니다. 원본 폴더가 없으면 완전 중복만 계산합니다.
+Exact duplicates group files with the same recorded SHA-256 and estimate reclaimable space.
+With `--files-base`, the current size and SHA-256 of each original image are verified against
+the scan before comparing 64-bit perceptual hashes. Pairs with a distance at or below
+`--threshold` are reported as visually similar; exact duplicate pairs are not listed again.
+Original files are not changed or sent to external services. Without an original directory,
+only exact duplicates are calculated.
 
-### 개인정보·이상 징후
+### Privacy exposure and anomalies
 
 ```bash
 metaxtract findings scan.jsonl --out findings.json
 ```
 
-GPS, 작성자·사용자, 기기·일련번호, 생성 소프트웨어 정보를 개인정보 노출로
-분류합니다. 확장자와 MIME 불일치, 생성일이 수정일보다 느진 날짜 충돌,
-불완전·범위 이탈 GPS, 파일 처리 오류도 이상 징후로 보고합니다. 각 항목은
-중요도·규칙 ID·설명과 함께 판정에 사용한 원본 필드·값을 보존하므로
-사용자가 결과를 직접 검토할 수 있습니다. 같은 분류은 JSON·HTML 리포트에도
-포함됩니다.
+GPS, author/user, device/serial number, and creation software fields are classified as privacy
+exposure. Findings also cover extension/MIME mismatches, creation dates later than modification
+dates, incomplete or out-of-range GPS, and file-processing errors. Each finding retains its
+severity, rule ID, explanation, and the original fields and values used in the decision.
+The same classifications appear in JSON and HTML reports.
 
-### 원본 검증
+### Original-file verification
 
 ```bash
 metaxtract verify scan.jsonl evidence
 ```
 
-JSONL의 상대 경로, 파일 크기, SHA-256을 현재 원본과 대조합니다. 누락, 변경, 중복,
-심볼릭 링크, 기준 디렉터리 이탈을 각각 문제로 보고합니다.
+Verification compares JSONL relative paths, file sizes, and SHA-256 values with the current
+originals. Missing files, changes, duplicates, symlinks, and paths escaping the base directory
+are reported separately.
 
-### 케이스 번들
+### Case bundles
 
-메타데이터 전용 번들:
+Metadata-only bundle:
 
 ```bash
 metaxtract export-case scan.jsonl case.zip --case-id CASE-001 --notes "Initial scan"
 ```
 
-원본 포함 번들:
+Bundle including original files:
 
 ```bash
 metaxtract export-case scan.jsonl case.zip \
   --include-files --files-base evidence
 ```
 
-`--files-base`를 생략하면 `scan.jsonl`이 있는 디렉터리를 사용합니다. 스캔 이후 원본의
-크기나 해시가 달라졌거나 경로가 안전하지 않으면 번들을 생성하지 않습니다.
+If `--files-base` is omitted, the directory containing `scan.jsonl` is used. Bundle creation
+fails if an original's size or hash has changed since scanning, or if a path is unsafe.
 
-번들은 고정된 멤버 순서·타임스탬프·권한과 정규화된 JSON을 사용합니다. 레코드와
-원본이 같으면 다시 생성해도 ZIP 바이트가 같습니다. `manifest.json`의 `artifacts`는
-`scan.jsonl`, `hashes.txt`, 리포트, 포함 원본 각각의 크기와 SHA-256을 기록합니다.
-자기 자신을 해시할 수 없는 `manifest.json`만 이 목록에서 제외됩니다.
+Bundles use fixed member order, timestamps, permissions, and canonical JSON. The same records
+and originals produce the same ZIP bytes. The `artifacts` section of `manifest.json` records
+the size and SHA-256 of `scan.jsonl`, `hashes.txt`, reports, and each included original.
+Only `manifest.json` itself is excluded from this inventory because it cannot hash itself.
 
-서명 키를 한 번 만들고 매니페스트를 Ed25519로 서명할 수 있습니다. 개인 키는 외부에
-공개하지 말고, 검증 상대에게는 공개 키만 전달합니다. 기존 키 파일은 덮어쓰지 않습니다.
+Generate a key pair once to sign the manifest with Ed25519. Keep the private key private and
+share only the public key with verifiers. Existing key files are not overwritten.
 
 ```bash
 metaxtract keygen private.pem public.pem
@@ -230,20 +243,20 @@ metaxtract export-case scan.jsonl signed-case.zip --signing-key private.pem
 metaxtract verify-bundle signed-case.zip --public-key public.pem
 ```
 
-서명된 번들에는 `signature.json`이 추가됩니다. 같은 입력과 같은 키로 생성한 번들은
-여전히 같은 ZIP 바이트를 만듭니다.
+Signed bundles include `signature.json`. Identical inputs and the same key still produce
+identical ZIP bytes.
 
-개인정보 제거 번들:
+Bundle with personal fields removed:
 
 ```bash
 metaxtract export-case scan.jsonl redacted.zip --redact
 ```
 
-`--redact`는 GPS, 작성자·수정자, EXIF 촬영 시각 등 개인정보 필드를 번들의 스캔과
-리포트에서 제거합니다. 원본에는 같은 정보가 남을 수 있으므로 `--redact`와
-`--include-files`는 함께 사용할 수 없습니다.
+`--redact` removes personal fields such as GPS, authors/editors, and EXIF capture times from
+the bundled scan and report. Originals may still contain those fields, so `--redact` and
+`--include-files` cannot be used together.
 
-### 번들 검증
+### Bundle verification
 
 ```bash
 metaxtract verify-bundle case.zip
@@ -251,20 +264,20 @@ metaxtract verify-bundle case.zip --files-base evidence
 metaxtract verify-bundle signed-case.zip --public-key public.pem
 ```
 
-검증기는 필수 멤버, 중복·위험 ZIP 경로, JSONL 레코드, 매니페스트 인벤토리,
-`hashes.txt`, 리포트, 모든 산출물 해시와 포함 원본을 함께 검사합니다. 원본이 없는
-번들은 `--files-base`로 외부 파일까지 대조할 수 있습니다. 서명된 번들은 공개 키 없이는
-검증 성공으로 처리하지 않으며, 외부에서 받은 공개 키로 매니페스트의 서명과 키 지문을
-확인합니다.
+The verifier checks required members, duplicate/unsafe ZIP paths, JSONL records, the manifest
+inventory, `hashes.txt`, reports, all artifact hashes, and included originals. Bundles without
+originals can be compared with external files using `--files-base`. Signed bundles cannot
+pass verification without a public key; the externally supplied key verifies the manifest
+signature and key fingerprint.
 
-신뢰하지 않는 입력에 적용되는 기본 상한은 다음과 같습니다.
+Default limits for untrusted input:
 
-| 대상 | 상한 |
+| Target | Limit |
 |---|---:|
-| JSONL 전체 / 한 줄 / 레코드 수 | 64 MiB / 1 MiB / 100,000 |
-| ZIP 파일 / 멤버 수 | 8 GiB / 10,000 |
-| ZIP 개별 멤버 / 압축 해제 합계 | 4 GiB / 16 GiB |
-| ZIP 제어 파일 / 압축률 | 64 MiB / 200:1 |
+| Total JSONL / line size / record count | 64 MiB / 1 MiB / 100,000 |
+| ZIP file / member count | 8 GiB / 10,000 |
+| ZIP member / total uncompressed size | 4 GiB / 16 GiB |
+| ZIP control file / compression ratio | 64 MiB / 200:1 |
 
 ### GUI
 
@@ -272,69 +285,69 @@ metaxtract verify-bundle signed-case.zip --public-key public.pem
 metaxtract gui
 ```
 
-GUI에는 Python의 Tk 지원이 필요합니다. 스캔은 백그라운드 스레드에서 실행되며,
-진행률과 현재 파일을 표시합니다. 취소 요청은 큰 파일의 SHA-256 계산 도중에도 청크
-단위로 반영되고 스캔·내보내기 오류는 대화상자로 표시됩니다. JSONL은 임시 파일을 완전히
-기록한 다음 교체하므로 저장 실패 시 기존 결과가 반쯤 덮어써지지 않습니다.
+The GUI requires Python's Tk support. Scans run in a background thread with progress and the
+current file displayed. Cancellation is checked between chunks while hashing large files.
+Scan/export failures appear in dialogs. JSONL is written completely to a temporary file before
+replacement, so a failed save does not partially overwrite existing results.
 
-파일과 폴더 선택은 별도 버튼으로 구분됩니다. 캐시 사용, 숨김 파일 포함, 최대 파일 수를
-화면에서 정하고 결과를 경로·MIME·크기·상태 표로 확인할 수 있습니다. 검색어와
-OK/Warning/Error 상태로 결과를 거르고 행을 선택하면 전체 JSON 세부 정보가 표시됩니다.
-일반 검색어는 레코드 전체와 태그·메모를 찾고, `mime:image`, `size>=1048576`,
-`metadata.exif_make:canon`, `tag:review`, `note:"follow up"`, `status:error`처럼 필드와
-비교 연산자를 조합할 수 있습니다. 모든 조건은 함께 적용되며 자주 쓰는 검색과 상태 조합은
-케이스 안에 이름을 붙여 저장할 수 있습니다.
-표 머리글로 결과를 정렬하고 Ctrl/Shift로 여러 행을 선택할 수 있으며, 선택 경로 복사와
-태그 추가·제거, 주석 삭제를 일괄 처리할 수 있습니다.
-내보내기 범위는 전체 레코드, 현재 필터 결과, 선택한 행 중에서 고를 수 있습니다. 스캔
-결과는 JSONL, JSON·HTML 리포트, 원본 포함 여부·redaction·선택적 Ed25519 서명을 지정한
-케이스 ZIP으로 내보낼 수 있습니다. CSV에는 상태, 경고·오류, 메타데이터 JSON과 저장된
-태그·메모가 함께 들어가며 스프레드시트 수식으로 해석될 수 있는 텍스트는 안전하게
-처리됩니다.
+Separate buttons select files and directories. Configure cache use, hidden files, and the maximum
+file count in the interface. Results appear in a path/MIME/size/status table. Search and
+OK/Warning/Error filters narrow the results; selecting a row shows its complete JSON.
+Plain searches cover the record, tags, and notes. Structured queries include `mime:image`,
+`size>=1048576`, `metadata.exif_make:canon`, `tag:review`, `note:"follow up"`, and
+`status:error`. Conditions apply together. Save frequently used search/status combinations
+under a name within the case.
 
-`New` 또는 `Open`으로 단일 `.mxc` 케이스 파일을 관리합니다. 케이스를 연 상태에서는
-완료된 레코드가 스캔 도중부터 증분 저장되므로 중단되거나 비정상 종료되어도 이미 처리한
-결과를 다시 열 수 있습니다. 이전 스캔은 `Scan history`에서 전환하고, 케이스 제목·메모와
-레코드별 태그·메모를 함께 저장할 수 있습니다. `Compare`에서는 두 스캔의 추가·삭제 파일과
-필드별 변경 전후 값을 펼쳐 볼 수 있습니다. 기존 JSONL과 검증된 케이스 ZIP도 새 스캔
-이력으로 가져올 수 있으며 서명된 ZIP에는 해당 공개 키가 필요합니다.
+Sort by column headers and select multiple rows with Ctrl/Shift. Batch actions copy selected
+paths, add/remove tags, and clear annotations. Exports can cover all records, the current filtered
+results, or selected rows. Export JSONL, JSON/HTML reports, or case ZIPs with optional originals,
+redaction, and Ed25519 signing. CSV includes status, warnings/errors, metadata JSON, tags, and
+notes; text that could be interpreted as a spreadsheet formula is handled safely.
 
-`Dashboard`는 케이스의 스캔·원본·누적 레코드·경고·오류·주석 수를 요약합니다. 현재 선택한
-스캔의 전체 용량, 상태와 MIME 분포, 직전 스캔 대비 추가·삭제·변경 수, 케이스 태그와 전체
-스캔 이력도 한 화면에서 확인할 수 있습니다.
+`New` and `Open` manage single-file `.mxc` cases. When a case is open, completed records are
+persisted incrementally during a scan so processed results can be reopened after interruption
+or a crash. Switch previous scans with `Scan history` and save the case title/notes and
+record tags/notes. `Compare` displays added/removed files and before/after field changes.
+Import existing JSONL and verified case ZIPs as scan history; signed ZIPs require their public key.
 
-`Analysis…`는 현재 스캔을 타임라인, GPS 위치, 완전·시각적 중복,
-개인정보·이상 징후 탭으로 나누어 보여줍니다. 타임라인과 발견 사항에서는 판정에
-사용한 원본 필드·값을 바로 확인할 수 있고, 위치 탭에서 GeoJSON·KML을
-저장할 수 있습니다. 시각적 중복 비교는 로컬 원본이 있을 때만 명시적으로 실행하며,
-별도 작업으로 처리해 화면 응답을 유지합니다.
+`Dashboard` summarizes scans, sources, cumulative records, warnings, errors, and annotations.
+It also shows the selected scan's total size, status/MIME distributions, changes from the previous
+scan, case tags, and the full scan history.
 
-로컬 원본이 남아 있는 레코드는 이미지 축소본, PDF 앞부분, DOCX와 텍스트 내용을 제한된
-크기로 미리 볼 수 있습니다. 미리보기는 원본의 현재 크기·SHA-256을 스캔 기록과 먼저
-대조하며, 경로 이탈·심볼릭 링크와 과도한 파일·픽셀·압축 해제 크기를 거부합니다.
+`Analysis…` presents timeline, GPS, exact/visual duplicate, and privacy/anomaly tabs for the
+current scan. Timeline and findings retain the original fields and values behind their results.
+Export GeoJSON/KML from the location tab. Visual duplicate comparison runs only when explicitly
+requested with local originals available, and runs as a separate job to keep the interface responsive.
 
-`Create Keys`는 GUI에서 Ed25519 개인 키와 공개 키를 만들고, `Verify ZIP`은 기존 케이스
-ZIP의 구조·해시·선택적 서명을 검사합니다. 서명된 ZIP을 고르면 공개 키를 요구하며,
-필요하면 별도 원본 폴더까지 함께 대조할 수 있습니다.
+Records with local originals support bounded previews of image thumbnails, the beginning of
+PDFs, DOCX, and text. Previews first verify the current size and SHA-256 against the scan.
+Escaping paths, symlinks, and excessive file/pixel/decompression sizes are rejected.
 
-## 프로젝트 구조
+`Create Keys` generates Ed25519 private/public keys. `Verify ZIP` checks a case ZIP's structure,
+hashes, and optional signature. Signed ZIPs require a public key; optionally compare an external
+original directory as well.
 
-| 경로 | 역할 |
+## Project structure
+
+Paths are relative to `legacy/python/`.
+
+| Path | Purpose |
 |---|---|
-| `src/metaxtract/core/` | 스캔, 캐시, 파일·JSONL 처리, 레코드 검증, `.mxc` 저장소 |
-| `src/metaxtract/extractors/` | 포맷별 추출과 메타데이터 정규화 |
-| `src/metaxtract/case/` | 번들 생성·가져오기, redaction, 경로·무결성 검증 |
-| `src/metaxtract/reporting/` | JSON·HTML 리포트, findings, diff |
-| `src/metaxtract/cli.py` | CLI 라우팅과 공통 실패 처리 |
-| `src/metaxtract/ui/` | 데스크톱 화면, 대화상자, 백그라운드 작업, 최근 케이스 |
-| `src/metaxtract/gui.py` | GUI 호환 진입점 |
-| `pyproject.toml` | 패키지, 의존성, 빌드와 Ruff 설정 |
-| `.github/workflows/ci.yml` | 린트, 빌드, 설치형 CLI 및 Windows EXE 검증 |
+| `src/metaxtract/core/` | Scanning, cache, file/JSONL handling, record validation, and `.mxc` storage |
+| `src/metaxtract/extractors/` | Format-specific extraction and metadata normalization |
+| `src/metaxtract/case/` | Bundle creation/import, redaction, path checks, and integrity verification |
+| `src/metaxtract/reporting/` | JSON/HTML reports, findings, and diff |
+| `src/metaxtract/cli.py` | CLI routing and shared failure handling |
+| `src/metaxtract/ui/` | Desktop views, dialogs, background tasks, and recent cases |
+| `src/metaxtract/gui.py` | GUI compatibility entry point |
+| `pyproject.toml` | Package, dependencies, build, and Ruff configuration |
+| `../../.github/workflows/ci.yml` | Lint, builds, installed CLI checks, and Windows executable checks |
 
-별도 `tests/`, `scripts/` 디렉터리나 중복 설정 파일은 두지 않습니다. 개발 명령과 도구
-설정은 `pyproject.toml`에 모았습니다.
+The Python reference has no separate `tests/`, `scripts/`, or duplicate configuration files.
+Development tools and configuration live in `pyproject.toml`. The repository's
+[conformance corpus](../../conformance/README.md) separately verifies the Rust/C++ migration.
 
-## 개발과 빌드
+## Development and builds
 
 ```bash
 python -m pip install -e ".[dev]"
@@ -342,18 +355,16 @@ python -m ruff check .
 python -m build --wheel
 ```
 
-CI는 린트 후 wheel을 만들고, 그 wheel만 새 환경에 설치합니다. 설치형 CLI 전체 흐름은
-Linux·Windows·macOS의 Python 3.11과 Linux의 Python 3.14에서 직접 실행합니다. 별도
-Windows 작업은 단일 EXE를 빌드하고 GUI 프로세스가 정상 실행되는지 확인합니다.
+CI lints the source, builds a wheel, and installs only that wheel into fresh environments.
+Installed CLI workflows run on Linux, Windows, and macOS with Python 3.11, and on Linux with
+Python 3.14. A separate Windows job builds the standalone executable and checks that its GUI
+process starts successfully.
 
-## 제한 사항
+## Limitations
 
-- 메타데이터 추출 범위는 파일 상태, 사용 라이브러리, 포맷 구현에 따라 달라집니다.
-- `ffprobe`가 없거나 30초 안에 끝나지 않으면 비디오 상세 메타데이터를 건너뛰고
-  경고를 기록합니다.
-- redaction은 번들 내부의 구조화된 메타데이터에만 적용되며 원본 파일을 수정하지
-  않습니다.
-- 서명하지 않은 ZIP과 SHA-256 검증은 내부 무결성만 확인합니다. Ed25519 서명은 보관된
-  공개 키와 매니페스트가 일치함을 확인하지만 신뢰 시각이나 작성자 신원까지 증명하지는
-  않습니다.
-- 매니페스트는 다른 모든 번들 산출물을 해시하지만 자기 자신은 해시하지 않습니다.
+- Extraction coverage depends on file condition, the libraries used, and format implementations.
+- If `ffprobe` is absent or exceeds 30 seconds, detailed video metadata is skipped with a warning.
+- Redaction applies only to structured metadata inside the bundle and does not modify originals.
+- Unsigned ZIP and SHA-256 checks establish internal integrity. Ed25519 verifies that the manifest
+  matches the supplied public key; it does not establish a trusted timestamp or the author's identity.
+- The manifest hashes every other bundle artifact but not itself.

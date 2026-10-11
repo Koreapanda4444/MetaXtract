@@ -1,5 +1,7 @@
 # MetaXtract architecture
 
+[English](architecture.md) | [한국어](architecture_KR.md) | [Project README](../README.md)
+
 ## Product boundary
 
 MetaXtract is a metadata extraction and analysis application. Binary parsing exists only to
@@ -28,15 +30,16 @@ perform network access, or implement product workflows.
 
 ## Dependency direction
 
-```text
-GUI / CLI -> Rust core -> canonical schema
-                      -> Rust/C++ bridge -> C++ extraction adapters
-```
+GUI and CLI use the Rust core, which depends on the canonical schema and the Rust/C++ bridge.
+The bridge calls the C++ extraction adapters.
 
 The C++ core never calls into GUI, CLI, storage, reporting, or case-management code. Parser
 libraries are hidden behind adapters and their objects never cross the language boundary.
 
 ## Extraction flow
+
+This is the intended end-to-end flow. The schema, bridge, bounded input, and parser dispatcher
+are implemented; production format adapters and Rust application workflows remain pending.
 
 1. Rust resolves the scan target and opens a bounded read-only source.
 2. Rust records file identity and hashes content according to evidence policy.
@@ -60,4 +63,6 @@ The frozen Python application is an executable compatibility oracle for existing
 not authoritative for fields it never extracted. Rust and C++ replace it only after conformance,
 workspace compatibility, and end-to-end acceptance gates pass.
 
-`architecture.toml` is the machine-readable ownership policy used by repository validation.
+[`architecture.toml`](../architecture.toml) is the machine-readable ownership policy used by
+repository validation. See the [boundary contract](ffi.md), [dependency policy](dependencies.md),
+and [resource limits](resource-limits.md) for the related implementation constraints.

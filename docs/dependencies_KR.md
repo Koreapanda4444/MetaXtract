@@ -1,0 +1,39 @@
+# 의존성 정책
+
+[English](dependencies.md) | [한국어](dependencies_KR.md) | [프로젝트 README](../README_KR.md)
+
+[`third-party.lock.toml`](../third-party.lock.toml)은 검토한 네이티브 라이브러리와 언어 연결부
+의존성을 기록하는 기준 파일입니다. 각 항목은 정확한 릴리스, 태그와 태그가 실제로 가리키는
+커밋을 고정합니다. `python conformance/validate.py --online`은 주석 태그를 포함해
+태그와 커밋이 일치하는지 확인합니다. 목록에 있다고 바로 사용되는 것은 아닙니다.
+해당 형식의 구현 작업에서 필요한 어댑터를 추가하고 빌드 옵션을 확인하며 배포 시 포함할
+고지 내용을 기록해야 합니다.
+
+[`dependency-policy.toml`](../dependency-policy.toml)에서 허용한 카피레프트 라이브러리는
+동적 라이브러리로 함께 배포해 라이선스와 교체 조건을 이행할 수 있도록 합니다.
+FFmpeg는 GPL 또는 nonfree 구성 요소 없이 설정해야 합니다. libheif가 불러오는 코덱
+플러그인은 디코딩을 활성화하기 전에 별도 검토가 필요합니다.
+
+현재 프로젝트에는 GPL 호환 배포 정책이 없어 Exiv2를 선택하지 않았습니다.
+이미지 추출은 특정 작업에 필요한 라이브러리와 MetaXtract 자체 어댑터부터 구성합니다.
+새 제품의 실행 시 의존성으로 ExifTool과 ffprobe를 사용하는 것은 금지합니다.
+동결된 Python 기준판에 관련 기능이 남아 있어도 새 제품에 포함되는 것은 아닙니다.
+
+의존성을 갱신할 때는 버전과 커밋을 함께 변경하고 라이선스 검증을 다시 실행해야 합니다.
+병합 전에 손상된 파일을 포함한 호환성 검증도 통과해야 합니다.
+
+[`Cargo.lock`](../Cargo.lock)은 실제 사용하는 Rust 의존성과 레지스트리 체크섬을 고정합니다.
+`python conformance/validate.py --cargo`는 간접 빌드 의존성을 포함해 패키지가 선언한
+SPDX 라이선스를 검사합니다. 선언 검사이므로 실제 라이브러리를 활성화하는 어댑터를
+추가할 때는 배포 고지와 네이티브 빌드 설정도 검토해야 합니다. Cargo는 단독 네이티브
+빌드와 같은 CMake 타깃으로 추출 코어를 빌드한 뒤 생성된 `cxx` 연결부를 연결합니다.
+
+저장소 루트에서 의존성 검증을 실행합니다.
+
+```bash
+python conformance/validate.py --online
+python conformance/validate.py --cargo
+```
+
+온라인 검증에는 네트워크 연결이 필요합니다. Cargo 검증에는 고정된 Rust 도구 모음과
+의존성 메타데이터가 필요합니다. 빌드 환경은 [전환 검증](../conformance/README_KR.md)을 참고합니다.
