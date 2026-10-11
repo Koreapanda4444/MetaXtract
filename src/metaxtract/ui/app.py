@@ -34,6 +34,12 @@ from metaxtract.ui.records import (
 from metaxtract.ui.tasks import run_import, run_scan, run_verification
 
 
+EXPORT_ALL = "All records"
+EXPORT_VISIBLE = "Filtered results"
+EXPORT_SELECTED = "Selected records"
+EXPORT_SCOPES = (EXPORT_ALL, EXPORT_VISIBLE, EXPORT_SELECTED)
+
+
 class MetaXtractGUI(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
@@ -49,6 +55,7 @@ class MetaXtractGUI(tk.Tk):
         self.search_var = tk.StringVar(value="")
         self.status_filter_var = tk.StringVar(value=FILTER_ALL)
         self.saved_filter_var = tk.StringVar(value="")
+        self.export_scope_var = tk.StringVar(value=EXPORT_ALL)
         self.status_var = tk.StringVar(value="Ready")
         self.case_var = tk.StringVar(value="No case open")
         self.history_var = tk.StringVar(value="No saved scans")
@@ -303,41 +310,55 @@ class MetaXtractGUI(tk.Tk):
             command=self._show_query_help,
         ).grid(row=0, column=4, padx=(2, 0))
 
-        actions = ttk.Frame(filters)
-        actions.grid(row=2, column=0, columnspan=4, sticky=tk.W, pady=(7, 0))
+        export_actions = ttk.Frame(filters)
+        export_actions.grid(row=2, column=0, columnspan=4, sticky=tk.W, pady=(7, 0))
+        ttk.Label(export_actions, text="Export").pack(side=tk.LEFT)
+        self.export_scope_combo = ttk.Combobox(
+            export_actions,
+            textvariable=self.export_scope_var,
+            values=EXPORT_SCOPES,
+            state="disabled",
+            width=16,
+        )
+        self.export_scope_combo.pack(side=tk.LEFT, padx=(6, 8))
+        self.csv_button = ttk.Button(
+            export_actions,
+            text="CSV",
+            command=self._export_csv,
+            state=tk.DISABLED,
+        )
+        self.csv_button.pack(side=tk.LEFT, padx=(0, 4))
         self.jsonl_button = ttk.Button(
-            actions,
+            export_actions,
             text="JSONL",
             command=self._export_jsonl,
             state=tk.DISABLED,
         )
         self.jsonl_button.pack(side=tk.LEFT, padx=(0, 4))
         self.report_json_button = ttk.Button(
-            actions,
+            export_actions,
             text="Report JSON",
             command=lambda: self._export_report("json"),
             state=tk.DISABLED,
         )
         self.report_json_button.pack(side=tk.LEFT, padx=4)
         self.report_html_button = ttk.Button(
-            actions,
+            export_actions,
             text="Report HTML",
             command=lambda: self._export_report("html"),
             state=tk.DISABLED,
         )
         self.report_html_button.pack(side=tk.LEFT, padx=4)
         self.case_button = ttk.Button(
-            actions,
+            export_actions,
             text="Case ZIP",
             command=self._export_case,
             state=tk.DISABLED,
         )
         self.case_button.pack(side=tk.LEFT, padx=4)
-        ttk.Separator(actions, orient=tk.VERTICAL).pack(
-            side=tk.LEFT,
-            fill=tk.Y,
-            padx=8,
-        )
+
+        actions = ttk.Frame(filters)
+        actions.grid(row=3, column=0, columnspan=4, sticky=tk.W, pady=(7, 0))
         self.key_button = ttk.Button(
             actions,
             text="Create Keys",
@@ -1301,12 +1322,14 @@ class MetaXtractGUI(tk.Tk):
 
     def _set_export_state(self, state: str) -> None:
         for button in (
+            self.csv_button,
             self.jsonl_button,
             self.report_json_button,
             self.report_html_button,
             self.case_button,
         ):
             button.configure(state=state)
+        self.export_scope_combo.configure(state="readonly" if state == tk.NORMAL else "disabled")
 
     def _clear_results(self) -> None:
         for item in self.tree.get_children():
@@ -1408,10 +1431,11 @@ class MetaXtractGUI(tk.Tk):
             self.status_var.set(f"Showing {len(visible)} of {len(self._last_records)} file(s).")
 
     def _selected_records(self) -> list[dict[str, Any]]:
+        selection = set(self.tree.selection())
         return [
             self._visible_records[item]
-            for item in self.tree.selection()
-            if item in self._visible_records
+            for item in self.tree.get_children()
+            if item in selection and item in self._visible_records
         ]
 
     def _select_visible_records(self) -> None:
@@ -1697,14 +1721,46 @@ class MetaXtractGUI(tk.Tk):
             self.details.insert("1.0", text + "\n")
         self.details.configure(state=tk.DISABLED)
 
+    def _records_for_export(self) -> list[dict[str, Any]] | None:
+        scope = self.export_scope_var.get()
+        if scope == EXPORT_SELECTED:
+            records = self._selected_records()
+        elif scope == EXPORT_VISIBLE:
+            records = [
+                self._visible_records[item]
+                for item in self.tree.get_children()
+                if item in self._visible_records
+            ]
+        else:
+            records = list(self._last_records)
+        if records:
+            return records
+        messagebox.showinfo(
+            "MetaXtract",
+            f"No records are available for the {scope.lower()} export scope.",
+            parent=self,
+        )
+        return None
+
+    def _export_csv(self) -> None:
+        records = self._records_for_export()
+        if records is not None:
+            dialogs.export_csv(self, records, self._annotations)
+
     def _export_jsonl(self) -> None:
-        dialogs.export_jsonl(self, self._last_records)
+        records = self._records_for_export()
+        if records is not None:
+            dialogs.export_jsonl(self, records)
 
     def _export_report(self, format_name: str) -> None:
-        dialogs.export_report(self, self._last_records, format_name)
+        records = self._records_for_export()
+        if records is not None:
+            dialogs.export_report(self, records, format_name)
 
     def _export_case(self) -> None:
-        dialogs.export_case(self, self._last_records, self._scan_base)
+        records = self._records_for_export()
+        if records is not None:
+            dialogs.export_case(self, records, self._scan_base)
 
     def _generate_keypair(self) -> None:
         dialogs.generate_keypair(self)

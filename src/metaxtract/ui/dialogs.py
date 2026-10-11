@@ -9,6 +9,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
+from metaxtract.core.csvio import write_csv
 from metaxtract.core.jsonio import write_jsonl
 
 
@@ -106,6 +107,26 @@ def export_jsonl(parent: tk.Misc, records: list[dict[str, Any]]) -> None:
         write_jsonl(out, records)
     except (OSError, TypeError, ValueError) as exc:
         messagebox.showerror("MetaXtract", f"Export failed: {exc}", parent=parent)
+        return
+    messagebox.showinfo("MetaXtract", f"Saved: {out}", parent=parent)
+
+
+def export_csv(
+    parent: tk.Misc,
+    records: list[dict[str, Any]],
+    annotations: dict[str, Any] | None = None,
+) -> None:
+    out = filedialog.asksaveasfilename(
+        parent=parent,
+        defaultextension=".csv",
+        filetypes=[("CSV", "*.csv")],
+    )
+    if not out:
+        return
+    try:
+        write_csv(out, records, annotations)
+    except (OSError, TypeError, ValueError) as exc:
+        messagebox.showerror("MetaXtract", f"CSV export failed: {exc}", parent=parent)
         return
     messagebox.showinfo("MetaXtract", f"Saved: {out}", parent=parent)
 
