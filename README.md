@@ -9,6 +9,7 @@ CLI와 데스크톱 GUI를 제공합니다.
 - 파일·디렉터리 스캔과 JSONL 출력
 - 이미지, PDF, DOCX, 비디오 메타데이터 정규화
 - JSON·HTML 리포트, 두 스캔 결과 비교와 출처 보존 타임라인
+- 인터넷 연결 없이 GPS 위치 요약·GeoJSON·KML 내보내기
 - 원본 및 케이스 번들의 경로·크기·해시 검증
 - 개인정보 필드를 제거한 메타데이터 전용 번들
 - 동일 입력에서 동일한 바이트가 생성되는 결정적 ZIP
@@ -85,6 +86,7 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed `
 metaxtract scan evidence --out scan.jsonl
 metaxtract report scan.jsonl --out report.json
 metaxtract timeline scan.jsonl --out timeline.json
+metaxtract geo scan.jsonl --format geojson --out locations.geojson
 metaxtract verify scan.jsonl evidence
 metaxtract keygen private.pem public.pem
 metaxtract export-case scan.jsonl case.zip --include-files --files-base evidence \
@@ -141,6 +143,19 @@ metaxtract timeline scan.jsonl --format jsonl --out timeline.jsonl
 의미(`created`, `modified`, `captured` 등), 메타데이터 원본 필드와 값, 출처 종류,
 시간대 포함 여부와 정밀도가 함께 기록됩니다. 시간대가 없는 값은 임의의 지역 시간대로
 변환하지 않아 원본 의미를 보존합니다.
+
+### GPS 위치 내보내기
+
+```bash
+metaxtract geo scan.jsonl --out locations.json
+metaxtract geo scan.jsonl --format geojson --out locations.geojson
+metaxtract geo scan.jsonl --format kml --out locations.kml
+```
+
+위도·경도가 유효한 레코드만 경로·해시·원본 메타데이터 필드와 함께
+모으며, JSON에는 전체 경계를 포함합니다. GeoJSON과 KML은 일반 GIS·지도
+프로그램에서 열 수 있습니다. MetaXtract는 이 과정에서 지도 타일이나 외부 API를
+요청하지 않으므로 GPS 값이 네트워크로 전송되지 않습니다.
 
 ### 원본 검증
 

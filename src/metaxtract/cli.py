@@ -101,6 +101,24 @@ def _cmd_timeline(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def _cmd_geo(args: argparse.Namespace) -> int:
+    from .core.jsonio import dumps_json, read_jsonl
+    from .reporting.geo import geojson_document, location_document, render_kml
+
+    records = read_jsonl(args.scan)
+    if args.format == "geojson":
+        output = dumps_json(geojson_document(records))
+    elif args.format == "kml":
+        output = render_kml(records).rstrip("\n")
+    else:
+        output = dumps_json(location_document(records))
+    if args.out:
+        Path(args.out).write_text(output + "\n", encoding="utf-8")
+    else:
+        print(output)
+    return EXIT_SUCCESS
+
+
 def _cmd_verify(args: argparse.Namespace) -> int:
     from .case.verify import verify_scan
     from .core.jsonio import dumps_json
@@ -221,6 +239,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="timeline output format (default: json)",
     )
     timeline.set_defaults(func=_cmd_timeline)
+
+    geo = sub.add_parser(
+        "geo",
+        help="export valid GPS metadata without contacting a map service",
+    )
+    geo.add_argument("scan", help="input scan.jsonl")
+    geo.add_argument("--out", help="output path (default: stdout)")
+    geo.add_argument(
+        "--format",
+        choices=["json", "geojson", "kml"],
+        default="json",
+        help="location output format (default: json)",
+    )
+    geo.set_defaults(func=_cmd_geo)
 
     verify = sub.add_parser("verify", help="verify files on disk match hashes from scan.jsonl")
     verify.add_argument("scan", help="input scan.jsonl")
