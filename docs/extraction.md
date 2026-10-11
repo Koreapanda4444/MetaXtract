@@ -37,3 +37,17 @@ Case and common MIME aliases are normalized. A DOCX-like extension over ZIP, or 
 does not prove the package subtype; it remains unverified until a deeper parser confirms it.
 An ID3 wrapper similarly does not establish the following audio format. Generic binary MIME
 does not create a spurious conflict.
+
+## Image structures
+
+The native `images.structure` parser extracts JPEG frame/scan/segment fields, PNG chunk fields
+with CRC and ordering checks, classic TIFF and BigTIFF directories, WebP headers/animation
+geometry, GIF frames/control blocks, BMP DIB fields, and ICO/CUR directories and embedded images.
+TIFF observations retain unknown tags and original values. Entry offsets and embedded image
+ranges are checked against their enclosing source, and directory cycles are rejected.
+
+`metaxtract_native::extract_parser` returns typed values, original bytes, source ranges, budget
+statistics, and an optional failure. Observations read before a recoverable failure remain available.
+Canonical conversion retains the original bytes separately from the interpreted value.
+These are structural and metadata checks; compressed pixels are not decoded to certify image validity.
+EXIF subdirectories, XMP/IPTC/ICC interpretation, and other image metadata are subsequent work.

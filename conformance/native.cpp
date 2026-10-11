@@ -47,7 +47,7 @@ int main() {
     const auto info = core_info();
     bool ok = expect(info.api_revision == kApiRevision && info.schema_revision == kSchemaRevision, "native revisions");
     ok &= expect(std::strcmp(engine_name(), "metaxtract-native") == 0, "native engine identity");
-    ok &= expect(default_registry().parsers().empty(), "no production fixture parser");
+    ok &= expect(default_registry().find("conformance.resource_limits") == nullptr, "no production fixture parser");
     ParserRegistry registry;
     ok &= expect(registry.add(std::make_unique<ConformanceParser>()), "parser registration");
     ok &= expect(!registry.add(std::make_unique<ConformanceParser>()) && !registry.add(nullptr), "duplicate/null parser rejection");

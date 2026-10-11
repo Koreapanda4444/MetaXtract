@@ -1,10 +1,12 @@
 #![deny(unsafe_code)]
 
 mod detection;
+mod extraction;
 #[allow(unsafe_code)]
 mod ffi;
 
 pub use detection::{ContentCandidate, DetectionState, detect_content};
+pub use extraction::{ExtractionResult, NativeObservation, extract_parser};
 
 use std::{error::Error, fmt, fs::File};
 
@@ -35,6 +37,7 @@ pub enum NativeErrorCode {
     EntryLimitExceeded,
     ObservationLimitExceeded,
     DeadlineExceeded,
+    MalformedData,
     Unknown(u32),
 }
 
@@ -57,6 +60,7 @@ impl From<u32> for NativeErrorCode {
             15 => Self::EntryLimitExceeded,
             16 => Self::ObservationLimitExceeded,
             17 => Self::DeadlineExceeded,
+            18 => Self::MalformedData,
             other => Self::Unknown(other),
         }
     }
@@ -337,6 +341,7 @@ fn error_message(code: NativeErrorCode) -> &'static str {
         NativeErrorCode::EntryLimitExceeded => "container entry limit exceeded",
         NativeErrorCode::ObservationLimitExceeded => "metadata observation limit exceeded",
         NativeErrorCode::DeadlineExceeded => "parser deadline exceeded",
+        NativeErrorCode::MalformedData => "native parser found a malformed structure",
         NativeErrorCode::Unknown(_) => "native extraction returned an unknown error",
     }
 }

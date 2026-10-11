@@ -112,7 +112,14 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
 
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
-    wanted = ["INFO\t1\t1\t1", "SCHEMA\tOK"]
+    wanted = ["INFO\t1\t1\t2", "SCHEMA\tOK"]
+    image_corpus = _read_json(ROOT / "conformance" / "corpus" / "images.json")
+    for case in image_corpus["cases"]:
+        data = base64.b64decode(case["base64"], validate=True)
+        selected = ",".join(case["fields"])
+        requests.append(f"EXTRACT\t{data.hex()}\t{case['parser']}\t{selected}\t{case['read_max']}\t{case['observation_max']}")
+        fields = ";".join(key + "=" + "|".join(values) for key, values in case["fields"].items())
+        wanted.append(f"EXTRACT\t{case['status']}\t{fields}")
     png = b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sIIBBBBBI", 13, b"IHDR", 1, 1, 8, 2, 0, 0, 0, 0)
     transport = bytearray(377)
     transport[0] = transport[188] = transport[376] = 0x47
@@ -261,7 +268,7 @@ def run(*, python_only: bool = False, release: bool = False) -> dict[str, Any]:
         "path_cases": len(expected.get("path_cases", [])),
         "native_contract_cases": native_cases,
         "native_enabled": not python_only,
-        "native_record_parity": "pending format adapters",
+        "native_record_parity": "partial image structure coverage; full record parity pending",
         "failures": failures,
     }
 

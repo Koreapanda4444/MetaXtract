@@ -10,8 +10,8 @@ normalization, analysis, search, reports, and case management.
 | Crate | Implemented foundation |
 |---|---|
 | `metaxtract-schema` | Evidence identity, raw observations, normalized claims, provenance, diagnostics, and records |
-| `metaxtract-native` | `cxx` bridge, bounded Rust-owned input, parser capabilities, and native error mapping |
-| `metaxtract-core` | Schema exports and engine revision information for the application foundation |
+| `metaxtract-native` | `cxx` bridge, bounded input, content detection, raw observation transport, parser capabilities, and native error mapping |
+| `metaxtract-core` | Schema exports, engine information, and extension/MIME/container conflict analysis |
 
 The workspace does not yet provide a Rust GUI, CLI, scanner, or case-management workflow.
 These product responsibilities will be implemented above the schema and native bridge.

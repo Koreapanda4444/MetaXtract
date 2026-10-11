@@ -185,6 +185,39 @@ FfiDetection ffi_detect(const ReadSource& source, const FfiResourceLimits limits
     }
 }
 
+FfiExtraction ffi_extract(const ReadSource& source, const rust::Str parser_id, const FfiResourceLimits limits) noexcept {
+    try {
+        const RustInput input(source);
+        auto run = metaxtract::native::run_parser(metaxtract::native::default_registry(),
+            std::string_view(parser_id.data(), parser_id.size()), input, convert_limits(limits));
+        rust::Vec<FfiObservation> values;
+        for (auto& value : run.values) {
+            rust::Vec<std::uint8_t> encoded;
+            for (const auto byte : value.encoded) { encoded.push_back(byte); }
+            rust::Vec<std::uint8_t> text;
+            for (const auto byte : value.value) { text.push_back(static_cast<std::uint8_t>(byte)); }
+            values.push_back({
+                .name_space = rust::String(value.name_space), .key = rust::String(value.key),
+                .kind = static_cast<std::uint32_t>(value.kind), .value = std::move(text),
+                .encoded = std::move(encoded), .encoding = rust::String(value.encoding),
+                .offset = value.offset, .length = value.length, .located = value.located,
+                .tag_code = value.tag_code, .numeric_tag = value.numeric_tag,
+            });
+        }
+        return {.run = {
+            .status = run.status, .recoverable = run.recoverable,
+            .read_bytes = run.read_bytes, .allocation_bytes = run.allocation_bytes,
+            .decoded_bytes = run.decoded_bytes, .entries = run.entries, .observations = run.observations,
+        }, .values = std::move(values)};
+    } catch (const std::bad_alloc&) {
+        return {.run = {.status = 8, .recoverable = false, .read_bytes = 0, .allocation_bytes = 0,
+            .decoded_bytes = 0, .entries = 0, .observations = 0}, .values = {}};
+    } catch (...) {
+        return {.run = {.status = 3, .recoverable = false, .read_bytes = 0, .allocation_bytes = 0,
+            .decoded_bytes = 0, .entries = 0, .observations = 0}, .values = {}};
+    }
+}
+
 FfiBudgetStatus ffi_validate_limits(
     const std::uint64_t source_size,
     const FfiResourceLimits limits) noexcept {

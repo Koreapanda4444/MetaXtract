@@ -29,7 +29,9 @@ overflow offsets, read ceilings, truncated files, error mapping, schema invarian
 parser resource budget. The fixture parser is enabled only by the explicit Cargo `conformance`
 feature and is absent from ordinary production builds.
 
-Full PNG/PDF/other metadata record parity is pending the format adapters. The result reports this
+Native image structure fields are checked against generated fixtures, including endian variants,
+CRC errors, directory cycles, truncation, partial results, and source-byte provenance.
+Full PNG/PDF/other metadata record parity is still pending. The result reports this
 explicitly instead of treating the Python-only records as native extraction coverage. To check
 only the frozen Python baseline without native build tools, use `--python-only`.
 

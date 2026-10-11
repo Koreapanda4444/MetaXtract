@@ -14,8 +14,10 @@ the results.
 
 The Python reference provides the working GUI and CLI during migration. The Rust/C++ foundation
 currently includes the canonical schema, language bridge, bounded input, parser registry,
-resource budgets, content-signature detection, conformance checks, and cross-platform CI. Production format adapters and the
-Rust GUI/CLI are still to be implemented.
+resource budgets, content-signature detection, conformance checks, and cross-platform CI. Remaining format adapters and the
+Rust GUI/CLI are still to be implemented. The initial native image adapter now extracts structural
+fields from JPEG, PNG, TIFF/BigTIFF, WebP, GIF, BMP, and ICO/CUR; see
+[native extraction coverage](docs/extraction.md) for its scope.
 
 The Python source remains frozen as a comparison baseline. It will be removed after the new
 application passes workflow, data compatibility, and extraction conformance checks.

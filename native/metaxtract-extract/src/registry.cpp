@@ -1,10 +1,12 @@
 #include "metaxtract/native/registry.hpp"
 
 #include <algorithm>
+#include <new>
 #include <utility>
 
 namespace metaxtract::native {
 
+std::unique_ptr<Parser> image_structure_parser();
 #ifdef METAXTRACT_CONFORMANCE
 std::unique_ptr<Parser> conformance_parser();
 #endif
@@ -32,6 +34,7 @@ const std::vector<std::unique_ptr<Parser>>& ParserRegistry::parsers() const noex
 const ParserRegistry& default_registry() noexcept {
     static const ParserRegistry registry = [] {
         ParserRegistry result;
+        result.add(image_structure_parser());
 #ifdef METAXTRACT_CONFORMANCE
         result.add(conformance_parser());
 #endif
@@ -56,6 +59,8 @@ ParserRun run_parser(
         } else {
             try {
                 status = parser->run(context);
+            } catch (const std::bad_alloc&) {
+                status = ParseStatus::AllocationFailure;
             } catch (...) {
                 status = ParseStatus::Internal;
             }
@@ -77,6 +82,7 @@ ParserRun run_parser(
         .decoded_bytes = budget.decoded_bytes(),
         .entries = budget.entries(),
         .observations = budget.observations(),
+        .values = context.take_values(),
     };
 }
 

@@ -39,7 +39,8 @@ libraries are hidden behind adapters and their objects never cross the language 
 ## Extraction flow
 
 This is the intended end-to-end flow. The schema, bridge, bounded input, and parser dispatcher
-are implemented; production format adapters and Rust application workflows remain pending.
+are implemented. An initial image structure adapter is available; remaining format adapters and
+Rust application workflows remain pending.
 
 1. Rust resolves the scan target and opens a bounded read-only source.
 2. Rust records file identity and hashes content according to evidence policy.

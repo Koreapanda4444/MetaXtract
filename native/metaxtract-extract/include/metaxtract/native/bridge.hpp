@@ -16,6 +16,7 @@ struct FfiReadResult;
 struct FfiResourceLimits;
 struct FfiBudgetStatus;
 struct FfiDetection;
+struct FfiExtraction;
 struct ReadSource;
 
 [[nodiscard]] FfiCoreInfo ffi_core_info() noexcept;
@@ -31,6 +32,7 @@ struct ReadSource;
     std::uint32_t requested) noexcept;
 [[nodiscard]] FfiCapabilities ffi_capabilities() noexcept;
 [[nodiscard]] FfiDetection ffi_detect(const ReadSource& source, FfiResourceLimits limits) noexcept;
+[[nodiscard]] FfiExtraction ffi_extract(const ReadSource& source, rust::Str parser_id, FfiResourceLimits limits) noexcept;
 [[nodiscard]] FfiParserRun ffi_run_parser(
     const ReadSource& source,
     rust::Str parser_id,

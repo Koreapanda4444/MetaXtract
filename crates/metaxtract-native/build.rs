@@ -25,7 +25,9 @@ fn main() {
 
     let mut config = cmake::Config::new(&root);
     if msvc {
-        config.static_crt(static_crt).cxxflag("/D_ITERATOR_DEBUG_LEVEL=0");
+        config
+            .static_crt(static_crt)
+            .cxxflag("/D_ITERATOR_DEBUG_LEVEL=0");
         config.define(
             "CMAKE_MSVC_RUNTIME_LIBRARY",
             if static_crt {

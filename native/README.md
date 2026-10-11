@@ -7,8 +7,9 @@ for approved native libraries. It does not own case state, normalization policy,
 reporting, GUI, or CLI behavior.
 
 The current `metaxtract-extract` core contains input handling, parser registration and dispatch,
-resource budgets, and bridge support. Production format adapters and third-party extraction
-library integrations are not implemented yet. The fixture parser exists only in conformance builds.
+resource budgets, and bridge support. The `images.structure` adapter extracts image structural
+fields; deeper metadata and third-party extraction library integrations remain pending.
+The fixture parser exists only in conformance builds.
 The public boundary must remain smaller than the parser implementations behind it.
 
 From the repository root:

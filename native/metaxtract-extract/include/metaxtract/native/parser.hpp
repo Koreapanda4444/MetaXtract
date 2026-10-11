@@ -2,6 +2,7 @@
 
 #include "metaxtract/native/input.hpp"
 #include "metaxtract/native/budget.hpp"
+#include "metaxtract/native/observation.hpp"
 
 #include <cstdint>
 #include <string>
@@ -31,10 +32,13 @@ public:
     [[nodiscard]] std::uint64_t source_size() const noexcept;
     [[nodiscard]] ReadChunk read_at(std::uint64_t offset, std::uint32_t requested);
     [[nodiscard]] ParserBudget& budget() noexcept;
+    [[nodiscard]] bool observe(Observation value);
+    [[nodiscard]] std::vector<Observation> take_values() noexcept;
 
 private:
     const RandomAccessInput& source_;
     ParserBudget budget_;
+    std::vector<Observation> values_;
 };
 
 enum class ParseStatus : std::uint32_t {
@@ -45,6 +49,7 @@ enum class ParseStatus : std::uint32_t {
     ReadFailure = 6,
     Unsupported = 7,
     AllocationFailure = 8,
+    Malformed = 18,
 };
 
 struct ParserRun final {
@@ -55,6 +60,7 @@ struct ParserRun final {
     std::uint64_t decoded_bytes = 0;
     std::uint32_t entries = 0;
     std::uint32_t observations = 0;
+    std::vector<Observation> values;
 };
 
 class Parser {

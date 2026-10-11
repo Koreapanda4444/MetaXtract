@@ -6,10 +6,11 @@ use std::{
 
 use metaxtract_native::{
     BoundedInput, InputLimits, NativeError, ParserLimits, build_info, check_input, detect_content,
-    parser_capabilities, read_input, run_parser,
+    extract_parser, parser_capabilities, read_input, run_parser,
 };
 use metaxtract_schema::{
-    ByteRange, Confidence, EvidenceKind, EvidencePath, EvidenceSegment, GeoPoint, RelativePath,
+    ByteRange, Confidence, EvidenceKind, EvidencePath, EvidenceSegment, GeoPoint, RawValue,
+    RelativePath,
 };
 
 fn decode(value: &str) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -29,6 +30,19 @@ fn encode(value: &[u8]) -> String {
 
 fn text(value: &str) -> Result<String, Box<dyn Error>> {
     Ok(String::from_utf8(decode(value)?)?)
+}
+
+fn rendered(value: &RawValue) -> String {
+    match value {
+        RawValue::Unsigned(value) => value.to_string(),
+        RawValue::Signed(value) => value.to_string(),
+        RawValue::Float(value) => value.to_string(),
+        RawValue::Text(value) => encode(value.text.as_bytes()),
+        RawValue::Bytes(value) => encode(value),
+        RawValue::Rational(value) => format!("{}/{}", value.numerator, value.denominator),
+        RawValue::Sequence(values) => values.iter().map(rendered).collect::<Vec<_>>().join(","),
+        _ => "unsupported".to_owned(),
+    }
 }
 
 fn failure(error: NativeError) {
@@ -104,6 +118,56 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
             );
         }
         ["SCHEMA"] => schema_check()?,
+        [
+            "EXTRACT",
+            value,
+            parser,
+            selected,
+            read_max,
+            observation_max,
+        ] => {
+            let bytes = decode(value)?;
+            let input = BoundedInput::from_bytes(bytes.clone(), InputLimits::default())?;
+            let result = extract_parser(
+                &input,
+                parser,
+                ParserLimits {
+                    max_read_bytes: read_max.parse()?,
+                    max_observations: observation_max.parse()?,
+                    ..ParserLimits::default()
+                },
+            )?;
+            for observation in &result.observations {
+                if let Some(range) = observation.source_range {
+                    if range.end() > bytes.len() as u64
+                        || bytes[range.offset() as usize..range.end() as usize]
+                            != observation.encoded
+                    {
+                        return Err("raw observation does not match its source byte range".into());
+                    }
+                }
+            }
+            let fields = selected
+                .split(',')
+                .filter(|key| !key.is_empty())
+                .map(|key| {
+                    let values = result
+                        .observations
+                        .iter()
+                        .filter(|value| value.key == key)
+                        .map(|value| rendered(&value.value))
+                        .collect::<Vec<_>>();
+                    format!("{key}={}", values.join("|"))
+                })
+                .collect::<Vec<_>>()
+                .join(";");
+            let status = result
+                .error
+                .as_ref()
+                .map(|error| format!("{:?}", error.code))
+                .unwrap_or_else(|| "OK".into());
+            println!("EXTRACT\t{status}\t{fields}");
+        }
         ["DETECT", value, maximum, read_max, observation_max] => {
             let input = BoundedInput::from_bytes(decode(value)?, InputLimits::default())?;
             let limits = ParserLimits {
@@ -241,7 +305,7 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
                 Err(error) => failure(error),
             }
         }
-        _ => return Err("invalid conformance command".into()),
+        _ => return Err(format!("invalid conformance command: {fields:?}").into()),
     }
     Ok(())
 }

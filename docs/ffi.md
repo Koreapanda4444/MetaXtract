@@ -11,7 +11,11 @@ duration of a call.
 - C++ entry points are `noexcept` and return structured status values.
 - Rust checks native API and schema revisions before extraction.
 - Native error codes are converted to Rust errors before they reach product logic.
-- Raw byte payloads returned by future parsers transfer into Rust-owned vectors.
+- Raw byte payloads returned by parsers transfer into Rust-owned vectors.
+
+The extraction result transports typed observations, original bytes, source ranges, and parser
+status. Recoverable failures retain observations emitted before the failure. Rust converts these
+values into canonical evidence and preserves the original encoding bytes alongside interpreted values.
 
 `cxx` generates the ABI glue and compile-time signature checks. It does not make parser
 implementations memory-safe, so native code remains subject to sanitizers, resource budgets, and

@@ -34,8 +34,8 @@ The current defaults in `ParserLimits` are:
 Rust input callbacks additionally cap an individual read at 1 MiB. These are safety ceilings
 rather than format validity rules and can later be exposed as scan-policy settings.
 
-Crossing a limit returns a specific recoverable error. There are no production format adapters
-yet; retaining partial observations will be part of their result transport. The conformance-only
+Crossing a limit returns a specific recoverable error. The initial image adapter and extraction
+transport retain observations emitted before a failure. The conformance-only
 fixture parser exercises every budget and the exception boundary through the same dispatcher.
 
 See the [boundary contract](ffi.md) and [conformance guide](../conformance/README.md).
