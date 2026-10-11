@@ -1,4 +1,5 @@
 #include "metaxtract/native/core.hpp"
+#include "metaxtract/native/registry.hpp"
 
 #include <cstring>
 
@@ -12,6 +13,9 @@ int main() {
     }
     if (std::strcmp(metaxtract::native::engine_name(), "metaxtract-native") != 0) {
         return 3;
+    }
+    if (!metaxtract::native::default_registry().parsers().empty()) {
+        return 4;
     }
     return 0;
 }

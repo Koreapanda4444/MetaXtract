@@ -2,6 +2,7 @@ option(METAXTRACT_WARNINGS_AS_ERRORS "Treat native compiler warnings as errors" 
 
 add_library(metaxtract_extract STATIC
   src/core.cpp
+  src/registry.cpp
 )
 
 target_include_directories(metaxtract_extract
