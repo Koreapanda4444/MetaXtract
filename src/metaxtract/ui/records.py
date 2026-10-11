@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
-from typing import Any
+from typing import Any, Mapping
+
+from metaxtract.core.query import filter_query
 
 
 FILTER_ALL = "All"
@@ -28,25 +30,14 @@ def filter_records(
     records: list[dict[str, Any]],
     query: str = "",
     status: str = FILTER_ALL,
+    annotations: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    needle = query.strip().casefold()
-    result = []
-    for record in records:
-        current_status = record_status(record)
-        if status != FILTER_ALL and current_status != status:
-            continue
-        searchable = " ".join(
-            [
-                str(record.get("path") or ""),
-                str(record.get("mime") or ""),
-                " ".join(map(str, record.get("warnings") or [])),
-                " ".join(map(str, record.get("errors") or [])),
-            ]
-        ).casefold()
-        if needle and needle not in searchable:
-            continue
-        result.append(record)
-    return result
+    return filter_query(
+        records,
+        query,
+        status=status,
+        annotations=annotations,
+    )
 
 
 def format_bytes(value: int) -> str:

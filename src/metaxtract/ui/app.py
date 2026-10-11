@@ -11,7 +11,13 @@ from typing import Any
 
 from metaxtract.case.importer import ImportPayload, bundle_is_signed, import_payload
 from metaxtract.core.preview import build_record_preview
-from metaxtract.core.workspace import CaseWorkspace, RecordAnnotation, ScanSummary
+from metaxtract.core.query import QuerySyntaxError
+from metaxtract.core.workspace import (
+    CaseWorkspace,
+    RecordAnnotation,
+    SavedFilter,
+    ScanSummary,
+)
 from metaxtract.ui import dialogs
 from metaxtract.ui.comparison import show_scan_comparison
 from metaxtract.ui.icons import apply_window_icons
@@ -42,6 +48,7 @@ class MetaXtractGUI(tk.Tk):
         self.max_files_var = tk.StringVar(value="5000")
         self.search_var = tk.StringVar(value="")
         self.status_filter_var = tk.StringVar(value=FILTER_ALL)
+        self.saved_filter_var = tk.StringVar(value="")
         self.status_var = tk.StringVar(value="Ready")
         self.case_var = tk.StringVar(value="No case open")
         self.history_var = tk.StringVar(value="No saved scans")
@@ -57,6 +64,9 @@ class MetaXtractGUI(tk.Tk):
         self._current_scan_id: str | None = None
         self._active_scan_id: str | None = None
         self._scan_history: list[ScanSummary] = []
+        self._saved_filters: list[SavedFilter] = []
+        self._annotations: dict[str, RecordAnnotation] = {}
+        self._loading_saved_filter = False
         self._selected_record_path: str | None = None
         self._sort_column = "path"
         self._sort_reverse = False
@@ -73,7 +83,7 @@ class MetaXtractGUI(tk.Tk):
         self._build_filter_controls()
         self._build_results()
 
-        self.search_var.trace_add("write", lambda *_args: self._refresh_table())
+        self.search_var.trace_add("write", self._filter_changed)
         self.protocol("WM_DELETE_WINDOW", self._close)
         self._refresh_recent_menu()
         self._update_case_ui()
@@ -252,10 +262,49 @@ class MetaXtractGUI(tk.Tk):
             width=10,
         )
         self.status_filter.grid(row=0, column=3, padx=(6, 12))
-        self.status_filter.bind("<<ComboboxSelected>>", lambda _event: self._refresh_table())
+        self.status_filter.bind("<<ComboboxSelected>>", self._filter_changed)
+
+        saved = ttk.Frame(filters)
+        saved.grid(row=1, column=0, columnspan=4, sticky=tk.EW, pady=(7, 0))
+        saved.columnconfigure(1, weight=1)
+        ttk.Label(saved, text="Saved filter").grid(row=0, column=0, sticky=tk.W)
+        self.saved_filter_combo = ttk.Combobox(
+            saved,
+            textvariable=self.saved_filter_var,
+            state="disabled",
+        )
+        self.saved_filter_combo.grid(
+            row=0,
+            column=1,
+            sticky=tk.EW,
+            padx=(6, 6),
+        )
+        self.saved_filter_combo.bind(
+            "<<ComboboxSelected>>",
+            self._load_saved_filter,
+        )
+        self.save_filter_button = ttk.Button(
+            saved,
+            text="Save filter…",
+            command=self._save_current_filter,
+            state=tk.DISABLED,
+        )
+        self.save_filter_button.grid(row=0, column=2, padx=2)
+        self.delete_filter_button = ttk.Button(
+            saved,
+            text="Delete",
+            command=self._delete_saved_filter,
+            state=tk.DISABLED,
+        )
+        self.delete_filter_button.grid(row=0, column=3, padx=2)
+        ttk.Button(
+            saved,
+            text="Syntax",
+            command=self._show_query_help,
+        ).grid(row=0, column=4, padx=(2, 0))
 
         actions = ttk.Frame(filters)
-        actions.grid(row=1, column=0, columnspan=4, sticky=tk.W, pady=(7, 0))
+        actions.grid(row=2, column=0, columnspan=4, sticky=tk.W, pady=(7, 0))
         self.jsonl_button = ttk.Button(
             actions,
             text="JSONL",
@@ -441,6 +490,137 @@ class MetaXtractGUI(tk.Tk):
             pady=(8, 0),
         )
 
+    def _filter_changed(self, _event: Any = None, *_args: Any) -> None:
+        if self._loading_saved_filter:
+            return
+        self.saved_filter_var.set("")
+        self._update_saved_filter_controls()
+        self._refresh_table()
+
+    def _refresh_saved_filters(self, selected_name: str | None = None) -> None:
+        if self._workspace is None:
+            self._saved_filters = []
+        else:
+            self._saved_filters = self._workspace.list_saved_filters()
+        names = [saved_filter.name for saved_filter in self._saved_filters]
+        self.saved_filter_combo.configure(values=names)
+        if selected_name is not None:
+            match = next(
+                (name for name in names if name.casefold() == selected_name.casefold()),
+                "",
+            )
+            self.saved_filter_var.set(match)
+        elif self.saved_filter_var.get() not in names:
+            self.saved_filter_var.set("")
+        self._update_saved_filter_controls()
+
+    def _update_saved_filter_controls(self) -> None:
+        available = self._workspace is not None and self._worker is None
+        self.saved_filter_combo.configure(state="readonly" if available else "disabled")
+        self.save_filter_button.configure(state=tk.NORMAL if available else tk.DISABLED)
+        selected = self.saved_filter_var.get()
+        can_delete = available and any(
+            saved_filter.name == selected for saved_filter in self._saved_filters
+        )
+        self.delete_filter_button.configure(state=tk.NORMAL if can_delete else tk.DISABLED)
+
+    def _load_saved_filter(self, _event: Any = None) -> None:
+        selected = self.saved_filter_var.get()
+        saved_filter = next(
+            (item for item in self._saved_filters if item.name.casefold() == selected.casefold()),
+            None,
+        )
+        if saved_filter is None:
+            self._update_saved_filter_controls()
+            return
+        self._loading_saved_filter = True
+        try:
+            self.search_var.set(saved_filter.query)
+            self.status_filter_var.set(saved_filter.status)
+        finally:
+            self._loading_saved_filter = False
+        self._update_saved_filter_controls()
+        self._refresh_table()
+
+    def _save_current_filter(self) -> None:
+        if self._workspace is None or self._worker is not None:
+            return
+        selected = self.saved_filter_var.get()
+        name = simpledialog.askstring(
+            "Save filter",
+            "Filter name:",
+            initialvalue=selected,
+            parent=self,
+        )
+        if name is None:
+            return
+        existing = next(
+            (
+                item
+                for item in self._saved_filters
+                if item.name.casefold() == name.strip().casefold()
+            ),
+            None,
+        )
+        if existing is not None and not messagebox.askyesno(
+            "Replace filter",
+            f'Replace the saved filter "{existing.name}"?',
+            parent=self,
+        ):
+            return
+        try:
+            saved_filter = self._workspace.save_filter(
+                name,
+                self.search_var.get(),
+                self.status_filter_var.get(),
+            )
+        except (TypeError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not save filter: {exc}",
+                parent=self,
+            )
+            return
+        self._refresh_saved_filters(saved_filter.name)
+        self.status_var.set(f'Saved filter: "{saved_filter.name}".')
+
+    def _delete_saved_filter(self) -> None:
+        if self._workspace is None or self._worker is not None:
+            return
+        name = self.saved_filter_var.get()
+        if not name or not messagebox.askyesno(
+            "Delete filter",
+            f'Delete the saved filter "{name}"?',
+            parent=self,
+        ):
+            return
+        try:
+            deleted = self._workspace.delete_filter(name)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not delete filter: {exc}",
+                parent=self,
+            )
+            return
+        self._refresh_saved_filters()
+        if deleted:
+            self.status_var.set(f'Deleted filter: "{name}".')
+
+    def _show_query_help(self) -> None:
+        messagebox.showinfo(
+            "Search syntax",
+            "Words search every field, note, and tag. Add field predicates to "
+            "narrow the result; all terms must match.\n\n"
+            "camera\n"
+            "mime:image size>=1048576\n"
+            "metadata.exif_make:canon\n"
+            'tag:review note:"follow up"\n'
+            "status:error\n\n"
+            "Operators: :  =  !=  >  >=  <  <=",
+            parent=self,
+        )
+
     def _refresh_recent_menu(self) -> None:
         self._recent_menu.delete(0, tk.END)
         recent = self._recent_cases.load()
@@ -519,15 +699,13 @@ class MetaXtractGUI(tk.Tk):
         if self._workspace is not None:
             self._workspace.close()
         self._workspace = workspace
+        self._refresh_saved_filters()
 
     @staticmethod
     def _scan_history_label(summary: ScanSummary) -> str:
         timestamp = summary.started_at.replace("T", " ").replace("+00:00", " UTC")
         source_name = Path(summary.source_path).name or summary.source_path
-        return (
-            f"{timestamp} · {summary.status} · {summary.record_count} file(s) · "
-            f"{source_name}"
-        )
+        return f"{timestamp} · {summary.status} · {summary.record_count} file(s) · {source_name}"
 
     def _refresh_scan_history(
         self,
@@ -545,17 +723,11 @@ class MetaXtractGUI(tk.Tk):
 
         target_scan_id = selected_scan_id or self._current_scan_id or scans[0].scan_id
         selected_index = next(
-            (
-                index
-                for index, summary in enumerate(scans)
-                if summary.scan_id == target_scan_id
-            ),
+            (index for index, summary in enumerate(scans) if summary.scan_id == target_scan_id),
             0,
         )
         self.history_combo.current(selected_index)
-        self.history_combo.configure(
-            state="disabled" if self._worker is not None else "readonly"
-        )
+        self.history_combo.configure(state="disabled" if self._worker is not None else "readonly")
         return scans
 
     def _select_scan_history(self, _event: Any = None) -> None:
@@ -566,15 +738,14 @@ class MetaXtractGUI(tk.Tk):
             return
         summary = self._scan_history[index]
         self._load_scan_summary(summary)
-        self.status_var.set(
-            f"Loaded {summary.record_count} file(s) from {summary.started_at}."
-        )
+        self.status_var.set(f"Loaded {summary.record_count} file(s) from {summary.started_at}.")
 
     def _load_scan_summary(self, summary: ScanSummary) -> None:
         if self._workspace is None:
             return
         self._last_records = self._workspace.load_records(summary.scan_id)
         self._current_scan_id = summary.scan_id
+        self._annotations = self._workspace.list_annotations(summary.scan_id)
         self._records_dirty = False
         self._scan_source_path = summary.source_path
         self._scan_source_kind = summary.source_kind
@@ -667,6 +838,7 @@ class MetaXtractGUI(tk.Tk):
                 return False
             self._recent_cases.add(self._workspace.path)
             self._refresh_recent_menu()
+            self._refresh_saved_filters()
 
         if self._records_dirty and self._last_records:
             source_path = self._scan_source_path or self.path_var.get().strip()
@@ -788,6 +960,7 @@ class MetaXtractGUI(tk.Tk):
             return False
         self._recent_cases.add(self._workspace.path)
         self._refresh_recent_menu()
+        self._refresh_saved_filters()
         self._update_case_ui()
         return True
 
@@ -810,6 +983,7 @@ class MetaXtractGUI(tk.Tk):
         self._last_records = records
         self._visible_records = {}
         self._current_scan_id = scan_id
+        self._annotations = self._workspace.list_annotations(scan_id)
         self._records_dirty = False
         self._scan_source_path = payload.source_path
         self._scan_source_kind = payload.source_kind
@@ -850,6 +1024,7 @@ class MetaXtractGUI(tk.Tk):
     def _clear_current_records(self) -> None:
         self._last_records = []
         self._visible_records = {}
+        self._annotations = {}
         self._scan_base = None
         self._scan_source_path = None
         self._scan_source_kind = "path"
@@ -861,6 +1036,7 @@ class MetaXtractGUI(tk.Tk):
         self._clear_results()
         self._set_export_state(tk.DISABLED)
         self._refresh_scan_history()
+        self._refresh_saved_filters()
 
     def _update_case_ui(self) -> None:
         if self._workspace is None:
@@ -877,24 +1053,21 @@ class MetaXtractGUI(tk.Tk):
         self.new_case_button.configure(state=tk.DISABLED if busy else tk.NORMAL)
         self.open_case_button.configure(state=tk.DISABLED if busy else tk.NORMAL)
         can_save = self._workspace is not None or bool(self._last_records)
-        self.save_case_button.configure(
-            state=tk.NORMAL if can_save and not busy else tk.DISABLED
-        )
+        self.save_case_button.configure(state=tk.NORMAL if can_save and not busy else tk.DISABLED)
         can_close = self._workspace is not None or bool(self._last_records)
         self.close_case_button.configure(
             state=tk.NORMAL if can_close and not busy else tk.DISABLED
         )
         self.import_button.configure(state=tk.DISABLED if busy else tk.NORMAL)
         has_case = self._workspace is not None
-        self.case_notes_button.configure(
-            state=tk.NORMAL if has_case and not busy else tk.DISABLED
-        )
+        self.case_notes_button.configure(state=tk.NORMAL if has_case and not busy else tk.DISABLED)
         self.compare_button.configure(
             state=tk.NORMAL if len(self._scan_history) >= 2 and not busy else tk.DISABLED
         )
         self.history_combo.configure(
             state="readonly" if self._scan_history and not busy else "disabled"
         )
+        self._update_saved_filter_controls()
 
     def _browse_file(self) -> None:
         selected = filedialog.askopenfilename()
@@ -927,6 +1100,7 @@ class MetaXtractGUI(tk.Tk):
         self._scan_source_kind = "file" if target.is_file() else "directory"
         self._current_scan_id = None
         self._active_scan_id = None
+        self._annotations = {}
         if self._workspace is not None:
             try:
                 self._active_scan_id = self._workspace.begin_scan(
@@ -1049,14 +1223,13 @@ class MetaXtractGUI(tk.Tk):
             if self._workspace is not None and self._active_scan_id is not None:
                 self._last_records = self._workspace.load_records(self._active_scan_id)
                 self._current_scan_id = self._active_scan_id
+                self._annotations = self._workspace.list_annotations(self._active_scan_id)
                 self._records_dirty = False
                 self.progress.configure(
                     maximum=max(len(self._last_records), 1),
                     value=len(self._last_records),
                 )
-                self._set_export_state(
-                    tk.NORMAL if self._last_records else tk.DISABLED
-                )
+                self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
                 self._refresh_table()
                 self._refresh_scan_history(self._current_scan_id)
                 self.status_var.set(
@@ -1075,6 +1248,7 @@ class MetaXtractGUI(tk.Tk):
             self._records_dirty = False
         else:
             self._records_dirty = True
+        self._annotations = {}
         self._active_scan_id = None
         self.progress.configure(
             maximum=max(len(self._last_records), 1),
@@ -1085,9 +1259,7 @@ class MetaXtractGUI(tk.Tk):
         self._refresh_table()
         self._refresh_scan_history(self._current_scan_id)
         self._update_case_ui()
-        self.status_var.set(
-            f"Completed: {len(self._last_records)} file(s).{save_status}"
-        )
+        self.status_var.set(f"Completed: {len(self._last_records)} file(s).{save_status}")
 
     def _set_busy(self, busy: bool, *, cancellable: bool = False) -> None:
         idle_state = tk.DISABLED if busy else tk.NORMAL
@@ -1110,21 +1282,20 @@ class MetaXtractGUI(tk.Tk):
             self.compare_button,
         ):
             widget.configure(state=idle_state)
-        self.cancel_button.configure(
-            state=tk.NORMAL if busy and cancellable else tk.DISABLED
-        )
+        self.cancel_button.configure(state=tk.NORMAL if busy and cancellable else tk.DISABLED)
         if busy:
             self._set_export_state(tk.DISABLED)
             self.batch_button.configure(state=tk.DISABLED)
+            self.saved_filter_combo.configure(state="disabled")
+            self.save_filter_button.configure(state=tk.DISABLED)
+            self.delete_filter_button.configure(state=tk.DISABLED)
             self.annotation_tags_entry.configure(state=tk.DISABLED)
             self.annotation_note.configure(state=tk.DISABLED)
             self.annotation_save_button.configure(state=tk.DISABLED)
             self.preview_button.configure(state=tk.DISABLED)
             self.history_combo.configure(state="disabled")
         else:
-            self._set_export_state(
-                tk.NORMAL if self._last_records else tk.DISABLED
-            )
+            self._set_export_state(tk.NORMAL if self._last_records else tk.DISABLED)
             self._update_case_ui()
             self._show_selected_record()
 
@@ -1192,13 +1363,19 @@ class MetaXtractGUI(tk.Tk):
 
         self._clear_results()
         self._visible_records = {}
-        visible = self._sorted_records(
-            filter_records(
-                self._last_records,
-                self.search_var.get(),
-                self.status_filter_var.get(),
+        try:
+            visible = self._sorted_records(
+                filter_records(
+                    self._last_records,
+                    self.search_var.get(),
+                    self.status_filter_var.get(),
+                    self._annotations,
+                )
             )
-        )
+        except QuerySyntaxError as exc:
+            self._update_sort_headings()
+            self.status_var.set(f"Search query error: {exc}")
+            return
         selected_items = []
         for index, record in enumerate(visible):
             item = f"record-{index}"
@@ -1228,9 +1405,7 @@ class MetaXtractGUI(tk.Tk):
             self._show_selected_record()
 
         if self._last_records:
-            self.status_var.set(
-                f"Showing {len(visible)} of {len(self._last_records)} file(s)."
-            )
+            self.status_var.set(f"Showing {len(visible)} of {len(self._last_records)} file(s).")
 
     def _selected_records(self) -> list[dict[str, Any]]:
         return [
@@ -1315,7 +1490,8 @@ class MetaXtractGUI(tk.Tk):
                 parent=self,
             )
             return
-        self._show_selected_record()
+        self._annotations = workspace.list_annotations(scan_id)
+        self._refresh_table()
         self.status_var.set(f"Added tags to {count} record(s).")
 
     def _remove_tags_from_selected(self) -> None:
@@ -1339,9 +1515,7 @@ class MetaXtractGUI(tk.Tk):
             annotation = workspace.get_annotation(scan_id, path)
             note = annotation.note if annotation is not None else ""
             tags = annotation.tags if annotation is not None else ()
-            updates.append(
-                (path, note, [tag for tag in tags if tag.casefold() not in removed])
-            )
+            updates.append((path, note, [tag for tag in tags if tag.casefold() not in removed]))
         try:
             count = workspace.set_annotations(scan_id, updates)
         except (OSError, TypeError, ValueError) as exc:
@@ -1351,7 +1525,8 @@ class MetaXtractGUI(tk.Tk):
                 parent=self,
             )
             return
-        self._show_selected_record()
+        self._annotations = workspace.list_annotations(scan_id)
+        self._refresh_table()
         self.status_var.set(f"Removed tags from {count} record(s).")
 
     def _clear_selected_annotations(self) -> None:
@@ -1377,16 +1552,15 @@ class MetaXtractGUI(tk.Tk):
                 parent=self,
             )
             return
-        self._show_selected_record()
+        self._annotations = workspace.list_annotations(scan_id)
+        self._refresh_table()
         self.status_var.set(f"Cleared annotations from {count} record(s).")
 
     def _show_selected_record(self, _event: Any = None) -> None:
         selection = self.tree.selection()
         self.selection_var.set(f"{len(selection)} selected")
         self.batch_button.configure(
-            state=tk.NORMAL
-            if self._visible_records and self._worker is None
-            else tk.DISABLED
+            state=tk.NORMAL if self._visible_records and self._worker is None else tk.DISABLED
         )
         if not selection:
             self._set_details("")
@@ -1395,9 +1569,7 @@ class MetaXtractGUI(tk.Tk):
             return
         if len(selection) > 1:
             records = [
-                self._visible_records[item]
-                for item in selection
-                if item in self._visible_records
+                self._visible_records[item] for item in selection if item in self._visible_records
             ]
             self._selected_record_path = None
             self._set_details(
@@ -1420,22 +1592,8 @@ class MetaXtractGUI(tk.Tk):
             self._set_annotation_editor(None)
             return
         self._selected_record_path = str(record.get("path", "")) or None
-        self._set_details(
-            json.dumps(record, ensure_ascii=False, sort_keys=True, indent=2)
-        )
-        annotation = None
-        if (
-            self._workspace is not None
-            and self._current_scan_id is not None
-            and self._selected_record_path is not None
-        ):
-            try:
-                annotation = self._workspace.get_annotation(
-                    self._current_scan_id,
-                    self._selected_record_path,
-                )
-            except (TypeError, ValueError):
-                annotation = None
+        self._set_details(json.dumps(record, ensure_ascii=False, sort_keys=True, indent=2))
+        annotation = self._annotations.get(self._selected_record_path)
         self._set_annotation_editor(annotation)
 
     def _set_annotation_editor(
@@ -1448,28 +1606,20 @@ class MetaXtractGUI(tk.Tk):
             and self._selected_record_path is not None
             and self._worker is None
         )
-        self.annotation_tags_var.set(
-            ", ".join(annotation.tags) if annotation is not None else ""
-        )
+        self.annotation_tags_var.set(", ".join(annotation.tags) if annotation is not None else "")
         self.annotation_note.configure(state=tk.NORMAL)
         self.annotation_note.delete("1.0", tk.END)
         if annotation is not None and annotation.note:
             self.annotation_note.insert("1.0", annotation.note)
         self.annotation_note.configure(state=tk.NORMAL if enabled else tk.DISABLED)
-        self.annotation_tags_entry.configure(
-            state=tk.NORMAL if enabled else tk.DISABLED
-        )
-        self.annotation_save_button.configure(
-            state=tk.NORMAL if enabled else tk.DISABLED
-        )
+        self.annotation_tags_entry.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+        self.annotation_save_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
         preview_enabled = (
             self._selected_record_path is not None
             and self._scan_base is not None
             and self._worker is None
         )
-        self.preview_button.configure(
-            state=tk.NORMAL if preview_enabled else tk.DISABLED
-        )
+        self.preview_button.configure(state=tk.NORMAL if preview_enabled else tk.DISABLED)
 
     def _preview_selected(self) -> None:
         if (
@@ -1488,9 +1638,7 @@ class MetaXtractGUI(tk.Tk):
         )
         if record is None:
             return
-        expected_file = (
-            self._scan_source_path if self._scan_source_kind == "file" else None
-        )
+        expected_file = self._scan_source_path if self._scan_source_kind == "file" else None
         try:
             preview = build_record_preview(
                 self._scan_base,
@@ -1533,7 +1681,11 @@ class MetaXtractGUI(tk.Tk):
                 parent=self,
             )
             return
-        self._set_annotation_editor(annotation)
+        if annotation is None:
+            self._annotations.pop(self._selected_record_path, None)
+        else:
+            self._annotations[annotation.record_path] = annotation
+        self._refresh_table()
         self.status_var.set(
             "Annotation saved." if annotation is not None else "Annotation cleared."
         )

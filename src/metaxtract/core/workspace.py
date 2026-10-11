@@ -12,13 +12,17 @@ from typing import Any, Iterable
 
 from .jsonio import dumps_json
 from .models import normalize_relative_path, require_valid_records
+from .query import parse_query
 
 
 APPLICATION_ID = 0x4D584354
-SCHEMA_REVISION = 2
+SCHEMA_REVISION = 3
 MAX_ANNOTATION_NOTE_CHARS = 100_000
 MAX_ANNOTATION_TAGS = 64
 MAX_ANNOTATION_TAG_CHARS = 100
+MAX_FILTER_NAME_CHARS = 100
+MAX_FILTER_QUERY_CHARS = 2_000
+FILTER_STATUSES = {"All", "OK", "Warning", "Error"}
 
 
 def _utc_now() -> str:
@@ -74,13 +78,19 @@ class RecordAnnotation:
     updated_at: str
 
 
+@dataclass(frozen=True)
+class SavedFilter:
+    name: str
+    query: str
+    status: str
+    updated_at: str
+
+
 def _normalize_annotation(note: str, tags: Iterable[str]) -> tuple[str, list[str]]:
     if not isinstance(note, str):
         raise TypeError("annotation note must be text")
     if len(note) > MAX_ANNOTATION_NOTE_CHARS:
-        raise ValueError(
-            f"annotation note exceeds {MAX_ANNOTATION_NOTE_CHARS} characters"
-        )
+        raise ValueError(f"annotation note exceeds {MAX_ANNOTATION_NOTE_CHARS} characters")
 
     if isinstance(tags, (str, bytes)):
         raise TypeError("annotation tags must be an iterable of text values")
@@ -96,9 +106,7 @@ def _normalize_annotation(note: str, tags: Iterable[str]) -> tuple[str, list[str
         if any(character in tag for character in "\x00\r\n\t"):
             raise ValueError("annotation tags cannot contain control characters")
         if len(tag) > MAX_ANNOTATION_TAG_CHARS:
-            raise ValueError(
-                f"annotation tag exceeds {MAX_ANNOTATION_TAG_CHARS} characters"
-            )
+            raise ValueError(f"annotation tag exceeds {MAX_ANNOTATION_TAG_CHARS} characters")
         key = tag.casefold()
         if key in seen_tags:
             continue
@@ -202,6 +210,15 @@ class CaseWorkspace:
 
                     CREATE INDEX record_annotations_scan_idx
                         ON record_annotations(scan_id);
+
+                    CREATE TABLE saved_filters (
+                        name TEXT PRIMARY KEY COLLATE NOCASE,
+                        query TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK (
+                            status IN ('All', 'OK', 'Warning', 'Error')
+                        ),
+                        updated_at TEXT NOT NULL
+                    );
                     """
                 )
                 connection.execute(
@@ -273,7 +290,7 @@ class CaseWorkspace:
             revision = int(self._connection.execute("PRAGMA user_version").fetchone()[0])
             if application_id != APPLICATION_ID:
                 raise ValueError("file is not a MetaXtract case workspace")
-            if revision not in {1, SCHEMA_REVISION}:
+            if revision not in {1, 2, SCHEMA_REVISION}:
                 raise ValueError("unsupported case workspace format")
             required_tables = {"case_info", "sources", "scan_runs", "records"}
             rows = self._connection.execute(
@@ -284,9 +301,9 @@ class CaseWorkspace:
             self.info()
             if revision == 1:
                 self._migrate_v1_to_v2()
+                revision = 2
             annotation_table = self._connection.execute(
-                "SELECT 1 FROM sqlite_schema WHERE type = 'table' "
-                "AND name = 'record_annotations'"
+                "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'record_annotations'"
             ).fetchone()
             if annotation_table is None:
                 raise ValueError("case workspace is missing annotation data")
@@ -304,6 +321,14 @@ class CaseWorkspace:
                 "updated_at",
             }.issubset(annotation_columns):
                 raise ValueError("case workspace has invalid annotation data")
+            if revision == 2:
+                self._migrate_v2_to_v3()
+            filter_columns = {
+                str(row[1])
+                for row in self._connection.execute("PRAGMA table_info(saved_filters)").fetchall()
+            }
+            if not {"name", "query", "status", "updated_at"}.issubset(filter_columns):
+                raise ValueError("case workspace has invalid saved-filter data")
         except sqlite3.Error as exc:
             raise ValueError(f"invalid case workspace: {exc}") from exc
 
@@ -327,6 +352,22 @@ class CaseWorkspace:
                 """
                 CREATE INDEX IF NOT EXISTS record_annotations_scan_idx
                     ON record_annotations(scan_id)
+                """
+            )
+            self._connection.execute("PRAGMA user_version = 2")
+
+    def _migrate_v2_to_v3(self) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS saved_filters (
+                    name TEXT PRIMARY KEY COLLATE NOCASE,
+                    query TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (
+                        status IN ('All', 'OK', 'Warning', 'Error')
+                    ),
+                    updated_at TEXT NOT NULL
+                )
                 """
             )
             self._connection.execute(f"PRAGMA user_version = {SCHEMA_REVISION}")
@@ -406,9 +447,7 @@ class CaseWorkspace:
         warning_count = sum(len(row["warnings"]) for row in valid_records)
         error_count = sum(len(row["errors"]) for row in valid_records)
         imported = (
-            str(Path(imported_from).expanduser().absolute())
-            if imported_from is not None
-            else None
+            str(Path(imported_from).expanduser().absolute()) if imported_from is not None else None
         )
 
         with self._lock, self._connection:
@@ -487,9 +526,7 @@ class CaseWorkspace:
         scan_id = str(uuid.uuid4())
         start = started_at or _utc_now()
         imported = (
-            str(Path(imported_from).expanduser().absolute())
-            if imported_from is not None
-            else None
+            str(Path(imported_from).expanduser().absolute()) if imported_from is not None else None
         )
         with self._lock, self._connection:
             self._ensure_open()
@@ -630,16 +667,12 @@ class CaseWorkspace:
                 source_kind=str(row["source_kind"]),
                 origin=str(row["origin"]),
                 imported_from=(
-                    str(row["imported_from"])
-                    if row["imported_from"] is not None
-                    else None
+                    str(row["imported_from"]) if row["imported_from"] is not None else None
                 ),
                 status=str(row["status"]),
                 started_at=str(row["started_at"]),
                 completed_at=(
-                    str(row["completed_at"])
-                    if row["completed_at"] is not None
-                    else None
+                    str(row["completed_at"]) if row["completed_at"] is not None else None
                 ),
                 record_count=int(row["record_count"]),
                 warning_count=int(row["warning_count"]),
@@ -804,9 +837,7 @@ class CaseWorkspace:
                     (scan_id, record_path),
                 ).fetchone()
                 if record is None:
-                    raise ValueError(
-                        f"record is not in the selected scan: {record_path}"
-                    )
+                    raise ValueError(f"record is not in the selected scan: {record_path}")
                 canonical_updates.append((str(record["path"]), note, tags))
 
             for record_path, note, tags in canonical_updates:
@@ -834,12 +865,78 @@ class CaseWorkspace:
             self._touch(updated)
         return len(canonical_updates)
 
+    def list_saved_filters(self) -> list[SavedFilter]:
+        with self._lock:
+            self._ensure_open()
+            rows = self._connection.execute(
+                """
+                SELECT name, query, status, updated_at
+                FROM saved_filters
+                ORDER BY name COLLATE NOCASE
+                """
+            ).fetchall()
+        return [
+            SavedFilter(
+                name=str(row["name"]),
+                query=str(row["query"]),
+                status=str(row["status"]),
+                updated_at=str(row["updated_at"]),
+            )
+            for row in rows
+        ]
+
+    def save_filter(self, name: str, query: str, status: str) -> SavedFilter:
+        if not isinstance(name, str) or not isinstance(query, str):
+            raise TypeError("filter name and query must be text")
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise ValueError("filter name cannot be empty")
+        if len(normalized_name) > MAX_FILTER_NAME_CHARS:
+            raise ValueError(f"filter name exceeds {MAX_FILTER_NAME_CHARS} characters")
+        if any(character in normalized_name for character in "\x00\r\n\t"):
+            raise ValueError("filter name cannot contain control characters")
+        if len(query) > MAX_FILTER_QUERY_CHARS:
+            raise ValueError(f"filter query exceeds {MAX_FILTER_QUERY_CHARS} characters")
+        if status not in FILTER_STATUSES:
+            raise ValueError(f"invalid filter status: {status}")
+        parse_query(query)
+
+        updated = _utc_now()
+        with self._lock, self._connection:
+            self._ensure_open()
+            self._connection.execute(
+                """
+                INSERT INTO saved_filters(name, query, status, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    name = excluded.name,
+                    query = excluded.query,
+                    status = excluded.status,
+                    updated_at = excluded.updated_at
+                """,
+                (normalized_name, query, status, updated),
+            )
+            self._touch(updated)
+        return SavedFilter(normalized_name, query, status, updated)
+
+    def delete_filter(self, name: str) -> bool:
+        normalized_name = name.strip()
+        if not normalized_name:
+            return False
+        with self._lock, self._connection:
+            self._ensure_open()
+            cursor = self._connection.execute(
+                "DELETE FROM saved_filters WHERE name = ? COLLATE NOCASE",
+                (normalized_name,),
+            )
+            if cursor.rowcount:
+                self._touch()
+        return cursor.rowcount == 1
+
     @staticmethod
     def _annotation_from_row(row: sqlite3.Row) -> RecordAnnotation:
         raw_tags = json.loads(row["tags_json"])
-        if not isinstance(raw_tags, list) or not all(
-            isinstance(tag, str) for tag in raw_tags
-        ):
+        if not isinstance(raw_tags, list) or not all(isinstance(tag, str) for tag in raw_tags):
             raise ValueError("case workspace contains invalid annotation tags")
         return RecordAnnotation(
             scan_id=str(row["scan_id"]),
