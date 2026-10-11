@@ -773,6 +773,67 @@ class CaseWorkspace:
             updated_at=updated,
         )
 
+    def set_annotations(
+        self,
+        scan_id: str,
+        updates: Iterable[tuple[str, str, Iterable[str]]],
+    ) -> int:
+        prepared = []
+        seen_paths = set()
+        for record_path, note, tags in updates:
+            normalized_path = normalize_relative_path(record_path)
+            key = normalized_path.casefold()
+            if key in seen_paths:
+                raise ValueError(f"duplicate annotation path: {normalized_path}")
+            seen_paths.add(key)
+            normalized_note, normalized_tags = _normalize_annotation(note, tags)
+            prepared.append((normalized_path, normalized_note, normalized_tags))
+        if not prepared:
+            return 0
+
+        updated = _utc_now()
+        with self._lock, self._connection:
+            self._ensure_open()
+            canonical_updates = []
+            for record_path, note, tags in prepared:
+                record = self._connection.execute(
+                    """
+                    SELECT path FROM records
+                    WHERE scan_id = ? AND path = ? COLLATE NOCASE
+                    """,
+                    (scan_id, record_path),
+                ).fetchone()
+                if record is None:
+                    raise ValueError(
+                        f"record is not in the selected scan: {record_path}"
+                    )
+                canonical_updates.append((str(record["path"]), note, tags))
+
+            for record_path, note, tags in canonical_updates:
+                if not note and not tags:
+                    self._connection.execute(
+                        """
+                        DELETE FROM record_annotations
+                        WHERE scan_id = ? AND record_path = ? COLLATE NOCASE
+                        """,
+                        (scan_id, record_path),
+                    )
+                    continue
+                self._connection.execute(
+                    """
+                    INSERT INTO record_annotations (
+                        scan_id, record_path, note, tags_json, updated_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(scan_id, record_path) DO UPDATE SET
+                        note = excluded.note,
+                        tags_json = excluded.tags_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (scan_id, record_path, note, dumps_json(tags), updated),
+                )
+            self._touch(updated)
+        return len(canonical_updates)
+
     @staticmethod
     def _annotation_from_row(row: sqlite3.Row) -> RecordAnnotation:
         raw_tags = json.loads(row["tags_json"])

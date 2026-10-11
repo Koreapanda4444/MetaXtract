@@ -6,7 +6,7 @@ import threading
 import tkinter as tk
 import zipfile
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Any
 
 from metaxtract.case.importer import ImportPayload, bundle_is_signed, import_payload
@@ -46,6 +46,7 @@ class MetaXtractGUI(tk.Tk):
         self.case_var = tk.StringVar(value="No case open")
         self.history_var = tk.StringVar(value="No saved scans")
         self.annotation_tags_var = tk.StringVar(value="")
+        self.selection_var = tk.StringVar(value="0 selected")
 
         self._last_records: list[dict[str, Any]] = []
         self._visible_records: dict[str, dict[str, Any]] = {}
@@ -57,6 +58,8 @@ class MetaXtractGUI(tk.Tk):
         self._active_scan_id: str | None = None
         self._scan_history: list[ScanSummary] = []
         self._selected_record_path: str | None = None
+        self._sort_column = "path"
+        self._sort_reverse = False
         self._records_dirty = False
         self._recent_cases = RecentCaseStore()
         self._events: queue.Queue[tuple[str, Any]] = queue.Queue()
@@ -298,6 +301,26 @@ class MetaXtractGUI(tk.Tk):
             command=self._verify_case,
         )
         self.verify_button.pack(side=tk.LEFT, padx=4)
+        ttk.Separator(actions, orient=tk.VERTICAL).pack(
+            side=tk.LEFT,
+            fill=tk.Y,
+            padx=8,
+        )
+        self.batch_button = ttk.Menubutton(actions, text="Batch", state=tk.DISABLED)
+        batch_menu = tk.Menu(self.batch_button, tearoff=False)
+        batch_menu.add_command(label="Select visible", command=self._select_visible_records)
+        batch_menu.add_command(label="Clear selection", command=self._clear_record_selection)
+        batch_menu.add_separator()
+        batch_menu.add_command(label="Copy paths", command=self._copy_selected_paths)
+        batch_menu.add_command(label="Add tags…", command=self._add_tags_to_selected)
+        batch_menu.add_command(label="Remove tags…", command=self._remove_tags_from_selected)
+        batch_menu.add_command(
+            label="Clear annotations…",
+            command=self._clear_selected_annotations,
+        )
+        self.batch_button.configure(menu=batch_menu)
+        self.batch_button.pack(side=tk.LEFT, padx=4)
+        ttk.Label(actions, textvariable=self.selection_var).pack(side=tk.LEFT, padx=(6, 0))
 
     def _build_results(self) -> None:
         pane = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
@@ -309,11 +332,20 @@ class MetaXtractGUI(tk.Tk):
         pane.add(details_frame, weight=2)
 
         columns = ("path", "mime", "size", "status")
-        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
-        self.tree.heading("path", text="Path")
-        self.tree.heading("mime", text="MIME")
-        self.tree.heading("size", text="Size")
-        self.tree.heading("status", text="Status")
+        self.tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            selectmode="extended",
+        )
+        self.tree.heading("path", text="Path", command=lambda: self._sort_by("path"))
+        self.tree.heading("mime", text="MIME", command=lambda: self._sort_by("mime"))
+        self.tree.heading("size", text="Size", command=lambda: self._sort_by("size"))
+        self.tree.heading(
+            "status",
+            text="Status",
+            command=lambda: self._sort_by("status"),
+        )
         self.tree.column("path", width=320, minwidth=140)
         self.tree.column("mime", width=220, minwidth=130)
         self.tree.column("size", width=90, minwidth=70, anchor=tk.E)
@@ -1083,6 +1115,7 @@ class MetaXtractGUI(tk.Tk):
         )
         if busy:
             self._set_export_state(tk.DISABLED)
+            self.batch_button.configure(state=tk.DISABLED)
             self.annotation_tags_entry.configure(state=tk.DISABLED)
             self.annotation_note.configure(state=tk.DISABLED)
             self.annotation_save_button.configure(state=tk.DISABLED)
@@ -1109,25 +1142,64 @@ class MetaXtractGUI(tk.Tk):
             self.tree.delete(item)
         self._set_details("")
         self._selected_record_path = None
+        self.selection_var.set("0 selected")
+        self.batch_button.configure(state=tk.DISABLED)
         self._set_annotation_editor(None)
+
+    def _sort_by(self, column: str) -> None:
+        if column == self._sort_column:
+            self._sort_reverse = not self._sort_reverse
+        else:
+            self._sort_column = column
+            self._sort_reverse = False
+        self._refresh_table()
+
+    def _sorted_records(
+        self,
+        records: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        status_order = {"Error": 0, "Warning": 1, "OK": 2}
+
+        def key(record: dict[str, Any]) -> Any:
+            if self._sort_column == "size":
+                return int(record.get("size_bytes") or 0)
+            if self._sort_column == "status":
+                return status_order[record_status(record)]
+            return str(record.get(self._sort_column) or "").casefold()
+
+        return sorted(records, key=key, reverse=self._sort_reverse)
+
+    def _update_sort_headings(self) -> None:
+        labels = {"path": "Path", "mime": "MIME", "size": "Size", "status": "Status"}
+        marker = "▼" if self._sort_reverse else "▲"
+        for column, label in labels.items():
+            suffix = f" {marker}" if column == self._sort_column else ""
+            self.tree.heading(
+                column,
+                text=f"{label}{suffix}",
+                command=lambda selected=column: self._sort_by(selected),
+            )
 
     def _refresh_table(self) -> None:
         if not hasattr(self, "tree"):
             return
-        selected_path = None
+        selected_paths = set()
         selection = self.tree.selection()
-        if selection:
-            selected = self._visible_records.get(selection[0])
-            selected_path = selected.get("path") if selected else None
+        for item in selection:
+            selected = self._visible_records.get(item)
+            if selected and selected.get("path"):
+                selected_paths.add(str(selected["path"]))
 
         self._clear_results()
         self._visible_records = {}
-        visible = filter_records(
-            self._last_records,
-            self.search_var.get(),
-            self.status_filter_var.get(),
+        visible = self._sorted_records(
+            filter_records(
+                self._last_records,
+                self.search_var.get(),
+                self.status_filter_var.get(),
+            )
         )
-        selected_item = None
+        selected_items = []
         for index, record in enumerate(visible):
             item = f"record-{index}"
             self._visible_records[item] = record
@@ -1142,12 +1214,13 @@ class MetaXtractGUI(tk.Tk):
                     record_status(record),
                 ),
             )
-            if record.get("path") == selected_path:
-                selected_item = item
+            if record.get("path") in selected_paths:
+                selected_items.append(item)
 
-        if selected_item is not None:
-            self.tree.selection_set(selected_item)
-            self.tree.see(selected_item)
+        self._update_sort_headings()
+        if selected_items:
+            self.tree.selection_set(*selected_items)
+            self.tree.see(selected_items[0])
             self._show_selected_record()
         elif visible:
             first = self.tree.get_children()[0]
@@ -1159,11 +1232,185 @@ class MetaXtractGUI(tk.Tk):
                 f"Showing {len(visible)} of {len(self._last_records)} file(s)."
             )
 
+    def _selected_records(self) -> list[dict[str, Any]]:
+        return [
+            self._visible_records[item]
+            for item in self.tree.selection()
+            if item in self._visible_records
+        ]
+
+    def _select_visible_records(self) -> None:
+        items = self.tree.get_children()
+        if items:
+            self.tree.selection_set(*items)
+            self._show_selected_record()
+
+    def _clear_record_selection(self) -> None:
+        selection = self.tree.selection()
+        if selection:
+            self.tree.selection_remove(*selection)
+        self._show_selected_record()
+
+    def _copy_selected_paths(self) -> None:
+        paths = [str(record.get("path") or "") for record in self._selected_records()]
+        paths = [path for path in paths if path]
+        if not paths:
+            return
+        self.clipboard_clear()
+        self.clipboard_append("\n".join(paths))
+        self.status_var.set(f"Copied {len(paths)} path(s).")
+
+    def _annotation_batch_context(
+        self,
+    ) -> tuple[CaseWorkspace, str, list[dict[str, Any]]] | None:
+        records = self._selected_records()
+        if self._workspace is None or self._current_scan_id is None:
+            messagebox.showinfo(
+                "MetaXtract",
+                "Save the scan in a case before editing annotations.",
+                parent=self,
+            )
+            return None
+        if not records:
+            messagebox.showinfo(
+                "MetaXtract",
+                "Select one or more records first.",
+                parent=self,
+            )
+            return None
+        return self._workspace, self._current_scan_id, records
+
+    @staticmethod
+    def _parse_batch_tags(value: str) -> list[str]:
+        return [tag.strip() for tag in value.split(",") if tag.strip()]
+
+    def _add_tags_to_selected(self) -> None:
+        context = self._annotation_batch_context()
+        if context is None:
+            return
+        raw_tags = simpledialog.askstring(
+            "Add tags",
+            "Comma-separated tags to add:",
+            parent=self,
+        )
+        if raw_tags is None:
+            return
+        tags = self._parse_batch_tags(raw_tags)
+        if not tags:
+            return
+        workspace, scan_id, records = context
+        updates = []
+        for record in records:
+            path = str(record["path"])
+            annotation = workspace.get_annotation(scan_id, path)
+            note = annotation.note if annotation is not None else ""
+            current_tags = list(annotation.tags) if annotation is not None else []
+            updates.append((path, note, [*current_tags, *tags]))
+        try:
+            count = workspace.set_annotations(scan_id, updates)
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not update annotations: {exc}",
+                parent=self,
+            )
+            return
+        self._show_selected_record()
+        self.status_var.set(f"Added tags to {count} record(s).")
+
+    def _remove_tags_from_selected(self) -> None:
+        context = self._annotation_batch_context()
+        if context is None:
+            return
+        raw_tags = simpledialog.askstring(
+            "Remove tags",
+            "Comma-separated tags to remove:",
+            parent=self,
+        )
+        if raw_tags is None:
+            return
+        removed = {tag.casefold() for tag in self._parse_batch_tags(raw_tags)}
+        if not removed:
+            return
+        workspace, scan_id, records = context
+        updates = []
+        for record in records:
+            path = str(record["path"])
+            annotation = workspace.get_annotation(scan_id, path)
+            note = annotation.note if annotation is not None else ""
+            tags = annotation.tags if annotation is not None else ()
+            updates.append(
+                (path, note, [tag for tag in tags if tag.casefold() not in removed])
+            )
+        try:
+            count = workspace.set_annotations(scan_id, updates)
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not update annotations: {exc}",
+                parent=self,
+            )
+            return
+        self._show_selected_record()
+        self.status_var.set(f"Removed tags from {count} record(s).")
+
+    def _clear_selected_annotations(self) -> None:
+        context = self._annotation_batch_context()
+        if context is None:
+            return
+        workspace, scan_id, records = context
+        if not messagebox.askyesno(
+            "Clear annotations",
+            f"Clear notes and tags from {len(records)} selected record(s)?",
+            parent=self,
+        ):
+            return
+        try:
+            count = workspace.set_annotations(
+                scan_id,
+                [(str(record["path"]), "", ()) for record in records],
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Could not clear annotations: {exc}",
+                parent=self,
+            )
+            return
+        self._show_selected_record()
+        self.status_var.set(f"Cleared annotations from {count} record(s).")
+
     def _show_selected_record(self, _event: Any = None) -> None:
         selection = self.tree.selection()
+        self.selection_var.set(f"{len(selection)} selected")
+        self.batch_button.configure(
+            state=tk.NORMAL
+            if self._visible_records and self._worker is None
+            else tk.DISABLED
+        )
         if not selection:
             self._set_details("")
             self._selected_record_path = None
+            self._set_annotation_editor(None)
+            return
+        if len(selection) > 1:
+            records = [
+                self._visible_records[item]
+                for item in selection
+                if item in self._visible_records
+            ]
+            self._selected_record_path = None
+            self._set_details(
+                json.dumps(
+                    {
+                        "selected": len(records),
+                        "paths": [record.get("path", "") for record in records],
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    indent=2,
+                )
+            )
             self._set_annotation_editor(None)
             return
         record = self._visible_records.get(selection[0])
