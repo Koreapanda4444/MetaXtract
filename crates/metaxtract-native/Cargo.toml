@@ -5,7 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+cxx.workspace = true
 metaxtract-schema.workspace = true
+
+[build-dependencies]
+cxx-build.workspace = true
 
 [lib]
 path = "src/lib.rs"

@@ -12,6 +12,8 @@ edition = "2024"
 rust-version = "1.88"
 
 [workspace.dependencies]
+cxx = "=1.0.205"
+cxx-build = "=1.0.205"
 metaxtract-schema = { path = "crates/metaxtract-schema" }
 
 [profile.release]
