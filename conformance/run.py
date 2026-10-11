@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import subprocess
 import sys
 import tempfile
 from dataclasses import asdict
@@ -31,8 +32,14 @@ def _projection(record: Any) -> dict[str, Any]:
 
 
 def _materialize(root: Path, corpus: dict[str, Any]) -> None:
+    from metaxtract.core.models import normalize_relative_path
+
+    seen = set()
     for case in corpus.get("cases", []):
-        relative = case["path"]
+        relative = normalize_relative_path(case["path"])
+        if relative.casefold() in seen:
+            raise ValueError(f"duplicate corpus path: {relative}")
+        seen.add(relative.casefold())
         payload = base64.b64decode(case["base64"], validate=True)
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -102,7 +109,92 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
     return ["frozen Python baseline and conformance plain-text projection differ"]
 
 
-def run() -> dict[str, Any]:
+def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
+    requests = ["INFO", "SCHEMA"]
+    wanted = ["INFO\t1\t1\t1", "SCHEMA\tOK"]
+    for case in expected["path_cases"]:
+        requests.append("PATH\t" + case["input"].encode().hex())
+        wanted.append("PATH\tERR" if case.get("error") else "PATH\tOK\t" + case["normalized"].encode().hex())
+
+    def read_case(kind: str, value: str, data: bytes, maximum: int, single: int, total: int, reads: list[tuple[int, int]]) -> None:
+        requests.append("\t".join([kind, value, str(maximum), str(single), str(total), ",".join(f"{offset}:{length}" for offset, length in reads)]))
+        if single == 0 or total == 0:
+            wanted.append("ERR\tInvalidRequest\tfalse")
+            return
+        if len(data) > maximum:
+            wanted.append("ERR\tSourceTooLarge\ttrue")
+            return
+        consumed = 0
+        for offset, length in reads:
+            if length > single:
+                wanted.append("ERR\tInvalidRequest\ttrue")
+            elif offset > len(data):
+                wanted.append("ERR\tOutOfRange\ttrue")
+            else:
+                payload = data[offset:offset + length]
+                if consumed + len(payload) > total:
+                    wanted.append("ERR\tReadBudgetExceeded\ttrue")
+                else:
+                    consumed += len(payload)
+                    wanted.append(f"CHECK\t{len(data)}\t{len(payload)}" if kind == "CHECK" else f"READ\t{len(data)}\t{payload.hex()}")
+
+    with tempfile.TemporaryDirectory(prefix="metaxtract-native-conformance-") as temporary:
+        root = Path(temporary)
+        _materialize(root, corpus)
+        for case in corpus["cases"]:
+            data = base64.b64decode(case["base64"], validate=True)
+            reads = [(0, 0), (0, 7), (len(data) - 1, 8), (len(data), 8), (len(data) + 1, 0), (2**64 - 1, 1), (0, 33)]
+            read_case("MEM", data.hex(), data, len(data), 32, 64, reads)
+            read_case("FILE", str(root / case["path"]).encode().hex(), data, len(data), 32, 64, reads)
+            read_case("CHECK", str(root / case["path"]).encode().hex(), data, len(data), 32, 64, [(0, 7), (0, 33)])
+
+        data = bytes(range(256)) * 256 + b"end"
+        file = root / "large-input.bin"
+        file.write_bytes(data)
+        value = str(file).encode().hex()
+        read_case("FILE", value, data, len(data), 32, 64, [(65530, 32), (0, 32), (0, 32), (len(data), 0)])
+        read_case("FILE", value, data, len(data) - 1, 32, 64, [(0, 1)])
+        read_case("MEM", "", b"", 0, 1, 1, [(0, 1), (1, 0)])
+        read_case("MEM", "61626364", b"abcd", 4, 4, 4, [(0, 4), (0, 1), (4, 0)])
+        read_case("FILE", value, data, len(data), 0, 64, [(0, 1)])
+
+        for maximum, wall_time, result in [(len(data), 30000, "UnsupportedParser\ttrue"), (len(data) - 1, 30000, "SourceTooLarge\ttrue"), (len(data), 0, "InvalidRequest\tfalse")]:
+            requests.append(f"RUN\t{value}\t{maximum}\t{wall_time}")
+            wanted.append("ERR\t" + result)
+        shrinking = root / "shrinking.bin"
+        shrinking.write_bytes(b"short")
+        requests.append("SHRINK\t" + str(shrinking).encode().hex())
+        wanted.append("ERR\tReadFailure\ttrue")
+
+        requests.append("PARSE\t000a141e\t4\t8\t4\t30000\t2")
+        wanted.extend(["PARSE\t4\t8", "PARSE\t4\t8"])
+        for opcode, code in [(1, "ReadBudgetExceeded"), (2, "AllocationBudgetExceeded"), (3, "DecodeBudgetExceeded"), (4, "ContainerDepthExceeded"), (5, "EntryLimitExceeded"), (6, "ObservationLimitExceeded"), (7, "Internal"), (8, "DeadlineExceeded")]:
+            wall_time = 1 if opcode == 8 else 30000
+            requests.append(f"PARSE\t{opcode:02x}0a141e\t4\t8\t4\t{wall_time}\t1")
+            wanted.append(f"ERR\t{code}\t{'false' if opcode == 7 else 'true'}")
+
+        command = ["cargo", "run", "--locked", "--quiet", "-p", "metaxtract-native", "--features", "conformance", "--example", "conformance"]
+        if release:
+            command.append("--release")
+        try:
+            result = subprocess.run(command, cwd=ROOT, input="\n".join(requests) + "\n", text=True, capture_output=True, timeout=300)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return [f"native conformance could not run: {exc}"], 0
+        if result.returncode:
+            detail = result.stderr.strip()
+            if len(detail) > 6000:
+                detail = detail[:4000] + "\n... compiler output omitted ...\n" + detail[-2000:]
+            return [f"native conformance failed ({result.returncode}): {detail}"], 0
+        actual = result.stdout.splitlines()
+        if actual != wanted:
+            mismatches = [f"response {index}: expected {want!r}, got {got!r}" for index, (want, got) in enumerate(zip(wanted, actual), 1) if want != got]
+            if len(actual) != len(wanted):
+                mismatches.append(f"response count: expected {len(wanted)}, got {len(actual)}")
+            return mismatches, len(wanted)
+        return [], len(wanted)
+
+
+def run(*, python_only: bool = False, release: bool = False) -> dict[str, Any]:
     sys.path.insert(0, str(PYTHON_SOURCE))
     corpus = _read_json(ROOT / "conformance" / "corpus" / "files.json")
     expected = _read_json(ROOT / "conformance" / "expected" / "python.json")
@@ -111,10 +203,17 @@ def run() -> dict[str, Any]:
     failures.extend(_compare_records(corpus, expected))
     failures.extend(_compare_paths(expected))
     failures.extend(_compare_frozen_baseline(expected))
+    native_cases = 0
+    if not python_only:
+        native_failures, native_cases = _compare_native(corpus, expected, release)
+        failures.extend(native_failures)
     return {
         "ok": not failures,
         "cases": len(corpus.get("cases", [])),
         "path_cases": len(expected.get("path_cases", [])),
+        "native_contract_cases": native_cases,
+        "native_enabled": not python_only,
+        "native_record_parity": "pending format adapters",
         "failures": failures,
     }
 
@@ -122,15 +221,18 @@ def run() -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run MetaXtract migration conformance checks")
     parser.add_argument("--json", action="store_true", help="emit a compact JSON result")
+    parser.add_argument("--python-only", action="store_true", help="check only the frozen Python baseline")
+    parser.add_argument("--release", action="store_true", help="check the release Rust/C++ build")
     args = parser.parse_args()
 
-    result = run()
+    result = run(python_only=args.python_only, release=args.release)
     if args.json:
         print(json.dumps(result, separators=(",", ":"), sort_keys=True))
     elif result["ok"]:
         print(
             "Conformance passed: "
-            f"{result['cases']} files and {result['path_cases']} path cases"
+            f"{result['cases']} Python files, {result['path_cases']} paths, "
+            f"{result['native_contract_cases']} Rust/C++ contract checks"
         )
     else:
         print("Conformance failed", file=sys.stderr)

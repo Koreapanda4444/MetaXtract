@@ -12,6 +12,8 @@ enum class ReadStatus : std::uint32_t {
     RequestTooLarge = 2,
     BudgetExhausted = 3,
     Internal = 4,
+    IoFailure = 5,
+    AllocationFailure = 6,
 };
 
 struct ReadChunk final {

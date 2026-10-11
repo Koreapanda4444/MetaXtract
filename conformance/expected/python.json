@@ -44,6 +44,34 @@
   ],
   "path_cases": [
     {
+      "input": "자료/원본 파일.png",
+      "normalized": "자료/원본 파일.png"
+    },
+    {
+      "input": "folder/../file.txt",
+      "error": true
+    },
+    {
+      "input": "folder/./file.txt",
+      "error": true
+    },
+    {
+      "input": "",
+      "error": true
+    },
+    {
+      "input": "bad\u0000name",
+      "error": true
+    },
+    {
+      "input": "\\\\host\\share\\file.txt",
+      "error": true
+    },
+    {
+      "input": "folder/file.txt/",
+      "error": true
+    },
+    {
       "input": "folder\\file.txt",
       "normalized": "folder/file.txt"
     },

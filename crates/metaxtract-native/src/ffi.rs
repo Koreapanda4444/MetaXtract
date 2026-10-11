@@ -1,8 +1,20 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    sync::{Arc, Mutex},
+};
+
+#[derive(Clone)]
+enum Source {
+    Bytes(Arc<[u8]>),
+    File(Arc<Mutex<File>>),
+}
 
 pub(crate) struct ReadSource {
-    bytes: Arc<[u8]>,
+    source: Source,
+    size: u64,
     max_single_read: u32,
+    max_total_read: u64,
     budget: Mutex<ReadBudget>,
 }
 
@@ -14,8 +26,44 @@ struct ReadBudget {
 impl ReadSource {
     pub(crate) fn new(bytes: Vec<u8>, max_single_read: u32, max_total_read: u64) -> Self {
         Self {
-            bytes: bytes.into(),
+            size: bytes.len() as u64,
+            source: Source::Bytes(bytes.into()),
             max_single_read,
+            max_total_read,
+            budget: Mutex::new(ReadBudget {
+                consumed: 0,
+                maximum: max_total_read,
+            }),
+        }
+    }
+
+    pub(crate) fn from_file(
+        file: File,
+        size: u64,
+        max_single_read: u32,
+        max_total_read: u64,
+    ) -> Self {
+        Self {
+            source: Source::File(Arc::new(Mutex::new(file))),
+            size,
+            max_single_read,
+            max_total_read,
+            budget: Mutex::new(ReadBudget {
+                consumed: 0,
+                maximum: max_total_read,
+            }),
+        }
+    }
+}
+
+impl ReadSource {
+    pub(crate) fn parser_session(&self, maximum: u64) -> Self {
+        let max_total_read = self.max_total_read.min(maximum);
+        Self {
+            source: self.source.clone(),
+            size: self.size,
+            max_single_read: self.max_single_read,
+            max_total_read,
             budget: Mutex::new(ReadBudget {
                 consumed: 0,
                 maximum: max_total_read,
@@ -25,7 +73,7 @@ impl ReadSource {
 }
 
 fn source_len(source: &ReadSource) -> u64 {
-    source.bytes.len() as u64
+    source.size
 }
 
 fn source_read(source: &ReadSource, offset: u64, requested: u32) -> bridge::FfiReadResult {
@@ -33,47 +81,79 @@ fn source_read(source: &ReadSource, offset: u64, requested: u32) -> bridge::FfiR
         return bridge::FfiReadResult {
             data: Vec::new(),
             status: 2,
+            source_size: source.size,
         };
     }
 
-    let Ok(start) = usize::try_from(offset) else {
+    if offset > source.size {
         return bridge::FfiReadResult {
             data: Vec::new(),
             status: 1,
-        };
-    };
-    if start > source.bytes.len() {
-        return bridge::FfiReadResult {
-            data: Vec::new(),
-            status: 1,
+            source_size: source.size,
         };
     }
 
-    let available = source.bytes.len() - start;
-    let length = available.min(requested as usize);
+    let length = (source.size - offset).min(u64::from(requested));
     let Ok(mut budget) = source.budget.lock() else {
         return bridge::FfiReadResult {
             data: Vec::new(),
             status: 4,
+            source_size: source.size,
         };
     };
-    let Some(next_consumed) = budget.consumed.checked_add(length as u64) else {
+    let Some(next_consumed) = budget.consumed.checked_add(length) else {
         return bridge::FfiReadResult {
             data: Vec::new(),
             status: 3,
+            source_size: source.size,
         };
     };
     if next_consumed > budget.maximum {
         return bridge::FfiReadResult {
             data: Vec::new(),
             status: 3,
+            source_size: source.size,
         };
     }
     budget.consumed = next_consumed;
 
+    let mut data = Vec::new();
+    if data.try_reserve_exact(length as usize).is_err() {
+        return bridge::FfiReadResult {
+            data,
+            status: 6,
+            source_size: source.size,
+        };
+    }
+    let status = match &source.source {
+        Source::Bytes(bytes) => {
+            let start = offset as usize;
+            data.extend_from_slice(&bytes[start..start + length as usize]);
+            0
+        }
+        Source::File(file) => {
+            data.resize(length as usize, 0);
+            match file.lock() {
+                Ok(mut file) => {
+                    if file.seek(SeekFrom::Start(offset)).is_ok()
+                        && file.read_exact(&mut data).is_ok()
+                    {
+                        0
+                    } else {
+                        5
+                    }
+                }
+                Err(_) => 4,
+            }
+        }
+    };
+    if status != 0 {
+        data.clear();
+    }
     bridge::FfiReadResult {
-        data: source.bytes[start..start + length].to_vec(),
-        status: 0,
+        data,
+        status,
+        source_size: source.size,
     }
 }
 
@@ -94,6 +174,7 @@ pub(crate) mod bridge {
     struct FfiReadResult {
         data: Vec<u8>,
         status: u32,
+        source_size: u64,
     }
 
     struct FfiInputCheck {
@@ -108,6 +189,21 @@ pub(crate) mod bridge {
         version: String,
         operations: u32,
         formats: Vec<String>,
+    }
+
+    struct FfiCapabilities {
+        values: Vec<FfiCapability>,
+        status: u32,
+    }
+
+    struct FfiParserRun {
+        status: u32,
+        recoverable: bool,
+        read_bytes: u64,
+        allocation_bytes: u64,
+        decoded_bytes: u64,
+        entries: u32,
+        observations: u32,
     }
 
     struct FfiResourceLimits {
@@ -138,7 +234,13 @@ pub(crate) mod bridge {
         fn ffi_core_info() -> FfiCoreInfo;
         fn ffi_validate_revisions(expected_api: u32, expected_schema: u32) -> FfiStatus;
         fn ffi_input_check(source: &ReadSource, requested: u32) -> FfiInputCheck;
-        fn ffi_capabilities() -> Vec<FfiCapability>;
+        fn ffi_input_read(source: &ReadSource, offset: u64, requested: u32) -> FfiReadResult;
+        fn ffi_capabilities() -> FfiCapabilities;
+        fn ffi_run_parser(
+            source: &ReadSource,
+            parser_id: &str,
+            limits: FfiResourceLimits,
+        ) -> FfiParserRun;
         fn ffi_validate_limits(source_size: u64, limits: FfiResourceLimits) -> FfiBudgetStatus;
     }
 }

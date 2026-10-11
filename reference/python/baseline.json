@@ -1,5 +1,6 @@
 {
   "baseline_commit": "374e79599fe8416652af4ee724780cf59537cc19",
+  "source_tree_git_sha1": "a19bf6cd93ebfbb2c60f5b7a1667fc51da5d885a",
   "record_contract": {
     "required_fields": [
       "path",

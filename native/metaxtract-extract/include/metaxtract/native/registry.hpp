@@ -19,6 +19,12 @@ private:
     std::vector<std::unique_ptr<Parser>> parsers_;
 };
 
-[[nodiscard]] ParserRegistry& default_registry() noexcept;
+[[nodiscard]] const ParserRegistry& default_registry() noexcept;
+
+[[nodiscard]] ParserRun run_parser(
+    const ParserRegistry& registry,
+    std::string_view parser_id,
+    const RandomAccessInput& source,
+    ResourceLimits limits) noexcept;
 
 }

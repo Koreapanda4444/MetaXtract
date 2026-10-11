@@ -43,6 +43,19 @@ private:
     const ReadSource& source_;
 };
 
+metaxtract::native::ResourceLimits convert_limits(const FfiResourceLimits limits) noexcept {
+    return {
+        .max_source_bytes = limits.max_source_bytes,
+        .max_read_bytes = limits.max_read_bytes,
+        .max_allocation_bytes = limits.max_allocation_bytes,
+        .max_decoded_bytes = limits.max_decoded_bytes,
+        .max_container_depth = limits.max_container_depth,
+        .max_entries = limits.max_entries,
+        .max_observations = limits.max_observations,
+        .max_wall_time_ms = limits.max_wall_time_ms,
+    };
+}
+
 }
 
 FfiCoreInfo ffi_core_info() noexcept {
@@ -84,7 +97,18 @@ FfiInputCheck ffi_input_check(
     };
 }
 
-rust::Vec<FfiCapability> ffi_capabilities() noexcept {
+FfiReadResult ffi_input_read(
+    const ReadSource& source,
+    const std::uint64_t offset,
+    const std::uint32_t requested) noexcept {
+    try {
+        return source_read(source, offset, requested);
+    } catch (...) {
+        return {.data = {}, .status = 4, .source_size = source_len(source)};
+    }
+}
+
+FfiCapabilities ffi_capabilities() noexcept {
     rust::Vec<FfiCapability> result;
     try {
         for (const auto& parser : metaxtract::native::default_registry().parsers()) {
@@ -102,24 +126,36 @@ rust::Vec<FfiCapability> ffi_capabilities() noexcept {
             });
         }
     } catch (...) {
-        return {};
+        return {.values = {}, .status = 3};
     }
-    return result;
+    return {.values = std::move(result), .status = 0};
+}
+
+FfiParserRun ffi_run_parser(
+    const ReadSource& source,
+    const rust::Str parser_id,
+    const FfiResourceLimits limits) noexcept {
+    const RustInput input(source);
+    const auto run = metaxtract::native::run_parser(
+        metaxtract::native::default_registry(),
+        std::string_view(parser_id.data(), parser_id.size()),
+        input,
+        convert_limits(limits));
+    return {
+        .status = run.status,
+        .recoverable = run.recoverable,
+        .read_bytes = run.read_bytes,
+        .allocation_bytes = run.allocation_bytes,
+        .decoded_bytes = run.decoded_bytes,
+        .entries = run.entries,
+        .observations = run.observations,
+    };
 }
 
 FfiBudgetStatus ffi_validate_limits(
     const std::uint64_t source_size,
     const FfiResourceLimits limits) noexcept {
-    const metaxtract::native::ResourceLimits native_limits{
-        .max_source_bytes = limits.max_source_bytes,
-        .max_read_bytes = limits.max_read_bytes,
-        .max_allocation_bytes = limits.max_allocation_bytes,
-        .max_decoded_bytes = limits.max_decoded_bytes,
-        .max_container_depth = limits.max_container_depth,
-        .max_entries = limits.max_entries,
-        .max_observations = limits.max_observations,
-        .max_wall_time_ms = limits.max_wall_time_ms,
-    };
+    const auto native_limits = convert_limits(limits);
     metaxtract::native::ParserBudget budget(native_limits, source_size);
     static_cast<void>(budget.checkpoint());
     return FfiBudgetStatus{

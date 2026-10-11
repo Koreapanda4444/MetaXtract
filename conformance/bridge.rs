@@ -1,0 +1,224 @@
+use std::{
+    error::Error,
+    fs::{File, OpenOptions},
+    io::{self, BufRead},
+};
+
+use metaxtract_native::{
+    BoundedInput, InputLimits, NativeError, ParserLimits, build_info, check_input,
+    parser_capabilities, read_input, run_parser,
+};
+use metaxtract_schema::{
+    ByteRange, Confidence, EvidenceKind, EvidencePath, EvidenceSegment, GeoPoint, RelativePath,
+};
+
+fn decode(value: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+    if !value.len().is_multiple_of(2) {
+        return Err("invalid hex length".into());
+    }
+    value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| Ok(u8::from_str_radix(std::str::from_utf8(pair)?, 16)?))
+        .collect()
+}
+
+fn encode(value: &[u8]) -> String {
+    value.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn text(value: &str) -> Result<String, Box<dyn Error>> {
+    Ok(String::from_utf8(decode(value)?)?)
+}
+
+fn failure(error: NativeError) {
+    println!("ERR\t{:?}\t{}", error.code, error.recoverable);
+}
+
+fn schema_check() -> Result<(), Box<dyn Error>> {
+    if ByteRange::new(u64::MAX, 1).is_some()
+        || ByteRange::new(u64::MAX, 0)
+            .ok_or("missing empty range")?
+            .end()
+            != u64::MAX
+        || !ByteRange::new(10, 20)
+            .ok_or("missing range")?
+            .contains(ByteRange::new(12, 4).ok_or("missing subrange")?)
+        || Confidence::new(1001, vec![]).is_some()
+        || Confidence::new(1000, vec![]).is_none()
+    {
+        return Err("range or confidence invariant failed".into());
+    }
+    let point = GeoPoint {
+        latitude: 90.0,
+        longitude: -180.0,
+        altitude_meters: None,
+        horizontal_accuracy_meters: None,
+    };
+    if !point.is_valid()
+        || (GeoPoint {
+            latitude: f64::NAN,
+            ..point
+        })
+        .is_valid()
+    {
+        return Err("coordinate invariant failed".into());
+    }
+    let root = RelativePath::parse("case.zip")?;
+    let child = RelativePath::parse("same.txt")?;
+    let first = EvidencePath::root(root.clone()).with_segment(EvidenceSegment::new(
+        EvidenceKind::ArchiveMember,
+        child.clone(),
+        0,
+    ));
+    let second = EvidencePath::root(root.clone()).with_segment(EvidenceSegment::new(
+        EvidenceKind::ArchiveMember,
+        child.clone(),
+        1,
+    ));
+    let attachment = EvidencePath::root(root).with_segment(EvidenceSegment::new(
+        EvidenceKind::Attachment,
+        child,
+        0,
+    ));
+    let literal = EvidencePath::root(RelativePath::parse(first.to_string())?);
+    if first.to_string() == second.to_string()
+        || first.to_string() == attachment.to_string()
+        || first.to_string() == literal.to_string()
+    {
+        return Err("virtual evidence path collision".into());
+    }
+    println!("SCHEMA\tOK");
+    Ok(())
+}
+
+fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
+    match fields {
+        ["INFO"] => {
+            let info = build_info()?;
+            println!(
+                "INFO\t{}\t{}\t{}",
+                info.api_revision,
+                info.schema_revision,
+                parser_capabilities()?.len()
+            );
+        }
+        ["SCHEMA"] => schema_check()?,
+        ["PATH", value] => match RelativePath::parse(text(value)?) {
+            Ok(path) => println!("PATH\tOK\t{}", encode(path.as_str().as_bytes())),
+            Err(_) => println!("PATH\tERR"),
+        },
+        [
+            kind @ ("MEM" | "FILE" | "CHECK"),
+            value,
+            source_max,
+            single_max,
+            total_max,
+            requests,
+        ] => {
+            let limits = InputLimits {
+                max_source_bytes: source_max.parse()?,
+                max_single_read: single_max.parse()?,
+                max_total_read: total_max.parse()?,
+            };
+            let input = if *kind == "MEM" {
+                BoundedInput::from_bytes(decode(value)?, limits)
+            } else {
+                BoundedInput::from_file(File::open(text(value)?)?, limits)
+            };
+            match input {
+                Err(error) => failure(error),
+                Ok(input) => {
+                    for request in requests.split(',') {
+                        let (offset, length) = request.split_once(':').ok_or("invalid request")?;
+                        if *kind == "CHECK" {
+                            let result = check_input(&input, length.parse()?);
+                            match result {
+                                Ok(result) => {
+                                    println!("CHECK\t{}\t{}", result.source_size, result.bytes_read)
+                                }
+                                Err(error) => failure(error),
+                            }
+                        } else {
+                            match read_input(&input, offset.parse()?, length.parse()?) {
+                                Ok(result) => println!(
+                                    "READ\t{}\t{}",
+                                    result.source_size,
+                                    encode(&result.bytes)
+                                ),
+                                Err(error) => failure(error),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ["RUN", value, maximum, wall_time] => {
+            let input = BoundedInput::from_file(File::open(text(value)?)?, InputLimits::default())?;
+            let limits = ParserLimits {
+                max_source_bytes: maximum.parse()?,
+                max_wall_time_ms: wall_time.parse()?,
+                ..ParserLimits::default()
+            };
+            match run_parser(&input, "not-registered", limits) {
+                Ok(_) => println!("RUN\tOK"),
+                Err(error) => failure(error),
+            }
+        }
+        [
+            "PARSE",
+            value,
+            read_max,
+            allocation_max,
+            decoded_max,
+            wall_time,
+            repetitions,
+        ] => {
+            let input = BoundedInput::from_bytes(
+                decode(value)?,
+                InputLimits {
+                    max_source_bytes: 4,
+                    max_single_read: 4,
+                    max_total_read: 4,
+                },
+            )?;
+            let limits = ParserLimits {
+                max_source_bytes: 4,
+                max_read_bytes: read_max.parse()?,
+                max_allocation_bytes: allocation_max.parse()?,
+                max_decoded_bytes: decoded_max.parse()?,
+                max_container_depth: 2,
+                max_entries: 2,
+                max_observations: 2,
+                max_wall_time_ms: wall_time.parse()?,
+            };
+            for _ in 0..repetitions.parse::<usize>()? {
+                match run_parser(&input, "conformance.resource_limits", limits) {
+                    Ok(result) => {
+                        println!("PARSE\t{}\t{}", result.read_bytes, result.allocation_bytes)
+                    }
+                    Err(error) => failure(error),
+                }
+            }
+        }
+        ["SHRINK", value] => {
+            let path = text(value)?;
+            let input = BoundedInput::from_file(File::open(&path)?, InputLimits::default())?;
+            OpenOptions::new().write(true).open(path)?.set_len(0)?;
+            match read_input(&input, 0, 1) {
+                Ok(_) => println!("SHRINK\tUNEXPECTED_SUCCESS"),
+                Err(error) => failure(error),
+            }
+        }
+        _ => return Err("invalid conformance command".into()),
+    }
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    for line in io::stdin().lock().lines() {
+        let line = line?;
+        dispatch(&line.split('\t').collect::<Vec<_>>())?;
+    }
+    Ok(())
+}

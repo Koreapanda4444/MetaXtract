@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 5,
   "cmakeMinimumRequired": {
     "major": 3,
     "minor": 24,
@@ -14,12 +14,22 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "METAXTRACT_WARNINGS_AS_ERRORS": "ON"
       }
+    },
+    {
+      "name": "sanitize",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/cmake-build-sanitize",
+      "cacheVariables": { "METAXTRACT_SANITIZERS": "address,undefined" }
     }
   ],
   "buildPresets": [
     {
       "name": "dev",
       "configurePreset": "dev"
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize"
     }
   ],
   "testPresets": [
@@ -28,7 +38,14 @@
       "configurePreset": "dev",
       "output": {
         "outputOnFailure": true
-      }
+      },
+      "execution": { "noTestsAction": "error" }
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error" }
     }
   ]
 }

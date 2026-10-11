@@ -10,6 +10,9 @@ struct FfiCoreInfo;
 struct FfiStatus;
 struct FfiInputCheck;
 struct FfiCapability;
+struct FfiCapabilities;
+struct FfiParserRun;
+struct FfiReadResult;
 struct FfiResourceLimits;
 struct FfiBudgetStatus;
 struct ReadSource;
@@ -21,7 +24,15 @@ struct ReadSource;
 [[nodiscard]] FfiInputCheck ffi_input_check(
     const ReadSource& source,
     std::uint32_t requested) noexcept;
-[[nodiscard]] rust::Vec<FfiCapability> ffi_capabilities() noexcept;
+[[nodiscard]] FfiReadResult ffi_input_read(
+    const ReadSource& source,
+    std::uint64_t offset,
+    std::uint32_t requested) noexcept;
+[[nodiscard]] FfiCapabilities ffi_capabilities() noexcept;
+[[nodiscard]] FfiParserRun ffi_run_parser(
+    const ReadSource& source,
+    rust::Str parser_id,
+    FfiResourceLimits limits) noexcept;
 [[nodiscard]] FfiBudgetStatus ffi_validate_limits(
     std::uint64_t source_size,
     FfiResourceLimits limits) noexcept;

@@ -135,12 +135,31 @@ impl EvidencePath {
 
 impl Display for EvidencePath {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.root.as_str())?;
+        write_path_component(formatter, self.root.as_str())?;
         for segment in &self.nested {
-            write!(formatter, "!/{path}", path = segment.path)?;
+            let kind = match segment.kind {
+                EvidenceKind::ArchiveMember => "archive",
+                EvidenceKind::Attachment => "attachment",
+                EvidenceKind::EmbeddedObject => "embedded",
+                EvidenceKind::AlternateStream => "stream",
+                EvidenceKind::Resource => "resource",
+            };
+            write!(formatter, "!/{kind}:{ordinal}/", ordinal = segment.ordinal)?;
+            write_path_component(formatter, segment.path.as_str())?;
         }
         Ok(())
     }
+}
+
+fn write_path_component(formatter: &mut Formatter<'_>, value: &str) -> fmt::Result {
+    for character in value.chars() {
+        match character {
+            '%' => formatter.write_str("%25")?,
+            '!' => formatter.write_str("%21")?,
+            other => write!(formatter, "{other}")?,
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
