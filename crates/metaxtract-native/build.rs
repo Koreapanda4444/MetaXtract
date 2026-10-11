@@ -3,6 +3,11 @@ use std::{env, path::PathBuf};
 fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let native = root.join("native/metaxtract-extract");
+    let msvc = env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc");
+    let static_crt = env::var("CARGO_CFG_TARGET_FEATURE")
+        .unwrap_or_default()
+        .split(',')
+        .any(|feature| feature == "crt-static");
     let sanitizers = env::var("METAXTRACT_SANITIZERS").unwrap_or_default();
     assert!(
         sanitizers.is_empty() || sanitizers == "address,undefined",
@@ -18,7 +23,19 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=ubsan");
     }
 
-    let built = cmake::Config::new(&root)
+    let mut config = cmake::Config::new(&root);
+    if msvc {
+        config.static_crt(static_crt).cxxflag("/D_ITERATOR_DEBUG_LEVEL=0");
+        config.define(
+            "CMAKE_MSVC_RUNTIME_LIBRARY",
+            if static_crt {
+                "MultiThreaded"
+            } else {
+                "MultiThreadedDLL"
+            },
+        );
+    }
+    let built = config
         .define("BUILD_TESTING", "OFF")
         .define("METAXTRACT_WARNINGS_AS_ERRORS", "ON")
         .define("METAXTRACT_SANITIZERS", &sanitizers)
@@ -39,8 +56,11 @@ fn main() {
         .std("c++20")
         .warnings(true)
         .warnings_into_errors(true);
-    if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
-        bridge.flag("/EHsc");
+    if msvc {
+        bridge
+            .flag("/EHsc")
+            .define("_ITERATOR_DEBUG_LEVEL", "0")
+            .static_crt(static_crt);
     }
     if !sanitizers.is_empty() {
         bridge

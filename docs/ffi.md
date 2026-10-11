@@ -17,5 +17,10 @@ duration of a call.
 implementations memory-safe, so native code remains subject to sanitizers, resource budgets, and
 the parser isolation planned for the scanner.
 
+Cargo builds use the same MSVC runtime mode for the CMake core and generated bridge, with
+iterator debugging disabled at that boundary. Rust's debug profile still uses the release CRT;
+selecting a debug CRT only for native code changes the C++ ABI and cannot be mixed safely.
+Standalone CMake builds keep their own internally consistent runtime defaults.
+
 See [architecture](architecture.md) for responsibility boundaries and
 [resource limits](resource-limits.md) for the limits of budget and deadline enforcement.
