@@ -1,0 +1,122 @@
+schema = 1
+
+[[dependency]]
+name = "cxx"
+version = "1.0.205"
+revision = "b6c18bfbddd201d2feb26491177c7c21b04b19a3"
+source = "https://github.com/dtolnay/cxx"
+license = "MIT OR Apache-2.0"
+role = "Rust and C++ bridge"
+linkage = "source"
+
+[[dependency]]
+name = "libexif"
+version = "0.6.26"
+revision = "b2edc5a8adf4d1b79ce9413a9c9d8f3ab871c082"
+source = "https://github.com/libexif/libexif"
+license = "LGPL-2.1-or-later"
+role = "EXIF tag decoding"
+linkage = "bundled-dynamic"
+
+[[dependency]]
+name = "LibRaw"
+version = "0.22.2"
+revision = "c26f4cc7aaa5862d0474e150c6df359f3f36d4fe"
+source = "https://github.com/LibRaw/LibRaw"
+license = "LGPL-2.1-only OR CDDL-1.0"
+role = "camera RAW metadata and decoding"
+linkage = "bundled-dynamic"
+
+[[dependency]]
+name = "libheif"
+version = "1.23.6"
+revision = "f81f28ac014b1c28dee483ac45b72c6b05bc421a"
+source = "https://github.com/strukturag/libheif"
+license = "LGPL-3.0-or-later"
+role = "HEIF HEIC and AVIF item metadata"
+linkage = "bundled-dynamic"
+
+[[dependency]]
+name = "MediaInfoLib"
+version = "26.10"
+revision = "153ad67a62172534b401e9d9a5752dc759fff77b"
+source = "https://github.com/MediaArea/MediaInfoLib"
+license = "BSD-2-Clause"
+role = "audio and video technical metadata"
+linkage = "bundled-static"
+
+[[dependency]]
+name = "TagLib"
+version = "2.3.2"
+revision = "016379cdfc04346686d0d97293ce4b08308233c8"
+source = "https://github.com/taglib/taglib"
+license = "LGPL-2.1-or-later OR MPL-1.1"
+role = "audio tags and cover art"
+linkage = "bundled-dynamic"
+
+[[dependency]]
+name = "FFmpeg"
+version = "9.0.2"
+revision = "501bb49457b9dfb25d6a208832e0a6e6cd53108d"
+source = "https://github.com/FFmpeg/FFmpeg"
+license = "LGPL-2.1-or-later"
+role = "in-process media demuxing and bounded preview decoding"
+linkage = "bundled-dynamic"
+configuration = "LGPL components only; GPL and nonfree components disabled"
+
+[[dependency]]
+name = "qpdf"
+version = "12.4.2"
+revision = "ceb29d85877b04a049dd4f6623cf4507c728d10e"
+source = "https://github.com/qpdf/qpdf"
+license = "Apache-2.0"
+role = "PDF structure revisions encryption and attachments"
+linkage = "bundled-static"
+
+[[dependency]]
+name = "libarchive"
+version = "3.8.9"
+revision = "f1f785cc218bb05876c54680f10d3d4e54575ea2"
+source = "https://github.com/libarchive/libarchive"
+license = "BSD-2-Clause"
+role = "archive and compressed stream inspection"
+linkage = "bundled-static"
+
+[[dependency]]
+name = "pugixml"
+version = "1.16"
+revision = "c8033ce9d039e7f9d134877c363397b3cfe20816"
+source = "https://github.com/zeux/pugixml"
+license = "MIT"
+role = "XMP OOXML ODF and package XML parsing"
+linkage = "bundled-static"
+
+[[dependency]]
+name = "DCMTK"
+version = "3.7.0"
+revision = "dd841c3a858dfb20cfa8574a2a54a33d032b0de4"
+source = "https://github.com/DCMTK/dcmtk"
+license = "BSD-3-Clause"
+role = "DICOM metadata"
+linkage = "bundled-static"
+
+[[dependency]]
+name = "libgeotiff"
+version = "1.7.4"
+revision = "0a4295774fba2eff19d2129b39e4668eaf213402"
+source = "https://github.com/OSGeo/libgeotiff"
+license = "MIT"
+role = "GeoTIFF metadata"
+linkage = "bundled-static"
+
+[[excluded]]
+name = "ExifTool"
+reason = "runtime executable dependencies are forbidden"
+
+[[excluded]]
+name = "ffprobe"
+reason = "runtime executable dependencies are forbidden"
+
+[[excluded]]
+name = "Exiv2"
+reason = "GPL licensing is outside the current distribution policy"

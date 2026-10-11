@@ -1,0 +1,30 @@
+schema = 1
+require_exact_versions = true
+require_source_revisions = true
+require_license_review = true
+bundle_runtime_libraries = true
+
+allowed_licenses = [
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "CDDL-1.0",
+  "IJG",
+  "LGPL-2.1-only",
+  "LGPL-2.1-or-later",
+  "LGPL-3.0-or-later",
+  "MIT",
+  "MPL-1.1",
+  "Zlib",
+]
+
+denied_licenses = [
+  "AGPL-3.0-only",
+  "AGPL-3.0-or-later",
+  "GPL-2.0-only",
+  "GPL-2.0-or-later",
+  "GPL-3.0-only",
+  "GPL-3.0-or-later",
+]
+
+forbidden_runtime_executables = ["exiftool", "ffprobe"]
