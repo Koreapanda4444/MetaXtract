@@ -12,9 +12,9 @@ linkage = "source"
 
 [[dependency]]
 name = "cmake"
-version = "0.1.54"
-revision = "fd56c5a6b4ecda8815c863eb5b12d7b3f0391197"
-tag = "v0.1.54"
+version = "0.1.58"
+revision = "63190697197b34e5e5cd3cabf17da4fcab348bef"
+tag = "v0.1.58"
 source = "https://github.com/rust-lang/cmake-rs"
 license = "MIT OR Apache-2.0"
 role = "Cargo integration with the CMake native target"

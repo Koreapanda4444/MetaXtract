@@ -25,3 +25,6 @@ The native migration foundation is buildable with Rust 1.88, CMake 3.24 or newer
 compiler. Run `cargo build --workspace --locked`, then `python conformance/run.py` to check the
 language boundary. Native format adapters and the Rust desktop application are later migration
 steps; the Python GUI remains the usable application during this stage.
+
+Windows builds using Visual Studio 2026 require CMake 4.2 or newer. CI pins CMake 4.2.3
+and the Cargo CMake integration with support for that toolchain.

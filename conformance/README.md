@@ -4,8 +4,9 @@ This directory replaces a generic root test tree for migration-critical verifica
 contains deterministic byte payloads and stable output projections. It never contains private
 evidence or files copied from users.
 
-With Rust 1.88, CMake 3.24 or newer, a C++20 compiler, and the Python reference installed, run from
-the repository root:
+The checks require Rust 1.88, CMake 3.24 or newer, a C++20 compiler, and the Python reference.
+Visual Studio 2026 on Windows requires CMake 4.2 or newer (CI uses 4.2.3). Run from the
+repository root:
 
 ```bash
 python conformance/run.py
