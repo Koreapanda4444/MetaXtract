@@ -224,7 +224,8 @@ Password entry remains pending.
 
 Signature inspection retains dictionaries, certificate/signature bytes, signing claims and
 ByteRange values. It checks integer counts, ordering, source bounds, final covered offset,
-unsigned tail size and whether a two-range exclusion exactly matches the Contents hex string.
+unsigned tail size and whether a two-range exclusion matches the source offset and bytes of the
+Contents hex string. Compressed or indirect Contents report the offset check as unavailable.
 These are structural facts. cryptographic_verification is always not_performed: CMS digests,
 certificate trust, revocation and signer authenticity are not validated.
 

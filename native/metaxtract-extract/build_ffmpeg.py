@@ -138,6 +138,8 @@ def main() -> None:
             ldflags += " -fsanitize=address,undefined"
         flags += ["--extra-cflags=" + cflags, "--extra-ldflags=" + ldflags]
         configuration = {"source": str(source), "flags": flags, "compiler": args.cc}
+        if sys.platform.startswith("linux"):
+            configuration["shared_library_runpath"] = "$ORIGIN"
         config_file = build / "reviewed-configuration.json"
         if not (build / "ffbuild/config.mak").is_file() or not config_file.is_file() or json.loads(config_file.read_text()) != configuration:
             with (build / "configure.log").open("w") as log:
@@ -153,7 +155,7 @@ def main() -> None:
             # GNU make consumes $; the shell's single quotes preserve $ORIGIN.
             # Add this after configure's eval-based flag handling.
             make_config = build / "ffbuild/config.mak"
-            override = "\n# MetaXtract shared-library sibling lookup\nLDFLAGS += -Wl,-rpath,'$ORIGIN'\n"
+            override = "\n# MetaXtract shared-library sibling lookup\nLDFLAGS += -Wl,-rpath,'$$$$ORIGIN'\n"
             contents = make_config.read_text()
             if override not in contents:
                 make_config.write_text(contents + override)

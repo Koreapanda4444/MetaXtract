@@ -89,6 +89,11 @@ fn main() {
     for library in ["avformat", "avcodec", "avutil", "swscale", "swresample"] {
         println!("cargo:rustc-link-lib=dylib={library}");
     }
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        for library in ["ws2_32", "shell32", "advapi32", "gdi32", "user32", "crypt32"] {
+            println!("cargo:rustc-link-lib={library}");
+        }
+    }
     println!("cargo:rerun-if-env-changed=METAXTRACT_SANITIZERS");
 
     for path in [

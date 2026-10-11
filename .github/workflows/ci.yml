@@ -48,6 +48,12 @@ jobs:
           rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
           rustc --version
           cargo --version
+      - name: Restore reviewed native media build cache
+        id: native-media-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: target/native-ffmpeg
+          key: native-media-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('third-party.lock.toml', 'native/metaxtract-extract/build_ffmpeg.py', 'native/metaxtract-extract/ffmpeg.cmake', 'rust-toolchain.toml') }}
       - name: Validate migration boundaries and locks
         run: python conformance/validate.py --cargo
       - name: Verify upstream release commits
@@ -58,6 +64,14 @@ jobs:
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
           cargo test --workspace --locked
+      - name: Check debug extraction contracts
+        run: python conformance/run.py
+      - name: Save reviewed native media build cache
+        if: always() && steps.native-media-cache.outputs.cache-hit != 'true' && hashFiles('target/native-ffmpeg/*/complete.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: target/native-ffmpeg
+          key: ${{ steps.native-media-cache.outputs.cache-primary-key }}
       - name: Build production workspace
         run: cargo build --workspace --release --locked
       - name: Build and check native core
@@ -65,10 +79,8 @@ jobs:
           cmake --preset dev
           cmake --build --preset dev --config Debug
           ctest --preset dev -C Debug
-      - name: Compare Python and Rust C++ contracts
-        run: |
-          python conformance/run.py
-          python conformance/run.py --release
+      - name: Check release extraction contracts
+        run: python conformance/run.py --release
 
   native-sanitizers:
     name: Native and FFI sanitizers

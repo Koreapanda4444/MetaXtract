@@ -113,10 +113,12 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
     wanted = ["INFO\t1\t1\t12", "SCHEMA\tOK"]
+    request_labels = ["build info", "schema invariants"]
     extraction_cases = _read_json(ROOT / "conformance" / "corpus" / "images.json")["cases"]
     for corpus_path in sorted((ROOT / "conformance" / "corpus").glob("native-*.json")):
         extraction_cases.extend(_read_json(corpus_path)["cases"])
     for case in extraction_cases:
+        request_labels.append("extract " + case.get("name", case["parser"]))
         data = base64.b64decode(case["base64"], validate=True)
         selected = ",".join(case["fields"])
         request = f"EXTRACT\t{data.hex()}\t{case['parser']}\t{selected}\t{case['read_max']}\t{case['observation_max']}"
@@ -256,7 +258,7 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
             return [f"native conformance failed ({result.returncode}): {detail}"], 0
         actual = result.stdout.splitlines()
         if actual != wanted:
-            mismatches = [f"response {index}: expected {want!r}, got {got!r}" for index, (want, got) in enumerate(zip(wanted, actual), 1) if want != got]
+            mismatches = [f"response {index} ({request_labels[index - 1] if index <= len(request_labels) else 'protocol command'}): expected {want!r}, got {got!r}" for index, (want, got) in enumerate(zip(wanted, actual), 1) if want != got]
             if len(actual) != len(wanted):
                 mismatches.append(f"response count: expected {len(wanted)}, got {len(actual)}")
             return mismatches, len(wanted)

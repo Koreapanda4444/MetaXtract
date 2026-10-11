@@ -431,6 +431,21 @@
       "decoded_max": 268435456,
       "status": "ObservationLimitExceeded",
       "fields": {}
+    },
+    {
+      "name": "pdf-external-metadata-stream-denied",
+      "parser": "pdf.metadata",
+      "base64": "JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgL01ldGFkYXRhIDUgMCBSID4+CmVuZG9iagoyIDAgb2JqCjw8IC9UeXBlIC9QYWdlcyAvQ291bnQgMSAvS2lkcyBbMyAwIFJdIC9NZWRpYUJveCBbMCAwIDYxMiA3OTJdID4+CmVuZG9iagozIDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1RpdGxlIChEZW1vKSAvQXV0aG9yIChBbmFseXN0KSAvQ3JlYXRpb25EYXRlIChEOjIwMjQwMTAyMDMwNDA1KzA5JzAwJykgL0N1c3RvbSAodW5rbm93bikgPj4KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL01ldGFkYXRhIC9TdWJ0eXBlIC9YTUwgL0YgKG5ldmVyLW9wZW4ueG1sKSAvTGVuZ3RoIDAgPj4Kc3RyZWFtCgplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMDgwIDAwMDAwIG4gCjAwMDAwMDAxNjEgMDAwMDAgbiAKMDAwMDAwMDIwOCAwMDAwMCBuIAowMDAwMDAwMzE5IDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiAvSW5mbyA0IDAgUiA+PgpzdGFydHhyZWYKNDE4CiUlRU9GCg==",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "allocation_max": 536870912,
+      "decoded_max": 268435456,
+      "status": "UnsupportedParser",
+      "fields": {
+        "Title": [
+          "44656d6f"
+        ]
+      }
     }
   ]
 }

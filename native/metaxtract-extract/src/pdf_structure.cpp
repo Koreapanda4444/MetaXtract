@@ -103,6 +103,9 @@ QPDFObjectHandle raw_dictionary(Reader& r, QPDF& raw, std::uint64_t offset, std:
 }
 std::vector<std::uint8_t> stream_bytes(Reader& r, QPDFObjectHandle stream, bool decode) {
     if (!stream.isStream()) { bad(r, "PDF attachment or metadata is not a stream", r.base); }
+    if (!stream.getDict().getKey("/F").isNull()) {
+        throw Failure{ParseStatus::Unsupported, "External PDF stream data is not opened", r.base};
+    }
     std::vector<std::uint8_t> data;
     Pl_Function output("metaxtract bounded PDF stream", nullptr, [&](const unsigned char* bytes, std::size_t length) {
         r.checkpoint();
@@ -114,7 +117,7 @@ std::vector<std::uint8_t> stream_bytes(Reader& r, QPDFObjectHandle stream, bool 
     bool filtered = false;
     const auto success = stream.pipeStreamData(&output, &filtered, 0, decode ? qpdf_dl_specialized : qpdf_dl_none, true, false);
     r.checkpoint();
-    if (!success) { throw Failure{ParseStatus::Unsupported, "PDF stream filter or stream data could not be decoded completely", r.base}; }
+    if (!success || (decode && !stream.getDict().getKey("/Filter").isNull() && !filtered)) { throw Failure{ParseStatus::Unsupported, "PDF stream filter or stream data could not be decoded completely", r.base}; }
     return data;
 }
 namespace {

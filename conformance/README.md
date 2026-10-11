@@ -79,3 +79,7 @@ NOTICE are in licenses/qpdf-Apache-2.0.txt and licenses/qpdf-NOTICE.md.
 
 Native compilation has a separate 1800-second ceiling. The protocol process keeps its
 300-second runtime ceiling; parser requests retain their own tighter resource budgets.
+
+CI checks debug extraction contracts before production/release validation. Reviewed FFmpeg build
+outputs are cached by platform and source/build-policy hash; runtime libraries still undergo
+configuration and relative-path checks. Standalone MSVC builds use the same CRT as Cargo.

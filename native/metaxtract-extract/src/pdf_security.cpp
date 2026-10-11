@@ -1,5 +1,6 @@
 #include "pdf.hpp"
 #include <climits>
+#include <qpdf/QPDFXRefEntry.hh>
 
 namespace metaxtract::native::formats::pdf {
 namespace {
@@ -24,6 +25,7 @@ class Objects final {
     unsigned signatures_ = 0;
     std::uint64_t features_ = 0;
     std::set<QPDFObjGen> scripts_;
+    bool original_offsets_ = false;
     void feature(Reader& r, const std::string& name, const std::string& id) {
         ++features_; value(r, "active_content_feature", ValueKind::Text, name, id);
     }
@@ -77,10 +79,13 @@ class Objects final {
         number(r, "signed_covered_end", static_cast<std::int64_t>(last), id);
         number(r, "unsigned_tail_bytes", static_cast<std::int64_t>(source_.size - last), id);
         number(r, "covers_current_file", last == source_.size ? 1 : 0, id);
-        number(r, "contents_gap_checked", count == 4 && contents.isString() ? 1 : 0, id);
-        if (count != 4 || !contents.isString()) { return; }
+        const auto parsed_offset = contents.isString() && !contents.isIndirect() ? contents.getParsedOffset() : -1;
+        const bool can_check = count == 4 && contents.isString() && !contents.isIndirect() && original_offsets_ && parsed_offset >= 0;
+        number(r, "contents_gap_checked", can_check ? 1 : 0, id);
+        if (!can_check) { return; }
+        number(r, "signature_contents_source_offset", parsed_offset, id);
         const auto gap = source_.read(first_end, second_begin - first_end);
-        bool match = gap.size() >= 2 && gap.front() == '<' && gap.back() == '>';
+        bool match = static_cast<std::uint64_t>(parsed_offset) == first_end && gap.size() >= 2 && gap.front() == '<' && gap.back() == '>';
         const auto expected = contents.getStringValue();
         std::size_t index = 0; int high = -1;
         for (std::size_t i = 1; match && i + 1 < gap.size(); ++i) {
@@ -98,7 +103,7 @@ class Objects final {
         }
         match = match && index == expected.size();
         number(r, "contents_gap_matches", match ? 1 : 0, id);
-        value(r, "contents_gap_check_scope", ValueKind::Text, "hex_string_bytes_only_not_signature_authentication", id);
+        value(r, "contents_gap_check_scope", ValueKind::Text, "source_offset_and_hex_string_bytes_not_signature_authentication", id);
     }
     void walk(Reader& r, QPDFObjectHandle object, const std::string& key, const std::string& id, std::uint32_t level, bool definition = false) {
         r.entry(); depth(r, level);
@@ -155,20 +160,37 @@ public:
     explicit Objects(Reader& r) : source_(r) {}
     void dictionary(Reader& r, QPDFObjectHandle dictionary, const std::string& key, const std::string& id) { walk(r, dictionary, key, id, 0, true); }
     void inventory(QPDF& document, const History& revisions) {
+        constexpr std::uint64_t entry_allowance = 96;
+        const auto known = static_cast<std::uint64_t>(revisions.slots.size());
+        if (known > UINT64_MAX / entry_allowance || !source_.context.budget().reserve_allocation(known * entry_allowance)) {
+            throw Failure{ParseStatus::Internal, "PDF object inventory allocation limit exceeded", 0};
+        }
+        source_.checkpoint();
+        const auto entries = document.getXRefTable();
+        source_.checkpoint();
+        if (entries.size() > known && !source_.context.budget().reserve_allocation((entries.size() - known) * entry_allowance)) {
+            throw Failure{ParseStatus::Internal, "PDF library object inventory allocation limit exceeded", 0};
+        }
+        value(source_, "object_inventory_source", ValueKind::Text, "qpdf_current_cross_reference_table", "pdf.container");
         std::uint64_t count = 0;
-        for (const auto& [number_id, slot] : revisions.slots) {
+        for (const auto& [identity, slot] : entries) {
             source_.entry(); source_.checkpoint();
-            if (slot.type != 1 && slot.type != 2) { continue; }
-            if (number_id > INT_MAX || slot.generation > INT_MAX) { throw Failure{ParseStatus::Malformed, "PDF object identity exceeds library range", 0}; }
-            const auto generation = slot.type == 2 ? 0 : static_cast<int>(slot.generation);
-            auto object = document.getObject(static_cast<int>(number_id), generation);
-            Reader r(source_.context, 0, source_.size, "pdf.object" + std::to_string(number_id) + "." + std::to_string(generation));
+            const auto type = slot.getType();
+            if (type != 1 && type != 2) { continue; }
+            if (identity.getObj() < 0 || identity.getGen() < 0) { throw Failure{ParseStatus::Malformed, "PDF object identity is negative", 0}; }
+            auto object = document.getObject(identity);
+            Reader r(source_.context, 0, source_.size, "pdf.object" + std::to_string(identity.getObj()) + "." + std::to_string(identity.getGen()));
             const auto id = object_id(object);
-            number(r, "xref_type", slot.type, id);
-            if (slot.type == 2) {
-                number(r, "object_stream", static_cast<std::int64_t>(slot.object_stream), id);
-                number(r, "object_stream_index", static_cast<std::int64_t>(slot.object_index), id);
-            } else { number(r, "object_offset", static_cast<std::int64_t>(slot.offset), id); }
+            number(r, "xref_type", type, id);
+            if (type == 2) {
+                number(r, "object_stream", slot.getObjStreamNumber(), id);
+                number(r, "object_stream_index", slot.getObjStreamIndex(), id);
+            } else {
+                const auto offset = slot.getOffset();
+                if (offset < 0 || static_cast<std::uint64_t>(offset) >= source_.size) { throw Failure{ParseStatus::Malformed, "PDF library object offset escapes source", 0}; }
+                number(r, "object_offset", offset, id);
+            }
+            original_offsets_ = type == 1;
             dictionary(r, object, "", id); ++count;
         }
         number(source_, "inspected_object_count", static_cast<std::int64_t>(count), "pdf.container");

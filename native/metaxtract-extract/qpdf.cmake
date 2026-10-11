@@ -6,10 +6,12 @@ set(jpeg_cflags "${CMAKE_C_FLAGS}")
 if(METAXTRACT_SANITIZERS)
   string(APPEND jpeg_cflags " -fsanitize=address,undefined -fno-omit-frame-pointer")
 endif()
-if(METAXTRACT_STATIC_CRT)
-  set(jpeg_crt MultiThreaded)
+if(CMAKE_MSVC_RUNTIME_LIBRARY)
+  set(jpeg_crt "${CMAKE_MSVC_RUNTIME_LIBRARY}")
+elseif(METAXTRACT_STATIC_CRT)
+  set(jpeg_crt "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 else()
-  set(jpeg_crt MultiThreadedDLL)
+  set(jpeg_crt "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 if(MSVC)
   set(jpeg_archive "${jpeg_prefix}/lib/jpeg-static.lib")
@@ -26,6 +28,7 @@ ExternalProject_Add(mx_jpeg_build
     "-DCMAKE_C_FLAGS=${jpeg_cflags}" "-DCMAKE_MSVC_RUNTIME_LIBRARY=${jpeg_crt}"
     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON" "-DENABLE_SHARED=OFF"
     "-DENABLE_STATIC=ON" "-DWITH_SIMD=OFF" "-DWITH_TURBOJPEG=OFF"
+    "-DWITH_CRT_DLL=ON"
     "-DWITH_TOOLS=OFF" "-DWITH_TESTS=OFF"
   BUILD_BYPRODUCTS "${jpeg_archive}")
 add_library(mx_jpeg STATIC IMPORTED GLOBAL)

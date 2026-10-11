@@ -369,7 +369,7 @@
       "observation_max": 10000,
       "allocation_max": 536870912,
       "decoded_max": 268435456,
-      "status": "ERR:UnsupportedParser",
+      "status": "UnsupportedParser",
       "fields": {
         "password_required": [
           "1"
@@ -459,7 +459,7 @@
       "observation_max": 10000,
       "allocation_max": 536870912,
       "decoded_max": 268435456,
-      "status": "ERR:UnsupportedParser",
+      "status": "UnsupportedParser",
       "fields": {
         "password_required": [
           "1"
@@ -495,7 +495,7 @@
       "observation_max": 10000,
       "allocation_max": 536870912,
       "decoded_max": 268435456,
-      "status": "ERR:ReadBudgetExceeded",
+      "status": "ReadBudgetExceeded",
       "fields": {}
     },
     {
@@ -506,7 +506,7 @@
       "observation_max": 10000,
       "allocation_max": 1024,
       "decoded_max": 268435456,
-      "status": "ERR:AllocationBudgetExceeded",
+      "status": "AllocationBudgetExceeded",
       "fields": {}
     },
     {
@@ -517,7 +517,7 @@
       "observation_max": 10000,
       "allocation_max": 536870912,
       "decoded_max": 512,
-      "status": "ERR:DecodeBudgetExceeded",
+      "status": "DecodeBudgetExceeded",
       "fields": {}
     },
     {
@@ -528,7 +528,7 @@
       "observation_max": 10000,
       "allocation_max": 536870912,
       "decoded_max": 268435456,
-      "status": "ERR:ContainerDepthExceeded",
+      "status": "DepthLimitExceeded",
       "fields": {},
       "depth_max": 1
     },
@@ -540,7 +540,7 @@
       "observation_max": 10000,
       "allocation_max": 536870912,
       "decoded_max": 268435456,
-      "status": "ERR:EntryLimitExceeded",
+      "status": "EntryLimitExceeded",
       "fields": {},
       "entries_max": 1
     },
@@ -552,8 +552,32 @@
       "observation_max": 1,
       "allocation_max": 536870912,
       "decoded_max": 268435456,
-      "status": "ERR:ObservationLimitExceeded",
+      "status": "ObservationLimitExceeded",
       "fields": {}
+    },
+    {
+      "name": "pdf-signature-excludes-identical-string-in-other-field",
+      "parser": "pdf.security",
+      "base64": "JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgL0Fjcm9Gb3JtIDw8IC9GaWVsZHMgWzYgMCBSXSA+PiA+PgplbmRvYmoKMiAwIG9iago8PCAvVHlwZSAvUGFnZXMgL0NvdW50IDEgL0tpZHMgWzMgMCBSXSAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSA+PgplbmRvYmoKMyAwIG9iago8PCAvVHlwZSAvUGFnZSAvUGFyZW50IDIgMCBSID4+CmVuZG9iago0IDAgb2JqCjw8IC9UaXRsZSAoRGVtbykgL0F1dGhvciAoQW5hbHlzdCkgL0NyZWF0aW9uRGF0ZSAoRDoyMDI0MDEwMjAzMDQwNSswOScwMCcpIC9DdXN0b20gKHVua25vd24pID4+CmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9TaWcgL0ZpbHRlciAvQWRvYmUuUFBLTGl0ZSAvU3ViRmlsdGVyIC9hZGJlLnBrY3M3LmRldGFjaGVkIC9CeXRlUmFuZ2UgWzAwMDAwMDAwMDAgMDAwMDAwMDUxNiAwMDAwMDAwNTI4IDAwMDAwMDAyOTNdIC9Db250ZW50cyA8MzAwMzAyMDEwMT4gL05hbWUgKEZpeHR1cmUpIC9SZWFzb24gPDMwMDMwMjAxMDE+ICAgICAgICAgICAgICA+PgplbmRvYmoKNiAwIG9iago8PCAvRlQgL1NpZyAvVCAoU2lnbmF0dXJlKSAvViA1IDAgUiA+PgplbmRvYmoKeHJlZgowIDcKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAwOTYgMDAwMDAgbiAKMDAwMDAwMDE3NyAwMDAwMCBuIAowMDAwMDAwMjI0IDAwMDAwIG4gCjAwMDAwMDAzMzUgMDAwMDAgbiAKMDAwMDAwMDU1MiAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDcgL1Jvb3QgMSAwIFIgL0luZm8gNCAwIFIgPj4Kc3RhcnR4cmVmCjYwNgolJUVPRgo=",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "allocation_max": 536870912,
+      "decoded_max": 268435456,
+      "status": "OK",
+      "fields": {
+        "byte_range_valid": [
+          "1"
+        ],
+        "contents_gap_checked": [
+          "1"
+        ],
+        "contents_gap_matches": [
+          "0"
+        ],
+        "covers_current_file": [
+          "1"
+        ]
+      }
     }
   ]
 }
