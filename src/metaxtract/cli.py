@@ -119,6 +119,25 @@ def _cmd_geo(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def _cmd_duplicates(args: argparse.Namespace) -> int:
+    from .core.jsonio import dumps_json, read_jsonl
+    from .reporting.duplicates import duplicate_document
+
+    records = read_jsonl(args.scan)
+    output = dumps_json(
+        duplicate_document(
+            records,
+            files_base=args.files_base,
+            threshold=args.threshold,
+        )
+    )
+    if args.out:
+        Path(args.out).write_text(output + "\n", encoding="utf-8")
+    else:
+        print(output)
+    return EXIT_SUCCESS
+
+
 def _cmd_verify(args: argparse.Namespace) -> int:
     from .case.verify import verify_scan
     from .core.jsonio import dumps_json
@@ -253,6 +272,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="location output format (default: json)",
     )
     geo.set_defaults(func=_cmd_geo)
+
+    duplicates = sub.add_parser(
+        "duplicates",
+        help="find exact duplicates and optionally compare image appearance",
+    )
+    duplicates.add_argument("scan", help="input scan.jsonl")
+    duplicates.add_argument("--out", help="output JSON path (default: stdout)")
+    duplicates.add_argument(
+        "--files-base",
+        help="base directory for integrity-checked visual comparison",
+    )
+    duplicates.add_argument(
+        "--threshold",
+        type=int,
+        default=8,
+        help="maximum perceptual hash distance from 0 to 64 (default: 8)",
+    )
+    duplicates.set_defaults(func=_cmd_duplicates)
 
     verify = sub.add_parser("verify", help="verify files on disk match hashes from scan.jsonl")
     verify.add_argument("scan", help="input scan.jsonl")

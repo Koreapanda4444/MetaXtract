@@ -10,6 +10,7 @@ CLI와 데스크톱 GUI를 제공합니다.
 - 이미지, PDF, DOCX, 비디오 메타데이터 정규화
 - JSON·HTML 리포트, 두 스캔 결과 비교와 출처 보존 타임라인
 - 인터넷 연결 없이 GPS 위치 요약·GeoJSON·KML 내보내기
+- SHA-256 완전 중복과 이미지 지각 해시 기반 시각적 유사 파일 구분
 - 원본 및 케이스 번들의 경로·크기·해시 검증
 - 개인정보 필드를 제거한 메타데이터 전용 번들
 - 동일 입력에서 동일한 바이트가 생성되는 결정적 ZIP
@@ -87,6 +88,7 @@ metaxtract scan evidence --out scan.jsonl
 metaxtract report scan.jsonl --out report.json
 metaxtract timeline scan.jsonl --out timeline.json
 metaxtract geo scan.jsonl --format geojson --out locations.geojson
+metaxtract duplicates scan.jsonl --files-base evidence --out duplicates.json
 metaxtract verify scan.jsonl evidence
 metaxtract keygen private.pem public.pem
 metaxtract export-case scan.jsonl case.zip --include-files --files-base evidence \
@@ -156,6 +158,21 @@ metaxtract geo scan.jsonl --format kml --out locations.kml
 모으며, JSON에는 전체 경계를 포함합니다. GeoJSON과 KML은 일반 GIS·지도
 프로그램에서 열 수 있습니다. MetaXtract는 이 과정에서 지도 타일이나 외부 API를
 요청하지 않으므로 GPS 값이 네트워크로 전송되지 않습니다.
+
+### 중복·유사 파일
+
+```bash
+metaxtract duplicates scan.jsonl --out duplicates.json
+metaxtract duplicates scan.jsonl --files-base evidence --threshold 8 \
+  --out duplicates.json
+```
+
+완전 중복은 스캔에 기록된 SHA-256이 같은 파일끼리 묶으며 예상 회수 가능
+용량을 계산합니다. `--files-base`를 주면 이미지 원본의 현재 크기와 SHA-256을
+스캔 기록과 먼저 대조한 뒤 64비트 지각 해시를 비교합니다. 지각 해시 거리가
+`--threshold`보다 작거나 같은 쌍을 시각적 유사한 파일로 보고하며, 완전 중복 쌍은
+여기에 중복 표시하지 않습니다. 원본을 변경하지 않고, 외부 서비스로 이미지를
+전송하지도 않습니다. 원본 폴더가 없으면 완전 중복만 계산합니다.
 
 ### 원본 검증
 
