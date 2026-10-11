@@ -162,7 +162,7 @@ class Pages final {
             std::ostringstream rendered; rendered << std::setprecision(17) << coordinates[i];
             if (i) { values += ","; } values += rendered.str();
         }
-        value(r, key, ValueKind::FloatSeq, values, id);
+        value(r, key, ValueKind::FloatSequence, values, id);
         number(r, key + ".positive_extent", coordinates[2] > coordinates[0] && coordinates[3] > coordinates[1] ? 1 : 0, id);
     }
 public:
