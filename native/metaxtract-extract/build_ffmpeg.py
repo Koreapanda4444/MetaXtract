@@ -46,7 +46,9 @@ def build_lock(path: Path):
 
 def windows_environment() -> dict[str, str]:
     env = os.environ.copy()
-    if shutil.which("cl", path=env.get("PATH")):
+    compiler = shutil.which("cl", path=env.get("PATH"))
+    if compiler:
+        env["PATH"] = str(Path(compiler).parent) + os.pathsep + env.get("PATH", "")
         return env
     vswhere = Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Microsoft Visual Studio/Installer/vswhere.exe"
     installation = subprocess.check_output(
@@ -60,7 +62,11 @@ def windows_environment() -> dict[str, str]:
     for line in output.splitlines():
         if "=" in line and not line.startswith("="):
             key, value = line.split("=", 1)
-            env[key] = value
+            env[key.upper()] = value
+    compiler = shutil.which("cl", path=env.get("PATH"))
+    if not compiler:
+        raise RuntimeError("MSVC compiler was not found after vcvars64")
+    env["PATH"] = str(Path(compiler).parent) + os.pathsep + env.get("PATH", "")
     return env
 
 def main() -> None:
@@ -104,14 +110,21 @@ def main() -> None:
                 raise RuntimeError("FFmpeg builds require GNU make")
         flags = [
             "--disable-programs", "--disable-doc", "--disable-network", "--disable-autodetect",
-            "--disable-gpl", "--disable-nonfree", "--disable-static", "--enable-shared",
+            "--disable-gpl", "--disable-nonfree", "--disable-static", "--enable-shared", "--pkg-config=false",
             "--enable-pic", "--disable-x86asm", "--disable-asm", "--disable-protocols",
             "--disable-encoders", "--disable-muxers", "--disable-filters", "--disable-avfilter",
             "--disable-indevs", "--disable-outdevs", "--disable-avdevice", "--disable-hwaccels",
             "--disable-decoders", "--enable-decoder=" + DECODERS, "--enable-zlib",
             "--prefix=" + prefix.as_posix(), "--shlibdir=" + (prefix / "lib").as_posix(),
         ]
-        cflags = '-I"' + args.zlib_include.resolve().as_posix() + '"'
+        include = pinned / "include"
+        include.mkdir(exist_ok=True)
+        for name in ("zlib.h", "zconf.h"):
+            incoming_header = args.zlib_include / name
+            cached_header = include / name
+            if not cached_header.is_file() or cached_header.read_bytes() != incoming_header.read_bytes():
+                shutil.copy2(incoming_header, cached_header)
+        cflags = '-I"' + include.as_posix() + '"'
         ldflags = '-L"' + pinned.as_posix() + '"'
         if os.name == "nt":
             flags += ["--toolchain=msvc", "--target-os=win64", "--arch=x86_64", "--cc=cl", "--ld=link"]
@@ -120,6 +133,8 @@ def main() -> None:
             flags += ["--cc=" + args.cc]
             if sys.platform == "darwin":
                 flags += ["--install-name-dir=@rpath"]
+            elif sys.platform.startswith("linux"):
+                ldflags += " -Wl,-rpath,\\$$ORIGIN"
         if args.sanitize:
             cflags += " -fsanitize=address,undefined -fno-omit-frame-pointer"
             ldflags += " -fsanitize=address,undefined"
@@ -132,6 +147,8 @@ def main() -> None:
                     subprocess.run([shell, source.as_posix() + "/configure", *flags], cwd=build, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
                 except subprocess.CalledProcessError:
                     print((build / "configure.log").read_text(errors="replace")[-12000:], file=sys.stderr)
+                    if (build / "ffbuild/config.log").is_file():
+                        print((build / "ffbuild/config.log").read_text(errors="replace")[-16000:], file=sys.stderr)
                     raise
             config_file.write_text(json.dumps(configuration, indent=2) + "\n")
         config = (build / "config.h").read_text()
@@ -145,6 +162,13 @@ def main() -> None:
             except subprocess.CalledProcessError:
                 print((build / "build.log").read_text(errors="replace")[-12000:], file=sys.stderr)
                 raise
+        if sys.platform.startswith("linux"):
+            for library in (prefix / "lib").glob("lib*.so.*"):
+                if library.is_symlink():
+                    continue
+                dynamic = subprocess.check_output(["readelf", "-d", str(library)], text=True)
+                if "$ORIGIN" not in dynamic:
+                    raise RuntimeError("FFmpeg shared library is missing its relative runtime search path: " + str(library))
         (build / "complete.json").write_text(json.dumps(configuration) + "\n")
 
 if __name__ == "__main__":

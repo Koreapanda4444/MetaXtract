@@ -236,6 +236,16 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
         if release:
             command.append("--release")
         try:
+            # Compilation of pinned native libraries is separate from the bounded
+            # protocol runtime. Keep Cargo's DLL search setup when running.
+            build_command = command.copy()
+            build_command[1] = "build"
+            build = subprocess.run(build_command, cwd=ROOT, text=True, capture_output=True, timeout=1800)
+            if build.returncode:
+                detail = build.stderr.strip()
+                if len(detail) > 6000:
+                    detail = detail[:4000] + "\n... compiler output omitted ...\n" + detail[-2000:]
+                return [f"native conformance build failed ({build.returncode}): {detail}"], 0
             result = subprocess.run(command, cwd=ROOT, input="\n".join(requests) + "\n", text=True, capture_output=True, timeout=300)
         except (OSError, subprocess.TimeoutExpired) as exc:
             return [f"native conformance could not run: {exc}"], 0
