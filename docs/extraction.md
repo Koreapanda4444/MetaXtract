@@ -145,3 +145,20 @@ Continuity gaps, scrambled payloads, incomplete PSI and trailing packets remain 
 This parser inspects declared container structures; it does not certify every codec frame,
 resolve external resources or reconstruct an entire playback timeline. Original source
 ranges and assembled-packet provenance remain separate, and all descent/read/output budgets apply.
+
+## Media details and embedded artwork
+
+The media.details capability adds native sample descriptions, AVC/HEVC/AV1 parameter packets,
+MPEG-4 descriptors, color/ICC and pixel aspect data, edit lists, chapter timing/track references,
+QuickTime keys and typed metadata, cover data, subtitle configuration, Matroska block header
+timing, AVI format fields and transport language/subtitle/registration descriptors. ID3 CHAP/
+CTOC/APIC and FLAC pictures retain original byte ranges; TagLib complex properties independently
+return picture bytes and attributes with library provenance. No attachment or linked artwork
+is opened on disk or over a network.
+
+FourCC bytes are preserved as original encoded text. Internal path components escape non-ASCII
+and control bytes reversibly, preventing malformed names from breaking the Rust boundary.
+Embedded resources are bounded byte observations at this stage; virtual child evidence and
+GUI previews come later. Codec configuration is declared data, not a successful decode result.
+Extended QuickTime sound layouts and laced Matroska per-frame boundaries remain explicitly
+uninterpreted for the in-process demuxer rather than guessed.

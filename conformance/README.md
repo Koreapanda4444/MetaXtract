@@ -55,3 +55,6 @@ Named TagLib source fixtures retain upstream licensing and exact-revision proven
 Media fixtures cover every planned container family, fragmented/large BMFF boxes, streaming
 EBML boundaries, AVI stream headers, MPEG sequence data, transport alignment/PSI CRC,
 malformed extents and depth/entry/read ceilings.
+
+Detail fixtures check codec records, title/chapter/language values, original and library picture
+bytes, attachments, non-ASCII FourCC transport, timestamp markers and malformed payload ranges.

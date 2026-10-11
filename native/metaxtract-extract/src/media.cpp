@@ -1,5 +1,6 @@
 #include "format.hpp"
 #include "boxes.hpp"
+#include "media_details.hpp"
 
 #include <bit>
 #include <cmath>
@@ -21,11 +22,11 @@ void depth(Reader& reader, std::uint32_t level) {
     if (!reader.context.budget().check_depth(level)) { throw Failure{ParseStatus::Internal, "Media container depth exceeded", reader.base}; }
 }
 
-void bmff(Reader& reader, std::uint64_t begin, std::uint64_t end, std::uint32_t level) {
+void bmff(Reader& reader, std::uint64_t begin, std::uint64_t end, std::uint32_t level, bool detailed) {
     depth(reader, level);
     unsigned index = 0;
     walk_boxes(reader, begin, end, [&](const Box& box) {
-        auto r = reader.window(box.offset + box.header, box.size - box.header, reader.group + "." + box.type + std::to_string(index++));
+        auto r = reader.window(box.offset + box.header, box.size - box.header, reader.group + "." + path_component(box.type) + std::to_string(index++));
         reader.put("box_type", ValueKind::Text, box.type, box.offset + 4, reader.read(box.offset + 4, 4), "ISO-8859-1");
         r.derived("payload_offset", r.base); r.derived("payload_size", r.size);
         if (box.type == "ftyp") {
@@ -63,6 +64,7 @@ void bmff(Reader& reader, std::uint64_t begin, std::uint64_t end, std::uint32_t 
                 r.put("codec_fourcc", ValueKind::Text, entry.type, entry.offset + 4, r.read(entry.offset + 4, 4), "ISO-8859-1");
                 sample.put("sample_description", ValueKind::Bytes, {}, 0, sample.read(0, sample.size));
                 if (sample.size >= 8) { sample.number("data_reference_index", 6, 2); }
+                if (detailed) { inspect_media_sample(sample, entry.type, level + 1); }
             });
             if (entries != count) { throw Failure{ParseStatus::Malformed, "Sample-description count mismatch", r.base + 4}; }
         } else if (box.type == "stsz") {
@@ -81,12 +83,14 @@ void bmff(Reader& reader, std::uint64_t begin, std::uint64_t end, std::uint32_t 
         } else if (box.type == "tfhd") { r.number("track_flags", 1, 3); r.number("track_id", 4, 4); }
         else if (box.type == "tfdt") { const auto version = r.read(0, 1)[0]; if (version > 1) { throw Failure{ParseStatus::Unsupported, "Unknown decode-time version", r.base}; } r.number("base_decode_time", 4, version ? 8 : 4); }
         else if (box.type == "trun") { r.number("fragment_flags", 1, 3); r.number("fragment_sample_count", 4, 4); }
-        else if (box.type == "moov" || box.type == "trak" || box.type == "mdia" || box.type == "minf" || box.type == "stbl" || box.type == "edts" || box.type == "udta" || box.type == "moof" || box.type == "traf" || box.type == "mvex" || box.type == "dinf" || box.type == "ilst") { bmff(r, 0, r.size, level + 1); }
+        else if (box.type == "moov" || box.type == "trak" || box.type == "mdia" || box.type == "minf" || box.type == "stbl" || box.type == "edts" || box.type == "udta" || box.type == "moof" || box.type == "traf" || box.type == "mvex" || box.type == "dinf" || box.type == "ilst" || (detailed && box.type == "tref")) { bmff(r, 0, r.size, level + 1, detailed); }
         else if (box.type == "meta") {
             const auto h = r.read(0, std::min<std::uint64_t>(8, r.size));
             const auto offset = h.size() >= 8 && (starts(h, "hdlr", 4) || starts(h, "keys", 4) || starts(h, "ilst", 4)) ? 0U : 4U;
-            r.require(0, offset); bmff(r, offset, r.size, level + 1);
-        } else if (box.type != "mdat" && box.type != "free" && box.type != "skip" && box.type != "wide") {
+            r.require(0, offset); bmff(r, offset, r.size, level + 1, detailed);
+        } else if (detailed && reader.group.find(".ilst") != std::string::npos && box.type != "data") { bmff(r, 0, r.size, level + 1, detailed); }
+        else if (detailed && inspect_media_box(r, box.type, level + 1)) {}
+        else if (box.type != "mdat" && box.type != "free" && box.type != "skip" && box.type != "wide") {
             r.put("unknown_box", ValueKind::Bytes, {}, 0, r.read(0, r.size));
         }
     });
@@ -109,7 +113,7 @@ bool master(std::uint64_t id) {
     return ids.contains(id);
 }
 
-std::uint64_t ebml(Reader& reader, std::uint64_t at, std::uint64_t end, std::uint32_t level, std::uint64_t parent = 0, bool unknown_parent = false) {
+std::uint64_t ebml(Reader& reader, std::uint64_t at, std::uint64_t end, std::uint32_t level, bool detailed, std::uint64_t parent = 0, bool unknown_parent = false) {
     depth(reader, level); unsigned index = 0;
     static const std::map<std::uint64_t, std::string> strings{{0x4282,"document_type"},{0x4d80,"muxing_app"},{0x5741,"writing_app"},{0x7ba9,"title"},{0x86,"codec_id"},{0x536e,"track_name"},{0x22b59c,"language"},{0x22b59d,"language_ietf"},{0x258688,"codec_name"},{0x466e,"attachment_name"},{0x4660,"attachment_mime"},{0x467e,"attachment_description"},{0x45a3,"tag_name"},{0x4487,"tag_value"},{0x85,"chapter_title"},{0x437c,"chapter_language"}};
     static const std::map<std::uint64_t, std::string> numbers{{0x4286,"ebml_version"},{0x4287,"doctype_version"},{0x2ad7b1,"timestamp_scale_ns"},{0xd7,"track_number"},{0x73c5,"track_uid"},{0x83,"track_type"},{0x88,"default_track"},{0xb9,"enabled_track"},{0x55aa,"forced_track"},{0x23e383,"default_duration_ns"},{0x56aa,"codec_delay_ns"},{0x56bb,"seek_preroll_ns"},{0x9f,"channels"},{0x6264,"bits_per_sample"},{0xb0,"pixel_width"},{0xba,"pixel_height"},{0x54b0,"display_width"},{0x54ba,"display_height"},{0x54b2,"display_unit"},{0x54cc,"crop_left"},{0x54dd,"crop_right"},{0x54bb,"crop_top"},{0x54aa,"crop_bottom"},{0x55b1,"matrix_coefficients"},{0x55b9,"range"},{0x55ba,"transfer_characteristics"},{0x55bb,"primaries"},{0x73c4,"chapter_uid"},{0x91,"chapter_start_ns"},{0x92,"chapter_end_ns"},{0x46ae,"attachment_uid"},{0xe7,"cluster_timestamp"}};
@@ -127,7 +131,7 @@ std::uint64_t ebml(Reader& reader, std::uint64_t at, std::uint64_t end, std::uin
         reader.put("element_id", ValueKind::Unsigned, std::to_string(id.value), at, reader.read(at, id.width));
         r.derived("payload_offset", r.base); r.derived(length.unknown ? "payload_size_upper_bound" : "payload_size", size);
         r.derived("declared_size_unknown", length.unknown ? 1 : 0);
-        if (master(id.value)) { const auto consumed = ebml(r, 0, r.size, level + 1, id.value, length.unknown); r.derived("parsed_payload_size", consumed); at += header + consumed; }
+        if (master(id.value)) { const auto consumed = ebml(r, 0, r.size, level + 1, detailed, id.value, length.unknown); r.derived("parsed_payload_size", consumed); at += header + consumed; }
         else {
             if (strings.contains(id.value)) { string_field(r, strings.at(id.value), 0, size); }
             else if (numbers.contains(id.value)) {
@@ -144,6 +148,7 @@ std::uint64_t ebml(Reader& reader, std::uint64_t at, std::uint64_t end, std::uin
                 auto bytes = r.read(0, 8); const auto value = std::bit_cast<std::int64_t>(integer(bytes, 0, 8));
                 r.put("date_utc_ns_2001", ValueKind::Signed, std::to_string(value), 0, std::move(bytes));
             } else if (binaries.contains(id.value)) { r.put(binaries.at(id.value), ValueKind::Bytes, {}, 0, r.read(0, size)); }
+            else if (detailed && (id.value == 0xa3 || id.value == 0xa1)) { inspect_ebml_block(r, id.value == 0xa3); }
             else if (id.value != 0xa3 && id.value != 0xa1 && id.value != 0xec && id.value != 0xbf) { r.put("unknown_element", ValueKind::Bytes, {}, 0, r.read(0, size)); }
             at += header + size;
         }
@@ -151,8 +156,8 @@ std::uint64_t ebml(Reader& reader, std::uint64_t at, std::uint64_t end, std::uin
     return at;
 }
 
-void avi(Reader& reader, std::uint64_t at, std::uint64_t end, std::uint32_t level, std::string list = "") {
-    depth(reader, level); unsigned index = 0;
+void avi(Reader& reader, std::uint64_t at, std::uint64_t end, std::uint32_t level, bool detailed, std::string list = "") {
+    depth(reader, level); unsigned index = 0; std::string stream_kind;
     while (at < end) {
         reader.entry(); if (end - at < 8) { throw Failure{ParseStatus::Malformed, "Truncated AVI chunk", reader.base + at}; }
         const auto h = reader.read(at, 8); const auto size = integer(h, 4, 4, true);
@@ -162,15 +167,15 @@ void avi(Reader& reader, std::uint64_t at, std::uint64_t end, std::uint32_t leve
         reader.put("chunk_id", ValueKind::Text, name, at, reader.read(at, 4), "ASCII"); r.derived("payload_offset", r.base); r.derived("payload_size", size);
         if (name == "LIST" || name == "RIFF") {
             string_field(r, "list_type", 0, 4, "ASCII"); const auto data = r.read(0, 4); const std::string type(reinterpret_cast<const char*>(data.data()), 4);
-            if (type != "movi") { avi(r, 4, size, level + 1, type); }
+            if (type != "movi") { avi(r, 4, size, level + 1, detailed, type); }
         } else if (name == "avih") {
             r.require(0, 40); r.number("microseconds_per_frame", 0, 4, true); r.number("max_bytes_per_second", 4, 4, true); r.number("flags", 12, 4, true);
             r.number("total_frames", 16, 4, true); r.number("stream_count", 24, 4, true); r.number("width", 32, 4, true); r.number("height", 36, 4, true);
         } else if (name == "strh") {
-            r.require(0, 48); string_field(r, "stream_type", 0, 4, "ASCII"); string_field(r, "codec_fourcc", 4, 4, "ASCII");
+            r.require(0, 48); const auto kind = r.read(0, 4); stream_kind.assign(kind.begin(), kind.end()); string_field(r, "stream_type", 0, 4, "ASCII"); string_field(r, "codec_fourcc", 4, 4, "ASCII");
             r.number("stream_flags", 8, 4, true); r.number("scale", 20, 4, true); r.number("rate", 24, 4, true); r.number("start", 28, 4, true);
             r.number("length", 32, 4, true); r.number("sample_size", 44, 4, true);
-        } else if (name == "strf") { r.put("format_header", ValueKind::Bytes, {}, 0, r.read(0, size)); }
+        } else if (name == "strf") { r.put("format_header", ValueKind::Bytes, {}, 0, r.read(0, size)); if (detailed) { inspect_avi_format(r, stream_kind); } }
         else if (name == "dmlh") { r.number("total_frames", 0, 4, true); }
         else if (name == "idx1") { if (size % 16) { throw Failure{ParseStatus::Malformed, "Incomplete AVI index entry", r.base}; } r.derived("index_entries", size / 16); }
         else if (list == "INFO") { string_field(r, "info_text", 0, size, "unspecified"); }
@@ -193,7 +198,7 @@ std::uint64_t start_code(Reader& reader, std::uint64_t at) {
     return reader.size;
 }
 
-void mpeg(Reader& reader) {
+void mpeg(Reader& reader, bool detailed) {
     auto at = start_code(reader, 0); unsigned index = 0;
     if (at == reader.size) { throw Failure{ParseStatus::Malformed, "MPEG start code missing", reader.base}; }
     while (at < reader.size) {
@@ -216,7 +221,7 @@ void mpeg(Reader& reader) {
             const auto size = integer(r.read(4, 2), 0, 2); r.derived("packet_payload_size", size);
             if (size) { r.require(6, size); next = at + 6 + size; }
             else { next = start_code(reader, at + 6); }
-            if ((code >= 0xc0 && code <= 0xef) || code == 0xbd) { r.derived("stream_id", code); }
+            if ((code >= 0xc0 && code <= 0xef) || code == 0xbd) { r.derived("stream_id", code); if (detailed && next - at >= 9) { auto packet = r.window(0, next - at, r.group); inspect_mpeg_timestamps(packet, 6); } }
             if (code == 0xbb || code == 0xbc) { r.put("system_header", ValueKind::Bytes, {}, 6, r.read(6, next - at - 6)); }
         } else if (code == 0xb2) {
             next = start_code(reader, at + 4); r.put("user_data", ValueKind::Bytes, {}, 4, r.read(4, next - at - 4));
@@ -227,7 +232,7 @@ void mpeg(Reader& reader) {
 }
 
 struct PsiState { std::vector<std::uint8_t> bytes; std::uint32_t expected = 0; };
-void psi(Reader& reader, std::span<const std::uint8_t> data, std::uint16_t pid, std::map<std::uint16_t, std::uint16_t>& programs) {
+void psi(Reader& reader, std::span<const std::uint8_t> data, std::uint16_t pid, std::map<std::uint16_t, std::uint16_t>& programs, bool detailed) {
     Reader r(reader.context, data, "media.ts.pid" + std::to_string(pid) + ".psi", "ts.psi.pid" + std::to_string(pid));
     r.require(0, 8); r.number("table_id", 0, 1); r.number("table_id_extension", 3, 2); r.number("version_flags", 5, 1);
     r.number("section_number", 6, 1); r.number("last_section_number", 7, 1);
@@ -250,18 +255,21 @@ void psi(Reader& reader, std::span<const std::uint8_t> data, std::uint16_t pid, 
         const auto program_info = integer(data, 10, 2) & 4095U;
         if (program_info > data.size() - 16) { throw Failure{ParseStatus::Malformed, "PMT program descriptors escape section", reader.base}; }
         r.put("program_descriptors", ValueKind::Bytes, {}, 12, r.read(12, program_info));
+        if (detailed) { auto descriptors = r.window(12, program_info, r.group + ".program"); inspect_transport_descriptors(descriptors); }
         for (std::uint64_t at = 12 + program_info; at < data.size() - 4;) {
             r.entry(); if (data.size() - 4 - at < 5) { throw Failure{ParseStatus::Malformed, "Truncated PMT stream", reader.base}; }
             const auto length = integer(data, static_cast<std::size_t>(at + 3), 2) & 4095U;
             if (length > data.size() - 4 - at - 5) { throw Failure{ParseStatus::Malformed, "PMT descriptor escapes section", reader.base}; }
             r.number("stream_type", at, 1); r.put("elementary_pid", ValueKind::Unsigned, std::to_string(integer(data, static_cast<std::size_t>(at + 1), 2) & 8191U), at + 1, r.read(at + 1, 2));
-            r.put("stream_descriptors", ValueKind::Bytes, {}, at + 5, r.read(at + 5, length)); at += 5 + length;
+            r.put("stream_descriptors", ValueKind::Bytes, {}, at + 5, r.read(at + 5, length));
+            if (detailed) { auto descriptors = r.window(at + 5, length, r.group + ".pid" + std::to_string(integer(data, static_cast<std::size_t>(at + 1), 2) & 8191U)); inspect_transport_descriptors(descriptors); }
+            at += 5 + length;
         }
     }
     r.put("section", ValueKind::Bytes, {}, 0, r.read(0, r.size));
 }
 
-void transport(Reader& reader) {
+void transport(Reader& reader, bool detailed) {
     const auto head = reader.read(0, std::min<std::uint64_t>(612, reader.size));
     unsigned stride = 0, prefix = 0;
     for (auto width : {188U,192U,204U}) {
@@ -282,7 +290,13 @@ void transport(Reader& reader) {
         if (!(adaptation & 1U) || (h[3] & 0xc0U) || (h[1] & 0x80U)) { continue; }
         if (pid != 8191 && continuity.contains(pid) && !discontinuity && counter != ((continuity[pid] + 1U) & 15U) && counter != continuity[pid]) { r.diagnostic("continuity_gap", "Transport continuity counter gap", 3); sections[pid].bytes.clear(); sections[pid].expected = 0; }
         continuity[pid] = counter;
-        if (pid != 0 && !programs.contains(pid)) { continue; }
+        if (pid != 0 && !programs.contains(pid)) {
+            if (detailed && (h[1] & 0x40U) && pos + 9 <= r.size) {
+                const auto pes = r.read(pos, 6);
+                if (pes[0] == 0 && pes[1] == 0 && pes[2] == 1) { inspect_mpeg_timestamps(r, pos + 6, true); }
+            }
+            continue;
+        }
         auto& section = sections[pid];
         if (discontinuity) { section.bytes.clear(); section.expected = 0; }
         if (!(h[1] & 0x40U) && section.bytes.empty()) { continue; }
@@ -292,7 +306,7 @@ void transport(Reader& reader) {
                 const auto tail = r.read(pos, pointer);
                 if (!reader.context.budget().reserve_allocation(2 * tail.size()) || !reader.context.budget().consume_decoded(tail.size())) { throw Failure{ParseStatus::Internal, "PSI continuation budget exceeded", r.base + pos}; }
                 section.bytes.insert(section.bytes.end(), tail.begin(), tail.end());
-                if (section.expected && section.bytes.size() >= section.expected) { psi(reader, std::span(section.bytes).first(section.expected), pid, programs); }
+                if (section.expected && section.bytes.size() >= section.expected) { psi(reader, std::span(section.bytes).first(section.expected), pid, programs, detailed); }
             }
             section.bytes.clear(); section.expected = 0; pos += pointer;
         }
@@ -305,7 +319,7 @@ void transport(Reader& reader) {
                 section.expected = static_cast<std::uint32_t>(((section.bytes[1] & 15U) << 8U) | section.bytes[2]) + 3;
                 if (section.expected < 8 || section.expected > 1024) { throw Failure{ParseStatus::Malformed, "Invalid PSI section length", r.base + pos}; }
             }
-            if (section.expected && section.bytes.size() == section.expected) { psi(reader, section.bytes, pid, programs); section.bytes.clear(); section.expected = 0; }
+            if (section.expected && section.bytes.size() == section.expected) { psi(reader, section.bytes, pid, programs, detailed); section.bytes.clear(); section.expected = 0; }
         }
     }
     for (const auto& [pid, count] : counts) { reader.decoded("pid_packet_count", ValueKind::Text, std::to_string(pid) + ":" + std::to_string(count), "ts", 0); }
@@ -315,24 +329,27 @@ void transport(Reader& reader) {
 }
 
 class MediaParser final : public Parser {
+    bool detailed_;
 public:
+    explicit MediaParser(bool detailed = false) : detailed_(detailed) {}
     const ParserCapability& capability() const noexcept override {
         static const ParserCapability value{"media.structure", "Bounded native media containers", "1", Extract, {"mp4","mov","matroska","webm","avi","mpeg_ps","mpeg_es","mpeg_ts"}};
-        return value;
+        static const ParserCapability detail{"media.details", "Native media tracks chapters attachments and codec configuration", "1", Extract, value.formats};
+        return detailed_ ? detail : value;
     }
     ParseStatus run(ParserContext& context) const override {
         if (context.source_size() < 4) { return ParseStatus::Unsupported; }
         Reader reader(context, 0, context.source_size(), "media");
         try {
             const auto h = reader.read(0, std::min<std::uint64_t>(16, reader.size));
-            if (starts(h, "\x1a\x45\xdf\xa3")) { reader.group = "media.matroska"; ebml(reader, 0, reader.size, 0); }
+            if (starts(h, "\x1a\x45\xdf\xa3")) { reader.group = "media.matroska"; ebml(reader, 0, reader.size, 0, detailed_); }
             else if (starts(h, "RIFF") && starts(h, "AVI ", 8)) {
                 reader.group = "media.avi"; const auto size = integer(h, 4, 4, true); reader.require(8, size); if (size < 4) { return ParseStatus::Malformed; }
-                avi(reader, 12, 8 + size, 0);
-                if (size + 8 < reader.size) { avi(reader, size + 8, reader.size, 0); }
-            } else if (h.size() >= 8 && (starts(h,"ftyp",4) || starts(h,"moov",4) || starts(h,"mdat",4) || starts(h,"wide",4) || starts(h,"free",4))) { reader.group = "media.bmff"; bmff(reader, 0, reader.size, 0); }
-            else if ((h[0] == 0 && h[1] == 0 && h[2] == 1) || (h[0] == 0 && h[1] == 0 && h[2] == 0 && h[3] == 1)) { reader.group = "media.mpeg"; mpeg(reader); }
-            else if (h[0] == 0x47 || (h.size() > 4 && h[4] == 0x47)) { reader.group = "media.ts"; transport(reader); }
+                avi(reader, 12, 8 + size, 0, detailed_);
+                if (size + 8 < reader.size) { avi(reader, size + 8, reader.size, 0, detailed_); }
+            } else if (h.size() >= 8 && (starts(h,"ftyp",4) || starts(h,"moov",4) || starts(h,"mdat",4) || starts(h,"wide",4) || starts(h,"free",4))) { reader.group = "media.bmff"; bmff(reader, 0, reader.size, 0, detailed_); }
+            else if ((h[0] == 0 && h[1] == 0 && h[2] == 1) || (h[0] == 0 && h[1] == 0 && h[2] == 0 && h[3] == 1)) { reader.group = "media.mpeg"; mpeg(reader, detailed_); }
+            else if (h[0] == 0x47 || (h.size() > 4 && h[4] == 0x47)) { reader.group = "media.ts"; transport(reader, detailed_); }
             else { return ParseStatus::Unsupported; }
             return ParseStatus::Complete;
         } catch (const Failure& failure) { reader.diagnostic("malformed", failure.message, std::min(reader.size, failure.offset)); return failure.status; }
@@ -341,5 +358,6 @@ public:
 }
 }
 namespace metaxtract::native {
+std::unique_ptr<Parser> media_details_parser() { return std::make_unique<formats::MediaParser>(true); }
 std::unique_ptr<Parser> media_structure_parser() { return std::make_unique<formats::MediaParser>(); }
 }

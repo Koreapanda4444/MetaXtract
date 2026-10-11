@@ -1,9 +1,11 @@
 #include "format.hpp"
+#include "media_details.hpp"
 
 #include <fileref.h>
 #include <tiostream.h>
 #include <tfile.h>
 #include <tpropertymap.h>
+#include <tvariant.h>
 #include <memory>
 #include <bit>
 #include <cmath>
@@ -106,6 +108,7 @@ std::uint64_t id3(Reader& source, const std::uint64_t start) {
         if (version >= 3) { reader.number("frame_flags", at + 8, 2); }
         frame.put("payload", ValueKind::Bytes, {}, 0, frame.read(0, size));
         const auto flags = version == 2 ? 0 : integer(h, 8, 2);
+        if (!flags) { inspect_id3_details(frame, name, version); }
         if (name.front() == 'T' && size > 1 && flags == 0) {
             const auto encoding = frame.read(0, 1)[0];
             if (encoding == 0 || encoding == 3) { text(frame, "text", 1, size - 1, encoding == 0 ? "ISO-8859-1" : "UTF-8"); }
@@ -151,6 +154,7 @@ void flac(Reader& reader, const std::uint64_t start) {
             block.derived("total_samples", info & 0xfffffffffULL);
             block.put("pcm_md5", ValueKind::Bytes, {}, 18, block.read(18, 16));
         } else if (type == 4) { comments(block, 0); }
+        else if (type == 6) { inspect_flac_picture(block); }
         at += 4 + length;
     }
     reader.derived("audio_offset", at);
@@ -360,6 +364,27 @@ public:
                 for (const auto& value : it->second) { reader.decoded(it->first.to8Bit(true), ValueKind::Text, value.to8Bit(true), "taglib", 2); }
             }
             for (const auto& key : properties.unsupportedData()) { reader.decoded("unsupported_property", ValueKind::Text, key.to8Bit(true), "taglib", 2); }
+            for (const auto& key : ref.complexPropertyKeys()) {
+                reader.entry(); unsigned index = 0;
+                for (const auto& item : ref.complexProperties(key)) {
+                    reader.entry(); const auto packet = "taglib." + key.to8Bit(true) + "." + std::to_string(index++);
+                    Reader node(context, 0, 0, "audio.taglib.complex." + key.to8Bit(true));
+                    node.decoded("complex_property", ValueKind::Text, key.to8Bit(true), packet, 2);
+                    for (auto it = item.begin(); it != item.end(); ++it) {
+                        node.entry(); const auto field = it->first.to8Bit(true); const auto& v = it->second;
+                        switch (v.type()) {
+                        case TagLib::Variant::String: node.decoded(field, ValueKind::Text, v.toString().to8Bit(true), packet, 2); break;
+                        case TagLib::Variant::ByteVector: { const auto bytes = v.toByteVector(); node.decoded(field, ValueKind::DecodedBytes, std::string(bytes.begin(), bytes.end()), packet, 2, ""); break; }
+                        case TagLib::Variant::Bool: node.decoded(field, ValueKind::Unsigned, v.toBool() ? "1" : "0", packet, 2); break;
+                        case TagLib::Variant::Int: case TagLib::Variant::LongLong: node.decoded(field, ValueKind::Signed, std::to_string(v.toLongLong()), packet, 2); break;
+                        case TagLib::Variant::UInt: case TagLib::Variant::ULongLong: node.decoded(field, ValueKind::Unsigned, std::to_string(v.toULongLong()), packet, 2); break;
+                        case TagLib::Variant::Double: if (std::isfinite(v.toDouble())) { node.decoded(field, ValueKind::Float, std::to_string(v.toDouble()), packet, 2); } break;
+                        case TagLib::Variant::StringList: for (const auto& value : v.toStringList()) { node.decoded(field, ValueKind::Text, value.to8Bit(true), packet, 2); } break;
+                        default: node.decoded("unsupported_complex_field", ValueKind::Text, field, packet, 2); break;
+                        }
+                    }
+                }
+            }
             if (const auto* p = ref.audioProperties()) {
                 for (const auto& [key, value] : std::initializer_list<std::pair<const char*, int>>{{"duration_ms", p->lengthInMilliseconds()}, {"sample_rate", p->sampleRate()}, {"channels", p->channels()}, {"bitrate_kbps", p->bitrate()}}) {
                     if (value >= 0) { reader.decoded(key, ValueKind::Unsigned, std::to_string(value), "taglib", 2); }

@@ -37,6 +37,17 @@ inline std::string hex_key(const std::uint64_t value) {
     return text.str();
 }
 
+inline std::string path_component(std::string_view name) {
+    constexpr char hex[] = "0123456789abcdef";
+    std::string result;
+    for (const auto c : name) {
+        const auto byte = static_cast<unsigned char>(c);
+        if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') || (byte >= '0' && byte <= '9') || byte == '-') { result.push_back(c); }
+        else { result.push_back('_'); result.push_back(hex[byte >> 4U]); result.push_back(hex[byte & 15U]); }
+    }
+    return result;
+}
+
 class Reader final {
     std::span<const std::uint8_t> memory_ = {};
     bool decoded_input_ = false;
