@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+metaxtract-native.workspace = true
 metaxtract-schema.workspace = true
 
 [lib]

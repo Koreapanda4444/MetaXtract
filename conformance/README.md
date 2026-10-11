@@ -35,6 +35,7 @@ only the frozen Python baseline without native build tools, use `--python-only`.
 
 CI runs Linux, Windows, and macOS builds and both debug/release contract checks. Linux additionally
 runs AddressSanitizer and UndefinedBehaviorSanitizer on the native core and the generated FFI.
+Rust policy regression checks also run with `cargo test --workspace --locked`.
 
 For the rules these checks protect, see [architecture](../docs/architecture.md),
 [the language boundary](../docs/ffi.md), and [parser resource limits](../docs/resource-limits.md).

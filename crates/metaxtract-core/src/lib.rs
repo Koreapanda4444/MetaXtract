@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod detection;
+
+pub use detection::{ContentAssessment, TypeConflict, TypeConflictKind, assess_content};
 pub use metaxtract_schema as schema;
 
 pub const SCHEMA_REVISION: u32 = 1;

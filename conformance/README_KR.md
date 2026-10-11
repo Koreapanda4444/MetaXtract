@@ -38,6 +38,7 @@ PNG·PDF 등 실제 메타데이터 레코드의 전체 동등성은 형식 어�
 CI는 Linux·Windows·macOS에서 빌드와 디버그·릴리스 호환성 검증을 수행합니다.
 Linux에서는 네이티브 코어와 생성된 언어 연결부에 AddressSanitizer와
 UndefinedBehaviorSanitizer도 적용합니다.
+Rust 정책의 회귀 검증도 `cargo test --workspace --locked`로 실행합니다.
 
 검증이 보호하는 규칙은 [아키텍처](../docs/architecture_KR.md),
 [언어 경계](../docs/ffi_KR.md), [파서 자원 제한](../docs/resource-limits_KR.md)을 참고합니다.

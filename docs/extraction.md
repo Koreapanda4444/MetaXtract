@@ -27,3 +27,13 @@ offset and multiple candidates are preserved; detection does not silently select
 
 See [resource limits](resource-limits.md) for budgets and
 [conformance](../conformance/README.md) for normal, truncated, contradictory, and mixed-signature checks.
+
+## Type conflicts
+
+Rust's `metaxtract_core::assess_content` compares candidates with an extension, declared MIME,
+and declared container. It reports mismatches, multiple signatures, invalid/truncated headers,
+unrecognized content, and unverified subtypes while retaining the original candidates.
+Case and common MIME aliases are normalized. A DOCX-like extension over ZIP, or WebM over EBML,
+does not prove the package subtype; it remains unverified until a deeper parser confirms it.
+An ID3 wrapper similarly does not establish the following audio format. Generic binary MIME
+does not create a spurious conflict.

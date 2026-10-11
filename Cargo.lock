@@ -173,6 +173,7 @@ dependencies = [
 name = "metaxtract-core"
 version = "0.1.0"
 dependencies = [
+ "metaxtract-native",
  "metaxtract-schema",
 ]
 

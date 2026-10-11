@@ -16,6 +16,7 @@ cxx = "=1.0.205"
 cxx-build = "=1.0.205"
 cmake = "=0.1.58"
 metaxtract-schema = { path = "crates/metaxtract-schema" }
+metaxtract-native = { path = "crates/metaxtract-native" }
 
 [profile.release]
 codegen-units = 1
