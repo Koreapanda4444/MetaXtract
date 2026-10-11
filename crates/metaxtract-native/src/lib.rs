@@ -18,8 +18,15 @@ pub enum NativeErrorCode {
     RevisionMismatch,
     InvalidRequest,
     Internal,
-    ResourceLimit,
     OutOfRange,
+    SourceTooLarge,
+    ReadBudgetExceeded,
+    AllocationBudgetExceeded,
+    DecodeBudgetExceeded,
+    ContainerDepthExceeded,
+    EntryLimitExceeded,
+    ObservationLimitExceeded,
+    DeadlineExceeded,
     Unknown(u32),
 }
 
@@ -29,8 +36,16 @@ impl From<u32> for NativeErrorCode {
             1 => Self::RevisionMismatch,
             2 => Self::InvalidRequest,
             3 => Self::Internal,
-            4 => Self::ResourceLimit,
+            4 => Self::Internal,
             5 => Self::OutOfRange,
+            10 => Self::SourceTooLarge,
+            11 => Self::ReadBudgetExceeded,
+            12 => Self::AllocationBudgetExceeded,
+            13 => Self::DecodeBudgetExceeded,
+            14 => Self::ContainerDepthExceeded,
+            15 => Self::EntryLimitExceeded,
+            16 => Self::ObservationLimitExceeded,
+            17 => Self::DeadlineExceeded,
             other => Self::Unknown(other),
         }
     }
@@ -48,7 +63,7 @@ impl Default for InputLimits {
         Self {
             max_source_bytes: 1024 * 1024 * 1024,
             max_single_read: 1024 * 1024,
-            max_total_read: 8 * 1024 * 1024,
+            max_total_read: 64 * 1024 * 1024,
         }
     }
 }
@@ -63,7 +78,7 @@ impl BoundedInput {
             return Err(native_error(NativeErrorCode::InvalidRequest, false));
         }
         if bytes.len() as u64 > limits.max_source_bytes {
-            return Err(native_error(NativeErrorCode::ResourceLimit, true));
+            return Err(native_error(NativeErrorCode::SourceTooLarge, true));
         }
         Ok(Self {
             source: ffi::ReadSource::new(
@@ -72,6 +87,43 @@ impl BoundedInput {
                 limits.max_total_read,
             ),
         })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ParserLimits {
+    pub max_source_bytes: u64,
+    pub max_read_bytes: u64,
+    pub max_allocation_bytes: u64,
+    pub max_decoded_bytes: u64,
+    pub max_container_depth: u32,
+    pub max_entries: u32,
+    pub max_observations: u32,
+    pub max_wall_time_ms: u32,
+}
+
+impl Default for ParserLimits {
+    fn default() -> Self {
+        Self {
+            max_source_bytes: 1024 * 1024 * 1024,
+            max_read_bytes: 64 * 1024 * 1024,
+            max_allocation_bytes: 256 * 1024 * 1024,
+            max_decoded_bytes: 128 * 1024 * 1024,
+            max_container_depth: 16,
+            max_entries: 10_000,
+            max_observations: 250_000,
+            max_wall_time_ms: 30_000,
+        }
+    }
+}
+
+impl ParserLimits {
+    pub fn input_limits(self) -> InputLimits {
+        InputLimits {
+            max_source_bytes: self.max_source_bytes,
+            max_single_read: 1024 * 1024,
+            max_total_read: self.max_read_bytes,
+        }
     }
 }
 
@@ -114,6 +166,30 @@ pub fn parser_capabilities() -> Vec<ParserCapability> {
         .collect()
 }
 
+pub fn validate_limits(source_size: u64, limits: ParserLimits) -> Result<(), NativeError> {
+    if limits.max_wall_time_ms == 0 {
+        return Err(native_error(NativeErrorCode::InvalidRequest, false));
+    }
+    let status = ffi::bridge::ffi_validate_limits(
+        source_size,
+        ffi::bridge::FfiResourceLimits {
+            max_source_bytes: limits.max_source_bytes,
+            max_read_bytes: limits.max_read_bytes,
+            max_allocation_bytes: limits.max_allocation_bytes,
+            max_decoded_bytes: limits.max_decoded_bytes,
+            max_container_depth: limits.max_container_depth,
+            max_entries: limits.max_entries,
+            max_observations: limits.max_observations,
+            max_wall_time_ms: limits.max_wall_time_ms,
+        },
+    );
+    if status.status == 0 {
+        Ok(())
+    } else {
+        Err(budget_error(status.status))
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeError {
     pub code: NativeErrorCode,
@@ -148,8 +224,15 @@ fn error_message(code: NativeErrorCode) -> &'static str {
         NativeErrorCode::RevisionMismatch => "native API or schema revision mismatch",
         NativeErrorCode::InvalidRequest => "native extraction request is invalid",
         NativeErrorCode::Internal => "native extraction failed internally",
-        NativeErrorCode::ResourceLimit => "native extraction resource limit exceeded",
         NativeErrorCode::OutOfRange => "native extraction read is outside the source",
+        NativeErrorCode::SourceTooLarge => "source exceeds the parser size limit",
+        NativeErrorCode::ReadBudgetExceeded => "parser read budget exceeded",
+        NativeErrorCode::AllocationBudgetExceeded => "parser allocation budget exceeded",
+        NativeErrorCode::DecodeBudgetExceeded => "parser decoded data budget exceeded",
+        NativeErrorCode::ContainerDepthExceeded => "container nesting depth exceeded",
+        NativeErrorCode::EntryLimitExceeded => "container entry limit exceeded",
+        NativeErrorCode::ObservationLimitExceeded => "metadata observation limit exceeded",
+        NativeErrorCode::DeadlineExceeded => "parser deadline exceeded",
         NativeErrorCode::Unknown(_) => "native extraction returned an unknown error",
     }
 }
@@ -166,8 +249,13 @@ fn read_error(status: u32) -> NativeError {
     match status {
         1 => native_error(NativeErrorCode::OutOfRange, true),
         2 => native_error(NativeErrorCode::InvalidRequest, true),
-        3 => native_error(NativeErrorCode::ResourceLimit, true),
+        3 => native_error(NativeErrorCode::ReadBudgetExceeded, true),
         4 => native_error(NativeErrorCode::Internal, false),
         other => native_error(NativeErrorCode::Unknown(other), false),
     }
+}
+
+fn budget_error(status: u32) -> NativeError {
+    let code = NativeErrorCode::from(status);
+    native_error(code, true)
 }

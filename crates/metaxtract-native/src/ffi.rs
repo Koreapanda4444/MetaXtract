@@ -110,6 +110,21 @@ pub(crate) mod bridge {
         formats: Vec<String>,
     }
 
+    struct FfiResourceLimits {
+        max_source_bytes: u64,
+        max_read_bytes: u64,
+        max_allocation_bytes: u64,
+        max_decoded_bytes: u64,
+        max_container_depth: u32,
+        max_entries: u32,
+        max_observations: u32,
+        max_wall_time_ms: u32,
+    }
+
+    struct FfiBudgetStatus {
+        status: u32,
+    }
+
     extern "Rust" {
         type ReadSource;
 
@@ -124,5 +139,6 @@ pub(crate) mod bridge {
         fn ffi_validate_revisions(expected_api: u32, expected_schema: u32) -> FfiStatus;
         fn ffi_input_check(source: &ReadSource, requested: u32) -> FfiInputCheck;
         fn ffi_capabilities() -> Vec<FfiCapability>;
+        fn ffi_validate_limits(source_size: u64, limits: FfiResourceLimits) -> FfiBudgetStatus;
     }
 }

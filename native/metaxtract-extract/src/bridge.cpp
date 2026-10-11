@@ -1,6 +1,7 @@
 #include "metaxtract-native/src/ffi.rs.h"
 
 #include "metaxtract/native/bridge.hpp"
+#include "metaxtract/native/budget.hpp"
 #include "metaxtract/native/core.hpp"
 #include "metaxtract/native/input.hpp"
 #include "metaxtract/native/registry.hpp"
@@ -104,5 +105,25 @@ rust::Vec<FfiCapability> ffi_capabilities() noexcept {
         return {};
     }
     return result;
+}
+
+FfiBudgetStatus ffi_validate_limits(
+    const std::uint64_t source_size,
+    const FfiResourceLimits limits) noexcept {
+    const metaxtract::native::ResourceLimits native_limits{
+        .max_source_bytes = limits.max_source_bytes,
+        .max_read_bytes = limits.max_read_bytes,
+        .max_allocation_bytes = limits.max_allocation_bytes,
+        .max_decoded_bytes = limits.max_decoded_bytes,
+        .max_container_depth = limits.max_container_depth,
+        .max_entries = limits.max_entries,
+        .max_observations = limits.max_observations,
+        .max_wall_time_ms = limits.max_wall_time_ms,
+    };
+    metaxtract::native::ParserBudget budget(native_limits, source_size);
+    static_cast<void>(budget.checkpoint());
+    return FfiBudgetStatus{
+        .status = static_cast<std::uint32_t>(budget.status()),
+    };
 }
 }

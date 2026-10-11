@@ -1,6 +1,7 @@
 option(METAXTRACT_WARNINGS_AS_ERRORS "Treat native compiler warnings as errors" OFF)
 
 add_library(metaxtract_extract STATIC
+  src/budget.cpp
   src/core.cpp
   src/registry.cpp
 )
