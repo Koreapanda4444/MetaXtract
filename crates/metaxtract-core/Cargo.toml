@@ -1,0 +1,11 @@
+[package]
+name = "metaxtract-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+metaxtract-schema.workspace = true
+
+[lib]
+path = "src/lib.rs"

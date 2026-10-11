@@ -1,0 +1,20 @@
+[workspace]
+members = [
+  "crates/metaxtract-core",
+  "crates/metaxtract-native",
+  "crates/metaxtract-schema",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+
+[workspace.dependencies]
+metaxtract-schema = { path = "crates/metaxtract-schema" }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "debuginfo"
