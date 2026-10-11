@@ -5,6 +5,7 @@ option(METAXTRACT_CONFORMANCE "Enable the conformance-only fixture parser" OFF)
 add_library(metaxtract_extract STATIC
   src/budget.cpp
   src/core.cpp
+  src/detection.cpp
   src/parser.cpp
   src/registry.cpp
 )

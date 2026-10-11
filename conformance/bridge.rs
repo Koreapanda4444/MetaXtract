@@ -5,7 +5,7 @@ use std::{
 };
 
 use metaxtract_native::{
-    BoundedInput, InputLimits, NativeError, ParserLimits, build_info, check_input,
+    BoundedInput, InputLimits, NativeError, ParserLimits, build_info, check_input, detect_content,
     parser_capabilities, read_input, run_parser,
 };
 use metaxtract_schema::{
@@ -104,6 +104,32 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
             );
         }
         ["SCHEMA"] => schema_check()?,
+        ["DETECT", value, maximum, read_max, observation_max] => {
+            let input = BoundedInput::from_bytes(decode(value)?, InputLimits::default())?;
+            let limits = ParserLimits {
+                max_source_bytes: maximum.parse()?,
+                max_read_bytes: read_max.parse()?,
+                max_observations: observation_max.parse()?,
+                ..ParserLimits::default()
+            };
+            match detect_content(&input, limits) {
+                Ok(values) => {
+                    let values = values
+                        .iter()
+                        .map(|value| {
+                            format!(
+                                "{}:{:?}:{}",
+                                value.format,
+                                value.state,
+                                value.source_range.offset()
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    println!("DETECT\t{}", values.join(","));
+                }
+                Err(error) => failure(error),
+            }
+        }
         ["PATH", value] => match RelativePath::parse(text(value)?) {
             Ok(path) => println!("PATH\tOK\t{}", encode(path.as_str().as_bytes())),
             Err(_) => println!("PATH\tERR"),
@@ -201,11 +227,16 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
                 }
             }
         }
-        ["SHRINK", value] => {
+        [kind @ ("SHRINK" | "SHRINK_DETECT"), value] => {
             let path = text(value)?;
             let input = BoundedInput::from_file(File::open(&path)?, InputLimits::default())?;
             OpenOptions::new().write(true).open(path)?.set_len(0)?;
-            match read_input(&input, 0, 1) {
+            let result = if *kind == "SHRINK" {
+                read_input(&input, 0, 1).map(|_| ())
+            } else {
+                detect_content(&input, ParserLimits::default()).map(|_| ())
+            };
+            match result {
                 Ok(_) => println!("SHRINK\tUNEXPECTED_SUCCESS"),
                 Err(error) => failure(error),
             }

@@ -14,7 +14,7 @@ the results.
 
 The Python reference provides the working GUI and CLI during migration. The Rust/C++ foundation
 currently includes the canonical schema, language bridge, bounded input, parser registry,
-resource budgets, conformance checks, and cross-platform CI. Production format adapters and the
+resource budgets, content-signature detection, conformance checks, and cross-platform CI. Production format adapters and the
 Rust GUI/CLI are still to be implemented.
 
 The Python source remains frozen as a comparison baseline. It will be removed after the new
@@ -75,5 +75,6 @@ counterparts; update both when behavior or design changes.
 | Language boundary and ownership | [Rust/C++ boundary](docs/ffi.md) | [Rust/C++ 경계](docs/ffi_KR.md) |
 | Libraries and dependency policy | [Dependencies](docs/dependencies.md) | [의존성 정책](docs/dependencies_KR.md) |
 | Parser budgets and limitations | [Resource limits](docs/resource-limits.md) | [파서 자원 제한](docs/resource-limits_KR.md) |
+| Native extraction coverage | [Extraction](docs/extraction.md) | [추출 지원 범위](docs/extraction_KR.md) |
 | Migration verification | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
 | Current GUI and CLI | [Python application](legacy/python/README.md) | [Python 앱 사용법](legacy/python/README_KR.md) |

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import struct
 import subprocess
 import sys
 import tempfile
@@ -112,6 +113,48 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
     wanted = ["INFO\t1\t1\t1", "SCHEMA\tOK"]
+    png = b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sIIBBBBBI", 13, b"IHDR", 1, 1, 8, 2, 0, 0, 0, 0)
+    transport = bytearray(377)
+    transport[0] = transport[188] = transport[376] = 0x47
+    detection_cases = [
+        (b"", ""),
+        (b"plain text", ""),
+        (png, "png:HeaderValidated:0"),
+        (png[:8], "png:Truncated:0"),
+        (png[:16] + b"\0\0\0\0" + png[20:], "png:Invalid:0"),
+        (b"\xff\xd8\xff", "jpeg:Signature:0"),
+        (b"II*\0\0\0\0\0", "tiff:HeaderValidated:0"),
+        (b"MM\0+\0\4\0\0" + bytes(8), "bigtiff:Invalid:0"),
+        (b"RIFF" + struct.pack("<I", 4) + b"WEBP", "webp:HeaderValidated:0"),
+        (b"RIFF" + struct.pack("<I", 400) + b"WAVE", "wav:Truncated:0"),
+        (b"GIF89a" + struct.pack("<HHBBB", 1, 1, 0, 0, 0), "gif:HeaderValidated:0"),
+        (b"BM" + struct.pack("<III", 26, 0, 26) + struct.pack("<IHHHH", 12, 1, 1, 1, 24), "bmp:HeaderValidated:0"),
+        (b"\0\0\1\0\1\0", "ico:HeaderValidated:0"),
+        (b"fLaC\x80\0\0\x22", "flac:HeaderValidated:0"),
+        (b"OggS" + bytes(23), "ogg:HeaderValidated:0"),
+        (b"ID3\4\0\0" + bytes(4), "mp3:HeaderValidated:0"),
+        (b"ID3\4\0\0\x80\0\0\0", "mp3:Invalid:0"),
+        (struct.pack(">I4s4sI4s", 20, b"ftyp", b"avif", 0, b"mif1"), "avif:HeaderValidated:0"),
+        (struct.pack(">I4s4sI", 16, b"ftyp", b"isom", 0), "mp4:HeaderValidated:0"),
+        (b"prefix%PDF-1.7", "pdf:HeaderValidated:6"),
+        (b"%PDF-a.7", "pdf:Invalid:0"),
+        (b"PK\3\4", "zip:Signature:0"),
+        (b"PK\3\4xx%PDF-1.7", "pdf:HeaderValidated:6,zip:Signature:0"),
+        (b"MAC ", "ape:Signature:0"),
+        (b"wvpk" + struct.pack("<I", 24) + bytes(24), "wavpack:HeaderValidated:0"),
+        (b"\x1a\x45\xdf\xa3", "ebml:Signature:0"),
+        (bytes(transport), "mpeg_ts:HeaderValidated:0"),
+    ]
+    for data, result in detection_cases:
+        requests.append(f"DETECT\t{data.hex()}\t{len(data)}\t65536\t10")
+        wanted.append("DETECT\t" + result)
+    for source_max, read_max, observation_max, failure in [
+        (3, 65536, 10, "SourceTooLarge"),
+        (len(png), 1, 10, "ReadBudgetExceeded"),
+        (len(png), 65536, 0, "ObservationLimitExceeded"),
+    ]:
+        requests.append(f"DETECT\t{png.hex()}\t{source_max}\t{read_max}\t{observation_max}")
+        wanted.append(f"ERR\t{failure}\ttrue")
     for case in expected["path_cases"]:
         requests.append("PATH\t" + case["input"].encode().hex())
         wanted.append("PATH\tERR" if case.get("error") else "PATH\tOK\t" + case["normalized"].encode().hex())
@@ -164,6 +207,11 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
         shrinking = root / "shrinking.bin"
         shrinking.write_bytes(b"short")
         requests.append("SHRINK\t" + str(shrinking).encode().hex())
+        wanted.append("ERR\tReadFailure\ttrue")
+
+        shrinking_detection = root / "shrinking-detection.bin"
+        shrinking_detection.write_bytes(b"PNG")
+        requests.append("SHRINK_DETECT\t" + str(shrinking_detection).encode().hex())
         wanted.append("ERR\tReadFailure\ttrue")
 
         requests.append("PARSE\t000a141e\t4\t8\t4\t30000\t2")

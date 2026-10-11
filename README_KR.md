@@ -12,7 +12,7 @@ C++는 바이너리 파싱·디코딩·원본 메타데이터 추출을 맡고, 
 ## 현재 상태
 
 전환 중에도 Python 기준판의 GUI와 CLI를 사용할 수 있습니다. Rust/C++ 쪽은 공통 데이터
-스키마, 언어 연결부, 제한된 입력 읽기, 파서 등록부, 자원 제한, 호환성 검증과 여러 운영체제의
+스키마, 언어 연결부, 제한된 입력 읽기, 파서 등록부, 자원 제한, 콘텐츠 시그니처 판별, 호환성 검증과 여러 운영체제의
 CI가 구현되어 있습니다. 실제 파일 형식용 파서 어댑터와 Rust GUI·CLI는 아직 구현 전입니다.
 
 Python 소스는 결과 비교를 위한 기준판으로 동결합니다. 새 앱이 기존 사용 흐름, 데이터 호환성,
@@ -72,5 +72,6 @@ README는 처음 실행하는 방법을 안내합니다. `docs/`는 추출 엔�
 | 언어 경계와 메모리 소유권 | [Rust/C++ boundary](docs/ffi.md) | [Rust/C++ 경계](docs/ffi_KR.md) |
 | 라이브러리와 의존성 정책 | [Dependencies](docs/dependencies.md) | [의존성 정책](docs/dependencies_KR.md) |
 | 파서 자원 제한과 한계 | [Resource limits](docs/resource-limits.md) | [파서 자원 제한](docs/resource-limits_KR.md) |
+| 네이티브 추출 지원 범위 | [Extraction](docs/extraction.md) | [추출 지원 범위](docs/extraction_KR.md) |
 | 언어 전환 검증 | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
 | 현재 GUI·CLI 사용법 | [Python application](legacy/python/README.md) | [Python 앱 사용법](legacy/python/README_KR.md) |

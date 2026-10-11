@@ -206,6 +206,22 @@ pub(crate) mod bridge {
         observations: u32,
     }
 
+    struct FfiContentCandidate {
+        format: String,
+        mime: String,
+        container: String,
+        state: u32,
+        offset: u64,
+        length: u64,
+        detail: String,
+    }
+
+    struct FfiDetection {
+        candidates: Vec<FfiContentCandidate>,
+        status: u32,
+        recoverable: bool,
+    }
+
     struct FfiResourceLimits {
         max_source_bytes: u64,
         max_read_bytes: u64,
@@ -236,6 +252,7 @@ pub(crate) mod bridge {
         fn ffi_input_check(source: &ReadSource, requested: u32) -> FfiInputCheck;
         fn ffi_input_read(source: &ReadSource, offset: u64, requested: u32) -> FfiReadResult;
         fn ffi_capabilities() -> FfiCapabilities;
+        fn ffi_detect(source: &ReadSource, limits: FfiResourceLimits) -> FfiDetection;
         fn ffi_run_parser(
             source: &ReadSource,
             parser_id: &str,

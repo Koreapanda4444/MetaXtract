@@ -1,7 +1,10 @@
 #![deny(unsafe_code)]
 
+mod detection;
 #[allow(unsafe_code)]
 mod ffi;
+
+pub use detection::{ContentCandidate, DetectionState, detect_content};
 
 use std::{error::Error, fmt, fs::File};
 

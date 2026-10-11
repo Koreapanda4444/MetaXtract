@@ -3,10 +3,12 @@
 #include "metaxtract/native/bridge.hpp"
 #include "metaxtract/native/budget.hpp"
 #include "metaxtract/native/core.hpp"
+#include "metaxtract/native/detection.hpp"
 #include "metaxtract/native/input.hpp"
 #include "metaxtract/native/registry.hpp"
 
 #include <algorithm>
+#include <new>
 #include <utility>
 #include <vector>
 
@@ -150,6 +152,37 @@ FfiParserRun ffi_run_parser(
         .entries = run.entries,
         .observations = run.observations,
     };
+}
+
+FfiDetection ffi_detect(const ReadSource& source, const FfiResourceLimits limits) noexcept {
+    try {
+        const RustInput input(source);
+        metaxtract::native::ParserContext context(input, convert_limits(limits));
+        if (limits.max_wall_time_ms == 0) { return {.candidates = {}, .status = 2, .recoverable = false}; }
+        rust::Vec<FfiContentCandidate> candidates;
+        if (context.budget().checkpoint()) {
+            for (const auto& value : metaxtract::native::detect_content(context)) {
+                candidates.push_back({
+                    .format = rust::String(value.format),
+                    .mime = rust::String(value.mime),
+                    .container = rust::String(value.container),
+                    .state = static_cast<std::uint32_t>(value.state),
+                    .offset = value.offset,
+                    .length = value.length,
+                    .detail = rust::String(value.detail),
+                });
+            }
+        }
+        static_cast<void>(context.budget().checkpoint());
+        const auto status = static_cast<std::uint32_t>(context.budget().status());
+        return {.candidates = std::move(candidates), .status = status, .recoverable = status != 0};
+    } catch (const metaxtract::native::DetectionFailure& failure) {
+        return {.candidates = {}, .status = failure.status, .recoverable = failure.status != 2 && failure.status != 3 && failure.status != 8};
+    } catch (const std::bad_alloc&) {
+        return {.candidates = {}, .status = 8, .recoverable = false};
+    } catch (...) {
+        return {.candidates = {}, .status = 3, .recoverable = false};
+    }
 }
 
 FfiBudgetStatus ffi_validate_limits(
