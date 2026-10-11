@@ -12,6 +12,7 @@ from typing import Any
 from metaxtract.case.importer import ImportPayload, bundle_is_signed, import_payload
 from metaxtract.core.workspace import CaseWorkspace, RecordAnnotation, ScanSummary
 from metaxtract.ui import dialogs
+from metaxtract.ui.comparison import show_scan_comparison
 from metaxtract.ui.icons import apply_window_icons
 from metaxtract.ui.recent import RecentCaseStore
 from metaxtract.ui.records import (
@@ -98,6 +99,7 @@ class MetaXtractGUI(tk.Tk):
             command=self._save_case,
         )
         case_menu.add_command(label="Case Notes…", command=self._edit_case_details)
+        case_menu.add_command(label="Compare Scans…", command=self._compare_scans)
         case_menu.add_command(label="Close Case", command=self._close_case)
         case_menu.add_separator()
         case_menu.add_command(label="Exit", command=self._close)
@@ -159,6 +161,13 @@ class MetaXtractGUI(tk.Tk):
             pady=(8, 0),
         )
         self.history_combo.bind("<<ComboboxSelected>>", self._select_scan_history)
+        self.compare_button = ttk.Button(
+            case,
+            text="Compare",
+            command=self._compare_scans,
+            state=tk.DISABLED,
+        )
+        self.compare_button.grid(row=1, column=8, padx=(6, 0), pady=(8, 0))
 
     def _build_target_controls(self) -> None:
         target = ttk.Frame(self, padding=(10, 10, 10, 4))
@@ -575,6 +584,24 @@ class MetaXtractGUI(tk.Tk):
         self._update_case_ui()
         self.status_var.set("Case title and notes saved.")
 
+    def _compare_scans(self) -> None:
+        if self._worker is not None or self._workspace is None:
+            return
+        scans = self._workspace.list_scans()
+        if len(scans) < 2:
+            messagebox.showinfo(
+                "MetaXtract",
+                "At least two saved scans are required for comparison.",
+                parent=self,
+            )
+            return
+        show_scan_comparison(
+            self,
+            self._workspace,
+            scans,
+            self._current_scan_id,
+        )
+
     def _save_case(self, *, announce: bool = True) -> bool:
         if self._worker is not None:
             return False
@@ -816,6 +843,9 @@ class MetaXtractGUI(tk.Tk):
         self.case_notes_button.configure(
             state=tk.NORMAL if has_case and not busy else tk.DISABLED
         )
+        self.compare_button.configure(
+            state=tk.NORMAL if len(self._scan_history) >= 2 and not busy else tk.DISABLED
+        )
         self.history_combo.configure(
             state="readonly" if self._scan_history and not busy else "disabled"
         )
@@ -1031,6 +1061,7 @@ class MetaXtractGUI(tk.Tk):
             self.close_case_button,
             self.import_button,
             self.case_notes_button,
+            self.compare_button,
         ):
             widget.configure(state=idle_state)
         self.cancel_button.configure(
