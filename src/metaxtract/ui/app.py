@@ -10,10 +10,12 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from metaxtract.case.importer import ImportPayload, bundle_is_signed, import_payload
+from metaxtract.core.preview import build_record_preview
 from metaxtract.core.workspace import CaseWorkspace, RecordAnnotation, ScanSummary
 from metaxtract.ui import dialogs
 from metaxtract.ui.comparison import show_scan_comparison
 from metaxtract.ui.icons import apply_window_icons
+from metaxtract.ui.preview import show_preview
 from metaxtract.ui.recent import RecentCaseStore
 from metaxtract.ui.records import (
     FILTER_ALL,
@@ -392,6 +394,18 @@ class MetaXtractGUI(tk.Tk):
             row=2,
             column=1,
             sticky=tk.E,
+            pady=(8, 0),
+        )
+        self.preview_button = ttk.Button(
+            annotation,
+            text="Preview source",
+            command=self._preview_selected,
+            state=tk.DISABLED,
+        )
+        self.preview_button.grid(
+            row=2,
+            column=0,
+            sticky=tk.W,
             pady=(8, 0),
         )
 
@@ -1072,6 +1086,7 @@ class MetaXtractGUI(tk.Tk):
             self.annotation_tags_entry.configure(state=tk.DISABLED)
             self.annotation_note.configure(state=tk.DISABLED)
             self.annotation_save_button.configure(state=tk.DISABLED)
+            self.preview_button.configure(state=tk.DISABLED)
             self.history_combo.configure(state="disabled")
         else:
             self._set_export_state(
@@ -1200,6 +1215,52 @@ class MetaXtractGUI(tk.Tk):
         self.annotation_save_button.configure(
             state=tk.NORMAL if enabled else tk.DISABLED
         )
+        preview_enabled = (
+            self._selected_record_path is not None
+            and self._scan_base is not None
+            and self._worker is None
+        )
+        self.preview_button.configure(
+            state=tk.NORMAL if preview_enabled else tk.DISABLED
+        )
+
+    def _preview_selected(self) -> None:
+        if (
+            self._selected_record_path is None
+            or self._scan_base is None
+            or self._worker is not None
+        ):
+            return
+        record = next(
+            (
+                item
+                for item in self._last_records
+                if item.get("path") == self._selected_record_path
+            ),
+            None,
+        )
+        if record is None:
+            return
+        expected_file = (
+            self._scan_source_path if self._scan_source_kind == "file" else None
+        )
+        try:
+            preview = build_record_preview(
+                self._scan_base,
+                self._selected_record_path,
+                mime=str(record.get("mime") or ""),
+                expected_file=expected_file,
+                expected_size=int(record.get("size_bytes") or 0),
+                expected_sha256=str(record.get("sha256") or ""),
+            )
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
+            messagebox.showerror(
+                "MetaXtract",
+                f"Preview unavailable: {exc}",
+                parent=self,
+            )
+            return
+        show_preview(self, preview)
 
     def _save_annotation(self) -> None:
         if (
