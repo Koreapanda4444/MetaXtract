@@ -51,3 +51,7 @@ For the rules these checks protect, see [architecture](../docs/architecture.md),
 Audio fixtures cover all eight planned audio families, original and library fields, unknown
 ID3 data, Vorbis/Opus comments, chunk/frame bounds and read/observation/allocation limits.
 Named TagLib source fixtures retain upstream licensing and exact-revision provenance in the corpus.
+
+Media fixtures cover every planned container family, fragmented/large BMFF boxes, streaming
+EBML boundaries, AVI stream headers, MPEG sequence data, transport alignment/PSI CRC,
+malformed extents and depth/entry/read ceilings.

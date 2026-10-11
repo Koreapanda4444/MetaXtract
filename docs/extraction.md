@@ -123,3 +123,25 @@ is not proof that every audio frame decodes. Ogg headers and continuations are b
 page CRC and codec-frame verification are not performed here. Library reads and output are
 budgeted, and a 16 MiB working allowance is charged before TagLib. Its internal allocations
 and cooperative deadline still require later scanner isolation for a hard memory/time boundary.
+
+## Media containers
+
+The media.structure parser walks MP4/MOV boxes, including 64-bit sizes and movie fragments;
+reads movie/track clocks, display matrices, dimensions, language, handlers, sample
+descriptions, sample counts/tables and chunk offsets; and retains unknown metadata boxes.
+QuickTime without ftyp is supported. Media bytes in mdat are not copied as metadata, and
+external data references are never opened.
+
+Matroska/WebM inspection reads EBML, segment/track identities, timing, codecs, video/audio
+properties, language, color fields, chapters, tags and attachment payloads. Streaming segments
+and clusters with unknown sizes stop at known sibling boundaries. Unknown metadata elements
+are retained; large encoded blocks are skipped. AVI inspection reads main and stream headers,
+formats, INFO chunks, OpenDML frame counts and index sizes while skipping the media list.
+
+MPEG elementary/program streams expose sequence geometry and rates, pack/system headers,
+stream IDs and user data. Transport streams support 188/192/204-byte packets, bounded
+multi-packet PAT/PMT assembly, CRC checks, program/elementary PIDs and descriptor packets.
+Continuity gaps, scrambled payloads, incomplete PSI and trailing packets remain explicit.
+This parser inspects declared container structures; it does not certify every codec frame,
+resolve external resources or reconstruct an entire playback timeline. Original source
+ranges and assembled-packet provenance remain separate, and all descent/read/output budgets apply.

@@ -11,6 +11,7 @@ std::unique_ptr<Parser> image_metadata_parser();
 std::unique_ptr<Parser> raw_metadata_parser();
 std::unique_ptr<Parser> heif_metadata_parser();
 std::unique_ptr<Parser> audio_metadata_parser();
+std::unique_ptr<Parser> media_structure_parser();
 #ifdef METAXTRACT_CONFORMANCE
 std::unique_ptr<Parser> conformance_parser();
 #endif
@@ -43,6 +44,7 @@ const ParserRegistry& default_registry() noexcept {
         result.add(raw_metadata_parser());
         result.add(heif_metadata_parser());
         result.add(audio_metadata_parser());
+        result.add(media_structure_parser());
 #ifdef METAXTRACT_CONFORMANCE
         result.add(conformance_parser());
 #endif

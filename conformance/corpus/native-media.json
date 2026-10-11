@@ -1,0 +1,429 @@
+{
+  "schema": 1,
+  "provenance": "Generated structural media fixtures with explicit field values; structural metadata success does not establish codec decoding validity.",
+  "cases": [
+    {
+      "name": "bmff-mp4-video-track",
+      "parser": "media.structure",
+      "base64": "AAAAFGZ0eXBpc29tAAAAAG1wNDIAAAGbbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAABAAAD6AAAB9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASd0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAACAAAAAADDbWRpYQAAACBtZGhkAAAAAAAAAAAAAAABAAAD6AAAB9AVxwAAAAAAJWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABEZW1vAAAAAHZtaW5mAAAAbnN0YmwAAABmc3RzZAAAAAAAAAABAAAAVmF2YzEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAwACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMbWRhdAAAAAA=",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "major_brand": [
+          "69736f6d"
+        ],
+        "track_id": [
+          "1"
+        ],
+        "timescale": [
+          "1000",
+          "1000"
+        ],
+        "duration_ticks": [
+          "2000",
+          "2000",
+          "2000"
+        ],
+        "display_width": [
+          "3"
+        ],
+        "display_height": [
+          "2"
+        ],
+        "language": [
+          "656e67"
+        ],
+        "codec_fourcc": [
+          "61766331"
+        ]
+      }
+    },
+    {
+      "name": "quicktime-without-ftyp",
+      "parser": "media.structure",
+      "base64": "AAABm21vb3YAAABsbXZoZAAAAAAAAAAAAAAAAQAAA+gAAAfQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEndHJhawAAAFx0a2hkAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAfQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAgAAAAAAw21kaWEAAAAgbWRoZAAAAAAAAAAAAAAAAQAAA+gAAAfQFccAAAAAACVoZGxyAAAAAAAAAAB2aWRlAAAAAAAAAAAAAAAARGVtbwAAAAB2bWluZgAAAG5zdGJsAAAAZnN0c2QAAAAAAAAAAQAAAFZhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAMAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADG1kYXQAAAAA",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "track_id": [
+          "1"
+        ],
+        "handler_type": [
+          "76696465"
+        ]
+      }
+    },
+    {
+      "name": "bmff-large-size-box",
+      "parser": "media.structure",
+      "base64": "AAAAAWZ0eXAAAAAAAAAAGHF0ICAAAAAA",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "major_brand": [
+          "71742020"
+        ]
+      }
+    },
+    {
+      "name": "bmff-fragment-decode-time",
+      "parser": "media.structure",
+      "base64": "AAAAFGZ0eXBpc29tAAAAAG1wNDIAAABEbW9vZgAAADx0cmFmAAAAEHRmaGQAAAAAAAAAAQAAABR0ZmR0AQAAAAAAABy+mRoUAAAAEHRydW4AAAAAAAAAAw==",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "track_id": [
+          "1"
+        ],
+        "base_decode_time": [
+          "123456789012"
+        ],
+        "fragment_sample_count": [
+          "3"
+        ]
+      }
+    },
+    {
+      "name": "matroska-video-track-date",
+      "parser": "media.structure",
+      "base64": "GkXfo49ChoEBQoKIbWF0cm9za2EYU4BnyRVJqWakKtexgw9CQESJiECfQAAAAAAAe6mERGVtb0RhiP//////////FlSua5uumdeBAXPFgXuDgQGGhVZfVlA54IawgQO6gQI=",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "document_type": [
+          "6d6174726f736b61"
+        ],
+        "title": [
+          "44656d6f"
+        ],
+        "date_utc_ns_2001": [
+          "-1"
+        ],
+        "track_number": [
+          "1"
+        ],
+        "track_uid": [
+          "123"
+        ],
+        "codec_id": [
+          "565f565039"
+        ],
+        "pixel_width": [
+          "3"
+        ],
+        "pixel_height": [
+          "2"
+        ],
+        "duration_ticks": [
+          "2000"
+        ]
+      }
+    },
+    {
+      "name": "webm-opus-audio-track",
+      "parser": "media.structure",
+      "base64": "GkXfo4dCgoR3ZWJtGFOAZ6QWVK5rn66d14ECg4EChoZBX09QVVPhjbWIQOdwAAAAAACfgQE=",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "document_type": [
+          "7765626d"
+        ],
+        "track_number": [
+          "2"
+        ],
+        "codec_id": [
+          "415f4f505553"
+        ],
+        "sample_rate": [
+          "48000"
+        ],
+        "channels": [
+          "1"
+        ]
+      }
+    },
+    {
+      "name": "streaming-segment-cluster-and-next-info",
+      "parser": "media.structure",
+      "base64": "GkXfo49ChoEBQoKIbWF0cm9za2EYU4Bn/x9DtnX/54EAFUmpZqQq17GDD0JARImIQJ9AAAAAAAB7qYREZW1vRGGI//////////8=",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "title": [
+          "44656d6f"
+        ],
+        "cluster_timestamp": [
+          "0"
+        ],
+        "declared_size_unknown": [
+          "0",
+          "0",
+          "0",
+          "1",
+          "1",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ]
+      }
+    },
+    {
+      "name": "avi-main-and-stream-headers",
+      "parser": "media.structure",
+      "base64": "UklGRuAAAABBVkkgTElTVLwAAABoZHJsYXZpaDgAAABAnAAAAAAAAAAAAAAAAAAAAgAAAAAAAAABAAAAAAAAAAMAAAACAAAAAAAAAAAAAAAAAAAAAAAAAExJU1RwAAAAc3RybHN0cmg4AAAAdmlkc01KUEcAAAAAAAAAAAAAAAABAAAAGQAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABzdHJmJAAAACgAAAADAAAAAgAAAAEAGABNSlBHAAAAAAAAAAAAAAAAAAAAAExJU1QQAAAAbW92aTAwZGMEAAAAZGF0YQ==",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "width": [
+          "3"
+        ],
+        "height": [
+          "2"
+        ],
+        "stream_count": [
+          "1"
+        ],
+        "stream_type": [
+          "76696473"
+        ],
+        "codec_fourcc": [
+          "4d4a5047"
+        ],
+        "rate": [
+          "25"
+        ],
+        "scale": [
+          "1"
+        ],
+        "total_frames": [
+          "2"
+        ]
+      }
+    },
+    {
+      "name": "mpeg-elementary-sequence-and-user-data",
+      "parser": "media.structure",
+      "base64": "AAABswAwAhMA+iAAAAABsk1ldGFYdHJhY3QAAAG3",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "width": [
+          "3"
+        ],
+        "height": [
+          "2"
+        ],
+        "frame_rate_code": [
+          "3"
+        ],
+        "user_data": [
+          "4d657461587472616374"
+        ]
+      }
+    },
+    {
+      "name": "mpeg-program-pack-and-pes",
+      "parser": "media.structure",
+      "base64": "AAABukQAAAAAAAAAAPgAAAHgAAMAAAAAAAG5",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "stream_id": [
+          "224"
+        ],
+        "packet_payload_size": [
+          "3"
+        ]
+      }
+    },
+    {
+      "name": "transport-pat-pmt-h264",
+      "parser": "media.structure",
+      "base64": "R0AAEAAAsA0AAcEAAAAB4QDo+V59//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////9HQQAQAAKwEgABwQAA4QHwABvhAfAAT8Q9G////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////0cBARAAAAAAAAAAAP//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "program_number": [
+          "1"
+        ],
+        "program_map_pid": [
+          "256"
+        ],
+        "pcr_pid": [
+          "257"
+        ],
+        "stream_type": [
+          "27"
+        ],
+        "elementary_pid": [
+          "257"
+        ],
+        "packet_stride": [
+          "188"
+        ]
+      }
+    },
+    {
+      "name": "m2ts-packet-prefix",
+      "parser": "media.structure",
+      "base64": "AAAAAEdAABAAALANAAHBAAAAAeEA6Pleff//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////AAAAAEdBABAAArASAAHBAADhAfAAG+EB8ABPxD0b////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////AAAAAEcBARAAAAAAAAAAAP//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "program_number": [
+          "1"
+        ],
+        "program_map_pid": [
+          "256"
+        ],
+        "pcr_pid": [
+          "257"
+        ],
+        "stream_type": [
+          "27"
+        ],
+        "elementary_pid": [
+          "257"
+        ],
+        "packet_stride": [
+          "192"
+        ]
+      }
+    },
+    {
+      "name": "transport-fec-packet-tail",
+      "parser": "media.structure",
+      "base64": "R0AAEAAAsA0AAcEAAAAB4QDo+V59//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAR0EAEAACsBIAAcEAAOEB8AAb4QHwAE/EPRv///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAARwEBEAAAAAAAAAAA//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAA",
+      "status": "OK",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "program_number": [
+          "1"
+        ],
+        "program_map_pid": [
+          "256"
+        ],
+        "pcr_pid": [
+          "257"
+        ],
+        "stream_type": [
+          "27"
+        ],
+        "elementary_pid": [
+          "257"
+        ],
+        "packet_stride": [
+          "204"
+        ]
+      }
+    },
+    {
+      "name": "transport-bad-section-crc",
+      "parser": "media.structure",
+      "base64": "R0AAEAAAsA0AAcEAAAAB4QDo+V58//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////9HAQEQAAAAAAAAAAD//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w==",
+      "status": "MalformedData",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {}
+    },
+    {
+      "name": "bmff-box-overflow",
+      "parser": "media.structure",
+      "base64": "AAAAFGZ0eXBpc29tAAAAAG1wNDIAAAPnbW9vdg==",
+      "status": "MalformedData",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "major_brand": [
+          "69736f6d"
+        ]
+      }
+    },
+    {
+      "name": "ebml-zero-vint",
+      "parser": "media.structure",
+      "base64": "GkXfo49ChoEBQoKIbWF0cm9za2EA",
+      "status": "MalformedData",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {
+        "document_type": [
+          "6d6174726f736b61"
+        ]
+      }
+    },
+    {
+      "name": "ebml-leaf-unknown-size",
+      "parser": "media.structure",
+      "base64": "GkXfo49ChoEBQoKIbWF0cm9za2GG/w==",
+      "status": "MalformedData",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {}
+    },
+    {
+      "name": "avi-truncated-container",
+      "parser": "media.structure",
+      "base64": "UklGRuAAAABBVkkgTElTVLwAAABoZHJsYXZpaDgAAABAnAAAAAAAAAAAAAAAAAAAAgAAAAAAAAABAAAAAAAAAAMAAAACAAAAAAAAAAAAAAAAAAAAAAAAAExJU1RwAAAAc3RybHN0cmg4AAAAdmlkc01KUEcAAAAAAAAAAAAAAAABAAAAGQAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABzdHJmJAAAACgAAAADAAAAAgAAAAEAGABNSlBHAAAAAAAAAAAAAAAAAAAAAExJU1QQAAAAbW92aTAwZGMEAAAAZGF0",
+      "status": "MalformedData",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {}
+    },
+    {
+      "name": "mpeg-truncated-sequence",
+      "parser": "media.structure",
+      "base64": "AAABswAwAg==",
+      "status": "MalformedData",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {}
+    },
+    {
+      "name": "media-depth-budget",
+      "parser": "media.structure",
+      "base64": "AAAAFGZ0eXBpc29tAAAAAG1wNDIAAAGbbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAABAAAD6AAAB9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASd0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAACAAAAAADDbWRpYQAAACBtZGhkAAAAAAAAAAAAAAABAAAD6AAAB9AVxwAAAAAAJWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABEZW1vAAAAAHZtaW5mAAAAbnN0YmwAAABmc3RzZAAAAAAAAAABAAAAVmF2YzEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAwACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMbWRhdAAAAAA=",
+      "status": "ContainerDepthExceeded",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {},
+      "depth_max": 1
+    },
+    {
+      "name": "media-entry-budget",
+      "parser": "media.structure",
+      "base64": "AAAAFGZ0eXBpc29tAAAAAG1wNDIAAAGbbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAABAAAD6AAAB9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASd0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAACAAAAAADDbWRpYQAAACBtZGhkAAAAAAAAAAAAAAABAAAD6AAAB9AVxwAAAAAAJWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABEZW1vAAAAAHZtaW5mAAAAbnN0YmwAAABmc3RzZAAAAAAAAAABAAAAVmF2YzEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAwACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMbWRhdAAAAAA=",
+      "status": "EntryLimitExceeded",
+      "read_max": 16777216,
+      "observation_max": 10000,
+      "fields": {},
+      "entries_max": 1
+    },
+    {
+      "name": "media-read-budget",
+      "parser": "media.structure",
+      "base64": "AAAAFGZ0eXBpc29tAAAAAG1wNDIAAAGbbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAABAAAD6AAAB9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASd0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAACAAAAAADDbWRpYQAAACBtZGhkAAAAAAAAAAAAAAABAAAD6AAAB9AVxwAAAAAAJWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABEZW1vAAAAAHZtaW5mAAAAbnN0YmwAAABmc3RzZAAAAAAAAAABAAAAVmF2YzEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAwACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMbWRhdAAAAAA=",
+      "status": "ReadBudgetExceeded",
+      "read_max": 1,
+      "observation_max": 10000,
+      "fields": {}
+    }
+  ]
+}

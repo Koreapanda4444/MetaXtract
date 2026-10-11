@@ -12,6 +12,7 @@ add_library(metaxtract_extract STATIC
   src/heif.cpp
   src/raw.cpp
   src/audio.cpp
+  src/media.cpp
   src/tiff.cpp
   src/parser.cpp
   src/registry.cpp
