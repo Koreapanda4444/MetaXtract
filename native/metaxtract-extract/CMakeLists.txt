@@ -11,6 +11,7 @@ add_library(metaxtract_extract STATIC
   src/image_metadata.cpp
   src/heif.cpp
   src/raw.cpp
+  src/audio.cpp
   src/tiff.cpp
   src/parser.cpp
   src/registry.cpp
@@ -21,7 +22,7 @@ target_include_directories(metaxtract_extract
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_compile_features(metaxtract_extract PUBLIC cxx_std_20)
-target_link_libraries(metaxtract_extract PUBLIC mx_pugixml mx_zlib mx_libraw)
+target_link_libraries(metaxtract_extract PUBLIC mx_pugixml mx_zlib mx_libraw tag)
 set_target_properties(metaxtract_extract PROPERTIES POSITION_INDEPENDENT_CODE ON)
 install(TARGETS metaxtract_extract ARCHIVE DESTINATION lib)
 
@@ -55,5 +56,9 @@ endif()
 if(BUILD_TESTING)
   add_executable(metaxtract_native_smoke ${PROJECT_SOURCE_DIR}/conformance/native.cpp)
   target_link_libraries(metaxtract_native_smoke PRIVATE metaxtract_extract)
+  if(WIN32)
+    add_custom_command(TARGET metaxtract_native_smoke POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:tag>" "$<TARGET_FILE_DIR:metaxtract_native_smoke>")
+  endif()
   add_test(NAME metaxtract_native_smoke COMMAND metaxtract_native_smoke)
 endif()

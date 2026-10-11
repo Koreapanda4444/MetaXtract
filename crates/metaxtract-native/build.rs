@@ -36,6 +36,10 @@ fn main() {
                 "MultiThreadedDLL"
             },
         );
+        config.define(
+            "METAXTRACT_STATIC_CRT",
+            if static_crt { "ON" } else { "OFF" },
+        );
     }
     let built = config
         .define("BUILD_TESTING", "OFF")
@@ -79,6 +83,7 @@ fn main() {
     println!("cargo:rustc-link-lib=static=mx_pugixml");
     println!("cargo:rustc-link-lib=static=mx_zlib");
     println!("cargo:rustc-link-lib=dylib=mx_libraw");
+    println!("cargo:rustc-link-lib=dylib=tag");
     println!("cargo:rerun-if-env-changed=METAXTRACT_SANITIZERS");
 
     for path in [

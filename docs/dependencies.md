@@ -47,3 +47,8 @@ python conformance/validate.py --cargo
 
 The online check requires network access. The Cargo check requires the pinned Rust toolchain
 and dependency metadata. See [conformance](../conformance/README.md) for the build environment.
+
+The active audio adapter dynamically bundles TagLib 2.3.2 and its explicitly pinned UTFcpp
+4.2.0 headers (Boost Software License 1.0). Implicit Git submodule fetching is disabled.
+TagLib uses the reviewed zlib target; system dependencies and installed UTFcpp packages are
+not substituted. Original LGPL/MPL and UTFcpp notices are included in installed builds.

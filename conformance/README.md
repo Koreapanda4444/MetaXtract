@@ -47,3 +47,7 @@ Rust policy regression checks also run with `cargo test --workspace --locked`.
 
 For the rules these checks protect, see [architecture](../docs/architecture.md),
 [the language boundary](../docs/ffi.md), and [parser resource limits](../docs/resource-limits.md).
+
+Audio fixtures cover all eight planned audio families, original and library fields, unknown
+ID3 data, Vorbis/Opus comments, chunk/frame bounds and read/observation/allocation limits.
+Named TagLib source fixtures retain upstream licensing and exact-revision provenance in the corpus.

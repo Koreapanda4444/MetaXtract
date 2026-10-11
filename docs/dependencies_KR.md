@@ -49,3 +49,8 @@ python conformance/validate.py --cargo
 
 온라인 검증에는 네트워크 연결이 필요합니다. Cargo 검증에는 고정된 Rust 도구 모음과
 의존성 메타데이터가 필요합니다. 빌드 환경은 [전환 검증](../conformance/README_KR.md)을 참고합니다.
+
+오디오 어댑터는 TagLib 2.3.2를 동적으로 포함하고, UTFcpp 4.2.0 헤더도 정확한 커밋으로
+고정합니다. UTFcpp의 Boost Software License 1.0을 검토해 허용 목록에 추가했습니다.
+Git 하위 모듈을 암묵적으로 받지 않으며, 시스템 zlib·UTFcpp 대신 검토한 소스를 사용합니다.
+설치 결과에 원본 LGPL·MPL·UTFcpp 라이선스를 포함합니다.

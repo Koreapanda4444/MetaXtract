@@ -106,3 +106,20 @@ Correlated capabilities of the same parser family do not count as independent ag
 Duplicate observation IDs and mixed sources are rejected. Configurable analysis limits bound
 observation count, alternatives per key and claim links; exhaustion reports an error and
 does not silently truncate the source observations. Full case/record parity is still pending.
+
+## Audio metadata
+
+`audio.metadata` combines source-located native structures with TagLib 2.3.2 interpretation
+through a Rust-owned read-only stream. It reads MP3 ID3v1/v2 frames (including unknown frames),
+FLAC STREAMINFO and metadata blocks, Vorbis/Opus headers and comments, WAV/AIFF chunks,
+BWF origin and timing fields, APEv2 items, and APE/WavPack technical properties. Repeated tags
+are preserved. UTF-8, Latin-1 and unspecified text encodings remain distinct. Compressed and
+unsynchronized ID3 packets retain their original bytes for library interpretation. TagLib also
+exposes supported M4A/MP4, ASF and DSF tags; native container detail is handled separately.
+
+Library values name the TagLib stream and do not invent source offsets. The adapter retains
+partial source observations when a library cannot inspect a damaged file. Metadata success
+is not proof that every audio frame decodes. Ogg headers and continuations are bounded; full
+page CRC and codec-frame verification are not performed here. Library reads and output are
+budgeted, and a 16 MiB working allowance is charged before TagLib. Its internal allocations
+and cooperative deadline still require later scanner isolation for a hard memory/time boundary.

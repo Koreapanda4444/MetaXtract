@@ -50,3 +50,7 @@ Rust 정책의 회귀 검증도 `cargo test --workspace --locked`로 실행합�
 
 검증이 보호하는 규칙은 [아키텍처](../docs/architecture_KR.md),
 [언어 경계](../docs/ffi_KR.md), [파서 자원 제한](../docs/resource-limits_KR.md)을 참고합니다.
+
+오디오 샘플은 계획한 8개 형식 계열의 원본·라이브러리 값, 모르는 ID3 데이터, Vorbis·Opus
+댓글, 청크·프레임 범위와 읽기·관측·할당 제한을 검사합니다. TagLib 원본 샘플은 자료에
+정확한 커밋과 원본 라이선스 출처를 기록합니다.
