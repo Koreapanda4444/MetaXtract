@@ -59,3 +59,9 @@ It requires GNU make and a shell; Windows uses MSVC with MSYS2 bash/make. The ne
 requires neither Python nor metadata executables. Installed builds include the original LGPL
 notice and actual configuration manifest. The build cache includes source/zlib revisions,
 compiler, CRT and sanitizer settings and uses a stable source path across Cargo profiles.
+
+The PDF adapter statically bundles qpdf's locked library/native-crypto source lists and reviewed
+libjpeg-turbo, with JPEG SIMD, tools and TurboJPEG disabled. It does not discover system zlib,
+JPEG, OpenSSL or GnuTLS packages. Original Apache, IJG and libjpeg notices are installed.
+The generated qpdf Pl_Buffer copy adds one parser-local budget hook; its pinned source and
+modification remain identified. This software is based in part on the work of the Independent JPEG Group.

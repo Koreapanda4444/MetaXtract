@@ -61,3 +61,11 @@ GNU make와 셸이 필요하며 Windows는 MSVC와 MSYS2 bash·make를 사용합
 실행에는 Python이나 메타데이터 실행 프로그램이 필요하지 않습니다. 설치 결과에 원본
 LGPL 안내와 실제 설정을 포함합니다. 캐시 키에는 소스·zlib 리비전, 컴파일러, CRT와
 sanitizer 설정을 반영하고 Cargo 구성마다 동일한 소스 경로를 사용합니다.
+
+PDF 어댑터는 고정한 qpdf 라이브러리·내장 암호 처리 소스와 검토한 libjpeg-turbo를 정적으로
+배포합니다. JPEG SIMD·실행 도구·TurboJPEG는 비활성화하고 시스템 zlib·JPEG·OpenSSL·GnuTLS를
+자동 선택하지 않습니다. 원본 Apache·IJG·libjpeg 안내를 설치 결과에 포함합니다. 생성한
+qpdf Pl_Buffer 사본에는 파서별 자원 제한 확인을 한 곳 추가하며 원본 리비전과 수정 내용을
+명시합니다. 아래 문구는 IJG 원본 배포 요구 사항입니다.
+
+This software is based in part on the work of the Independent JPEG Group.

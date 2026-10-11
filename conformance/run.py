@@ -112,7 +112,7 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
 
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
-    wanted = ["INFO\t1\t1\t10", "SCHEMA\tOK"]
+    wanted = ["INFO\t1\t1\t11", "SCHEMA\tOK"]
     extraction_cases = _read_json(ROOT / "conformance" / "corpus" / "images.json")["cases"]
     for corpus_path in sorted((ROOT / "conformance" / "corpus").glob("native-*.json")):
         extraction_cases.extend(_read_json(corpus_path)["cases"])

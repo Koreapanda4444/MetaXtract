@@ -162,3 +162,13 @@ source = "https://github.com/nemtrif/utfcpp"
 license = "BSL-1.0"
 role = "reviewed TagLib UTF conversion dependency"
 linkage = "source"
+
+[[dependency]]
+name = "libjpeg-turbo"
+version = "3.1.4.1"
+revision = "9217719d3a58633923b096af4c1d50d304768a64"
+tag = "3.1.4.1"
+source = "https://github.com/libjpeg-turbo/libjpeg-turbo"
+license = "IJG AND BSD-3-Clause AND Zlib"
+role = "reviewed qpdf JPEG stream dependency"
+linkage = "bundled-static"

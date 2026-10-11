@@ -81,6 +81,8 @@ fn main() {
     );
     println!("cargo:rustc-link-lib=static=metaxtract_extract");
     println!("cargo:rustc-link-lib=static=mx_pugixml");
+    println!("cargo:rustc-link-lib=static=mx_qpdf");
+    println!("cargo:rustc-link-lib=static=mx_jpeg");
     println!("cargo:rustc-link-lib=static=mx_zlib");
     println!("cargo:rustc-link-lib=dylib=mx_libraw");
     println!("cargo:rustc-link-lib=dylib=tag");

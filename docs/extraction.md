@@ -185,3 +185,25 @@ Reads, packet traversal, decoder frame buffers, preview copies and output are bu
 A 32 MiB working allowance and a 64 MiB maximum individual FFmpeg allocation complement
 these checks. They do not meter all library allocations or provide a forced timeout;
 the later scanner isolation boundary remains necessary.
+
+## PDF metadata and revisions
+
+pdf.metadata statically links reviewed qpdf 12.4.2 and libjpeg-turbo 3.1.4.1. Rust-backed custom
+input permits read-only parsing without qpdf programs or external resources. It preserves Info
+strings and uninterpreted string bytes, custom fields, catalog attributes, XMP packets, inherited
+page geometry, Unicode attachment names, stream dictionaries, associations and decoded payloads.
+
+A bounded lexical reader walks the actual final startxref, classic tables, cross-reference
+streams, hybrid supplements and Prev chain. It retains original dictionary/row bytes and offsets.
+EOF-like text inside streams does not count as a revision. Deleted generations cannot revive older
+slot mappings. Compressed cross-reference/object streams are supported. Library-resolved fields
+identify their object and do not invent byte ranges. An indirect raw xref-stream length is explicitly
+reported as requiring library resolution; metadata parsing still uses qpdf's full resolver.
+
+Unknown stream filters, malformed trees and budget exhaustion preserve earlier observations
+and report incomplete extraction. Empty-password encryption can be opened by qpdf; protected
+documents report password_required and remain partial. Password entry is not yet exposed.
+
+The adapter charges a 32 MiB working allowance, checks read/traversal/output limits and inserts
+parser-local budget checks before qpdf's internal Pl_Buffer growth, including object-stream
+decompression. This does not meter every allocation or provide preemptive worker isolation.

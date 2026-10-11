@@ -63,3 +63,8 @@ In-process media fixtures check real MP3/FLAC/Opus frames, declared PCM samples,
 preview pixels, AVI frames, scaling, unsupported codecs, disabled external playlist protocols,
 and read/allocation/output limits. Native builds also require Python 3.11+, GNU make and a shell.
 Windows needs MSVC and MSYS2 bash/make in C:/msys64, or METAXTRACT_MSYS_ROOT.
+
+PDF fixtures declare known Info/XMP strings, page geometry, Unicode names and attachment
+bytes; exercise actual table/stream references, compressed objects and incremental changes;
+and check invalid trees, unsupported filters, partial results and each resource ceiling.
+The object-stream budget case checks qpdf's internal decoded-buffer guard.

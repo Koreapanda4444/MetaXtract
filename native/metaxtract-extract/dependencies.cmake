@@ -98,3 +98,4 @@ install(FILES "${TagLib_SOURCE_DIR}/COPYING.LGPL" "${TagLib_SOURCE_DIR}/COPYING.
 install(FILES "${utfcpp_SOURCE_DIR}/LICENSE" DESTINATION share/metaxtract/licenses RENAME utfcpp.txt)
 
 include(ffmpeg.cmake)
+include(qpdf.cmake)
