@@ -30,5 +30,6 @@ def build_report_from_rows(rows: List[JsonObj]) -> Dict[str, Any]:
             "authors": dict(findings["authors"]),
             "producers": dict(findings["producers"]),
             "models": dict(findings["models"]),
+            "classified": findings["classified"],
         },
     }

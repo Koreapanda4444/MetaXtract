@@ -11,6 +11,7 @@ CLI와 데스크톱 GUI를 제공합니다.
 - JSON·HTML 리포트, 두 스캔 결과 비교와 출처 보존 타임라인
 - 인터넷 연결 없이 GPS 위치 요약·GeoJSON·KML 내보내기
 - SHA-256 완전 중복과 이미지 지각 해시 기반 시각적 유사 파일 구분
+- 필드 근거를 남기는 개인정보 노출·메타데이터 이상 징후 분류
 - 원본 및 케이스 번들의 경로·크기·해시 검증
 - 개인정보 필드를 제거한 메타데이터 전용 번들
 - 동일 입력에서 동일한 바이트가 생성되는 결정적 ZIP
@@ -89,6 +90,7 @@ metaxtract report scan.jsonl --out report.json
 metaxtract timeline scan.jsonl --out timeline.json
 metaxtract geo scan.jsonl --format geojson --out locations.geojson
 metaxtract duplicates scan.jsonl --files-base evidence --out duplicates.json
+metaxtract findings scan.jsonl --out findings.json
 metaxtract verify scan.jsonl evidence
 metaxtract keygen private.pem public.pem
 metaxtract export-case scan.jsonl case.zip --include-files --files-base evidence \
@@ -173,6 +175,19 @@ metaxtract duplicates scan.jsonl --files-base evidence --threshold 8 \
 `--threshold`보다 작거나 같은 쌍을 시각적 유사한 파일로 보고하며, 완전 중복 쌍은
 여기에 중복 표시하지 않습니다. 원본을 변경하지 않고, 외부 서비스로 이미지를
 전송하지도 않습니다. 원본 폴더가 없으면 완전 중복만 계산합니다.
+
+### 개인정보·이상 징후
+
+```bash
+metaxtract findings scan.jsonl --out findings.json
+```
+
+GPS, 작성자·사용자, 기기·일련번호, 생성 소프트웨어 정보를 개인정보 노출로
+분류합니다. 확장자와 MIME 불일치, 생성일이 수정일보다 느진 날짜 충돌,
+불완전·범위 이탈 GPS, 파일 처리 오류도 이상 징후로 보고합니다. 각 항목은
+중요도·규칙 ID·설명과 함께 판정에 사용한 원본 필드·값을 보존하므로
+사용자가 결과를 직접 검토할 수 있습니다. 같은 분류은 JSON·HTML 리포트에도
+포함됩니다.
 
 ### 원본 검증
 

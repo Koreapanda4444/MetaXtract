@@ -138,6 +138,18 @@ def _cmd_duplicates(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def _cmd_findings(args: argparse.Namespace) -> int:
+    from .core.jsonio import dumps_json, read_jsonl
+    from .reporting.findings import findings_document
+
+    output = dumps_json(findings_document(read_jsonl(args.scan)))
+    if args.out:
+        Path(args.out).write_text(output + "\n", encoding="utf-8")
+    else:
+        print(output)
+    return EXIT_SUCCESS
+
+
 def _cmd_verify(args: argparse.Namespace) -> int:
     from .case.verify import verify_scan
     from .core.jsonio import dumps_json
@@ -290,6 +302,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum perceptual hash distance from 0 to 64 (default: 8)",
     )
     duplicates.set_defaults(func=_cmd_duplicates)
+
+    findings = sub.add_parser(
+        "findings",
+        help="classify privacy exposure and explain metadata anomalies",
+    )
+    findings.add_argument("scan", help="input scan.jsonl")
+    findings.add_argument("--out", help="output JSON path (default: stdout)")
+    findings.set_defaults(func=_cmd_findings)
 
     verify = sub.add_parser("verify", help="verify files on disk match hashes from scan.jsonl")
     verify.add_argument("scan", help="input scan.jsonl")

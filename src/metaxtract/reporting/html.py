@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 import html
 from collections import Counter
@@ -26,6 +27,8 @@ def render_html(records: List[Dict[str, Any]]) -> str:
     authors = findings["authors"]
     producers = findings["producers"]
     models = findings["models"]
+    classified = findings["classified"]
+    classified_items = classified["findings"]
 
     warnings = []
     errors = []
@@ -41,6 +44,7 @@ def render_html(records: List[Dict[str, Any]]) -> str:
             "<html><head><meta charset='utf-8'><title>MetaXtract Report</title>"
             "<style>body{font-family:sans-serif;} .warn{color:#b85c00;} "
             ".err{color:#b80000;font-weight:bold;} "
+            ".high{color:#b80000;font-weight:bold}.medium{color:#9a5700}"
             "table{border-collapse:collapse;} td,th{border:1px solid #ccc;padding:4px;}"
             "</style></head><body>"
         ),
@@ -51,7 +55,7 @@ def render_html(records: List[Dict[str, Any]]) -> str:
             f"<li>총 용량: <b>{total_size:,} bytes</b></li></ul>"
         ),
         "<h3>파일 타입별 개수</h3>",
-        "<ul>"
+        "<ul>",
     ]
     for k, v in sorted(mime_counts.items()):
         parts.append(_li(k, v))
@@ -67,9 +71,36 @@ def render_html(records: List[Dict[str, Any]]) -> str:
         parts.append(f"<li>Producer/Software: {len(producers)}종</li>")
     if models:
         parts.append(f"<li>촬영 기기 모델: {len(models)}종</li>")
-    if not (gps_files or authors or producers or models):
+    if classified_items:
+        parts.append(
+            f"<li>규칙 기반 개인정보·이상 징후: "
+            f"<b>{classified['total_findings']}</b>건 / "
+            f"{classified['files_with_findings']}개 파일</li>"
+        )
+    if not (gps_files or authors or producers or models or classified_items):
         parts.append("<li>특이 발견사항 없음</li>")
     parts.append("</ul>")
+
+    if classified_items:
+        parts.append(
+            "<h3>설명 가능한 발견 사항</h3>"
+            "<table><tr><th>중요도</th><th>분류</th><th>규칙</th>"
+            "<th>파일</th><th>이유</th><th>근거 필드</th></tr>"
+        )
+        for item in classified_items:
+            evidence = "; ".join(
+                f"{entry['field']}={entry['value']}" for entry in item["evidence"]
+            )
+            severity = html.escape(str(item["severity"]))
+            parts.append(
+                f"<tr><td class='{severity}'>{severity}</td>"
+                f"<td>{html.escape(str(item['category']))}</td>"
+                f"<td>{html.escape(str(item['rule_id']))}</td>"
+                f"<td>{html.escape(str(item['path']))}</td>"
+                f"<td>{html.escape(str(item['detail']))}</td>"
+                f"<td>{html.escape(evidence)}</td></tr>"
+            )
+        parts.append("</table>")
 
     # Top N
     def top_n(counter, title, n=5):
@@ -90,9 +121,7 @@ def render_html(records: List[Dict[str, Any]]) -> str:
     if warning_counts:
         parts.append("<ul>")
         for k, v in warning_counts.most_common():
-            parts.append(
-                f"<li class='warn'>{html.escape(str(k))}: {v}</li>"
-            )
+            parts.append(f"<li class='warn'>{html.escape(str(k))}: {v}</li>")
         parts.append("</ul>")
     else:
         parts.append("<p>경고 없음</p>")
@@ -101,9 +130,7 @@ def render_html(records: List[Dict[str, Any]]) -> str:
     if error_counts:
         parts.append("<ul>")
         for k, v in error_counts.most_common():
-            parts.append(
-                f"<li class='err'>{html.escape(str(k))}: {v}</li>"
-            )
+            parts.append(f"<li class='err'>{html.escape(str(k))}: {v}</li>")
         parts.append("</ul>")
     else:
         parts.append("<p>오류 없음</p>")
