@@ -31,6 +31,10 @@ function(metaxtract_archive)
   target_include_directories(archive_static SYSTEM PRIVATE "${zlib_SOURCE_DIR}"
     "${bzip2_SOURCE_DIR}" "${xz_SOURCE_DIR}/src/liblzma/api")
   target_link_libraries(archive_static PRIVATE mx_zlib mx_bzip2 liblzma)
+  if(WIN32)
+    # Utility objects reference the CNG RNG even with archive decryption disabled.
+    target_link_libraries(archive_static PUBLIC bcrypt)
+  endif()
   set_target_properties(archive_static PROPERTIES OUTPUT_NAME mx_archive)
   set_target_properties(liblzma PROPERTIES OUTPUT_NAME mx_lzma)
   set(hook "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/archive_alloc.h")

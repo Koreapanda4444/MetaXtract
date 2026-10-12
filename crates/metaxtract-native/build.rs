@@ -94,7 +94,7 @@ fn main() {
     }
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         for library in [
-            "ws2_32", "shell32", "advapi32", "gdi32", "user32", "crypt32",
+            "ws2_32", "shell32", "advapi32", "gdi32", "user32", "crypt32", "bcrypt",
         ] {
             println!("cargo:rustc-link-lib={library}");
         }
