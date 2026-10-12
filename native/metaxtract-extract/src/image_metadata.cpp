@@ -1,4 +1,5 @@
 #include "format.hpp"
+#include "xml.hpp"
 
 #include <pugixml.hpp>
 #include <zlib.h>
@@ -6,29 +7,9 @@
 #include <array>
 #include <cstdlib>
 #include <memory>
-#include <mutex>
 
 namespace metaxtract::native::formats {
 namespace {
-
-thread_local ParserBudget* xml_budget = nullptr;
-
-void* xml_allocate(const std::size_t size) {
-    if (xml_budget == nullptr || !xml_budget->reserve_allocation(size)) { return nullptr; }
-    return std::malloc(size);
-}
-
-void xml_free(void* data) { std::free(data); }
-
-struct XmlBudgetScope final {
-    ParserBudget* previous;
-    explicit XmlBudgetScope(ParserBudget& budget) : previous(xml_budget) {
-        static std::once_flag initialized;
-        std::call_once(initialized, [] { pugi::set_memory_management_functions(xml_allocate, xml_free); });
-        xml_budget = &budget;
-    }
-    ~XmlBudgetScope() { xml_budget = previous; }
-};
 
 voidpf z_allocate(voidpf owner, const uInt items, const uInt size) {
     auto& budget = *static_cast<ParserBudget*>(owner);
@@ -38,18 +19,6 @@ voidpf z_allocate(voidpf owner, const uInt items, const uInt size) {
 }
 
 void z_free(voidpf, voidpf data) { std::free(data); }
-
-std::string expanded(pugi::xml_node node, const std::string& name, const bool attribute = false) {
-    const auto colon = name.find(':');
-    if (colon == std::string::npos && attribute) { return name; }
-    const auto prefix = colon == std::string::npos ? "xmlns" : "xmlns:" + name.substr(0, colon);
-    for (auto scope = node; scope; scope = scope.parent()) {
-        if (const auto uri = scope.attribute(prefix.c_str())) {
-            return "{" + std::string(uri.value()) + "}" + (colon == std::string::npos ? name : name.substr(colon + 1));
-        }
-    }
-    return name;
-}
 
 std::size_t zero(const std::span<const std::uint8_t> bytes, const std::size_t at) {
     const auto found = std::find(bytes.begin() + static_cast<std::ptrdiff_t>(at), bytes.end(), 0);
@@ -101,10 +70,11 @@ void icc_data(Reader& reader, const std::span<const std::uint8_t> data, const bo
 
 }
 
-std::vector<std::uint8_t> inflate_metadata(Reader& reader, const std::span<const std::uint8_t> bytes) {
+std::vector<std::uint8_t> inflate_metadata(Reader& reader, const std::span<const std::uint8_t> bytes,
+                                        const int window_bits, const std::uint64_t maximum_output) {
     z_stream stream{};
     stream.zalloc = z_allocate; stream.zfree = z_free; stream.opaque = &reader.context.budget();
-    if (inflateInit(&stream) != Z_OK) { throw Failure{ParseStatus::Internal, "Could not initialize bounded inflater", reader.base}; }
+    if (inflateInit2(&stream, window_bits) != Z_OK) { throw Failure{ParseStatus::Internal, "Could not initialize bounded inflater", reader.base}; }
     const auto cleanup = std::unique_ptr<z_stream, decltype([](z_stream* value) { inflateEnd(value); })>(&stream);
     std::array<std::uint8_t, 16384> output{};
     std::vector<std::uint8_t> result;
@@ -118,6 +88,9 @@ std::vector<std::uint8_t> inflate_metadata(Reader& reader, const std::span<const
         stream.next_out = output.data(); stream.avail_out = static_cast<uInt>(output.size());
         const auto status = inflate(&stream, Z_NO_FLUSH);
         const auto produced = output.size() - stream.avail_out;
+        if (result.size() > maximum_output || produced > maximum_output - result.size()) {
+            throw Failure{ParseStatus::Malformed, "Inflated metadata exceeds its declared size", reader.base};
+        }
         if (!reader.context.budget().consume_decoded(produced) || !reader.context.budget().reserve_allocation(produced * 2)) { throw Failure{ParseStatus::Internal, "Inflated metadata exceeds budget", reader.base}; }
         result.insert(result.end(), output.begin(), output.begin() + static_cast<std::ptrdiff_t>(produced));
         if (status == Z_STREAM_END) {
@@ -142,14 +115,14 @@ void inspect_xmp_data(Reader& reader, const std::span<const std::uint8_t> bytes,
         Reader field(reader.context, reader.base, reader.size, reader.group + ".node" + std::to_string(sequence++));
         if (node.type() == pugi::node_doctype) { reader.diagnostic("doctype", "XMP contains a DTD; custom and external entities are not expanded", 0); }
         if (node.type() == pugi::node_element) {
-            field.decoded("element", ValueKind::Text, expanded(node, node.name()), packet);
+            field.decoded("element", ValueKind::Text, expanded_xml_name(node, node.name()), packet);
             for (const auto attribute : node.attributes()) {
                 reader.entry();
-                field.decoded(expanded(node, attribute.name(), true), ValueKind::Text, attribute.value(), packet);
+                field.decoded(expanded_xml_name(node, attribute.name(), true), ValueKind::Text, attribute.value(), packet);
             }
             for (const auto child : node.children()) {
                 if (child.type() == pugi::node_pcdata || child.type() == pugi::node_cdata) {
-                    field.decoded(expanded(node, node.name()), ValueKind::Text, child.value(), packet);
+                    field.decoded(expanded_xml_name(node, node.name()), ValueKind::Text, child.value(), packet);
                 }
             }
         }

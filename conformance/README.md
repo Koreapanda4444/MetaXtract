@@ -84,3 +84,5 @@ Native compilation has a separate 1800-second ceiling. The protocol process keep
 CI checks debug extraction contracts before production/release validation. Reviewed FFmpeg build
 outputs are cached by platform and source/build-policy hash; runtime libraries still undergo
 configuration and relative-path checks. Standalone MSVC builds use the same CRT as Cargo.
+
+The document corpus adds independently generated Office/ODF ZIP packages, Unicode properties, relationship/revision metadata, ambiguous members, compression/CRC/ZIP64/data descriptor cases, and resource limits.

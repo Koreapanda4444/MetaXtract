@@ -181,6 +181,7 @@ void jpeg_metadata(Reader& reader, std::uint8_t code, std::uint64_t at, std::uin
 void png_metadata(Reader& reader, const std::string& type, std::uint64_t at, std::uint64_t length);
 void webp_metadata(Reader& reader, const std::string& type, std::uint64_t at, std::uint64_t length);
 void gif_metadata(Reader& reader, std::uint8_t label, std::uint64_t start, std::uint64_t end);
-std::vector<std::uint8_t> inflate_metadata(Reader& reader, std::span<const std::uint8_t> bytes);
+std::vector<std::uint8_t> inflate_metadata(Reader& reader, std::span<const std::uint8_t> bytes,
+    int window_bits = 15, std::uint64_t maximum_output = std::numeric_limits<std::uint64_t>::max());
 
 }

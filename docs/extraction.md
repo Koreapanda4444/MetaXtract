@@ -242,3 +242,11 @@ JavaScript strings/streams, launch/URI/remote actions, OpenAction/AA, XFA, RichM
 file markers are preserved as features. Only selected JavaScript streams are decoded; external
 streams are denied. Actions, scripts, URLs and filenames are never executed or opened. C++
 returns observed structures; severity and investigation policy belong to Rust.
+
+## OOXML and ODF document packages
+
+`document.package` reads ZIP/ZIP64 package directories and stored/deflate metadata through the bounded input. It preserves central/local extra fields, comments, DOS/Unix/FILETIME values, names, flags and physical payload offsets. Decoded selected parts are checked against their declared size and CRC; data descriptors and local/central header agreement are checked. Unselected payload CRCs are not verified. Duplicate and non-canonical member names remain separate by entry index; no member is written to disk.
+
+OOXML/ODF properties, custom XML, settings, content types, relationship attributes, comment/revision authors and dates, and namespace-qualified unknown XML attributes are retained. Document-body text outside revisions/comments is omitted from projected XML fields; original decoded XML packets are retained. Declared main Office types are separated from generic OPC packages. Macro/embedded-object payloads and signature XML are retained without execution or cryptographic signature verification. ODF encryption declarations remain metadata; encrypted ZIP members and unsupported compression methods return partial results.
+
+Pugixml allocations use the same thread-local parser budget as XMP, and XML traversal checks entry, depth, output and deadline budgets. Invalid parts preserve previously collected metadata. Decoded fields have stream identifiers and no invented physical offsets; ZIP inventory observations retain physical source ranges. Full application/schema validation, password entry and historical document reconstruction are not performed.
