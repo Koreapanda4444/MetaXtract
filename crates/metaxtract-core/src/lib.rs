@@ -1,7 +1,12 @@
 #![forbid(unsafe_code)]
 
+mod containers;
 mod detection;
 mod images;
+
+pub use containers::{
+    NestedIdentity, RecursiveExtraction, RecursiveLimits, RecursiveNode, extract_recursive,
+};
 
 pub use detection::{ContentAssessment, TypeConflict, TypeConflictKind, assess_content};
 pub use images::{

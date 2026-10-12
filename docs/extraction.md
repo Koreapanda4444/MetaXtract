@@ -270,3 +270,5 @@ Identity MIME parts retain source ranges; transfer-decoded nested messages use p
 ## Native archives and compressed streams
 
 `container.archive` uses pinned libarchive with bundled zlib, liblzma and bzip2 for ZIP, TAR, 7z, gzip, bzip2, XZ/LZMA and UNIX compress streams. Member names, owners, modes, timestamps, link targets and decoded regular-file payloads are retained. Names and library claims remain separate from physical ranges. Links and unsafe names are recorded without following or writing them. Encrypted members are marked as requiring a password. Native codecs are registered individually, without external-program fallback. Library, decoder and adapter allocations share the parser ledger; sparse gaps count toward expansion limits.
+
+`metaxtract_core::extract_recursive` walks archive members and document/email attachments in Rust. Native parser ledgers are shared cumulatively across backends and children. Depth, queued bytes, member size, node count, allocation, decoded bytes, reads, observations and one tree deadline are bounded; previously extracted nodes survive a limit stop. Links are never followed and child byte content is processed in memory.

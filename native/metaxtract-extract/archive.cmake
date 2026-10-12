@@ -23,6 +23,7 @@ function(metaxtract_archive)
     set(${option} OFF CACHE BOOL "No implicit libraries, programs, or upstream tests" FORCE)
   endforeach()
   set(MSVC_USE_STATIC_CRT ${METAXTRACT_STATIC_CRT} CACHE BOOL "Match Rust CRT" FORCE)
+  set(POSIX_REGEX_LIB NONE CACHE STRING "Archive readers do not require regex" FORCE)
   add_subdirectory("${libarchive_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/archive")
   target_compile_definitions(archive_static PRIVATE HAVE_LIBZ=1 HAVE_ZLIB_H=1
     HAVE_LIBBZ2=1 HAVE_BZLIB_H=1 HAVE_LIBLZMA=1 HAVE_LZMA_H=1 LZMA_API_STATIC)
