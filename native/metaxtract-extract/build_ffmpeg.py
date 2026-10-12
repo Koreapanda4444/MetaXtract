@@ -180,6 +180,8 @@ def main() -> None:
                 if line.startswith("SRC_LINK="):
                     line = "SRC_LINK=source\n"
                     source_link_seen = True
+                if line.startswith(("CPPFLAGS=", "CFLAGS=", "CXXFLAGS=", "ASFLAGS=", "HOSTCPPFLAGS=", "HOSTCFLAGS=")):
+                    line = line.replace("$(SRC_PATH)", "$(SRC_LINK)")
                 if line.startswith(("CCDEP=", "CXXDEP=")):
                     relative_source = "$(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<)"
                     if relative_source not in line:
