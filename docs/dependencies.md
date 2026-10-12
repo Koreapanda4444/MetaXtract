@@ -29,8 +29,13 @@ by standalone native builds, then links the generated `cxx` bridge against that 
 Run dependency validation from the repository root:
 
 The active image metadata adapter statically bundles reviewed pugixml 1.16 and zlib 1.3.2.
-CMake fetches their exact commits from the lock into its build directory; no system-library
-fallback or runtime download is used. Installed builds include their original license notices
+CMake fetches their exact commits into `target/native-sources/<name>-<commit>` and reuses
+those sources across Cargo profiles and standalone builds. Each use checks the Git commit
+and rejects changes to tracked files; compiled objects remain in each build's own directory.
+Git is required for these checks. Concurrent source fetches are locked, and CI caches only
+these reviewed sources separately from media build artifacts. Explicit CMake source overrides
+remain available. No system-library fallback or runtime download is used.
+Installed builds include their original license notices
 under `share/metaxtract/licenses`. Build tools and source fetches are build-time requirements.
 
 The active RAW adapter dynamically bundles LibRaw 0.22.2, with LGPL/CDDL notices and the

@@ -48,6 +48,12 @@ jobs:
           rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
           rustc --version
           cargo --version
+      - name: Restore reviewed native source cache
+        id: native-source-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: target/native-sources
+          key: native-sources-${{ runner.os }}-${{ hashFiles('third-party.lock.toml', 'native/metaxtract-extract/dependencies.cmake') }}
       - name: Restore reviewed native media build cache
         id: native-media-cache
         uses: actions/cache/restore@v4
@@ -67,6 +73,12 @@ jobs:
         run: cargo test --workspace --all-features --locked
       - name: Check debug extraction contracts
         run: python conformance/run.py
+      - name: Save reviewed native source cache
+        if: success() && steps.native-source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: target/native-sources
+          key: ${{ steps.native-source-cache.outputs.cache-primary-key }}
       - name: Save reviewed native media build cache
         if: always() && steps.native-media-cache.outputs.cache-hit != 'true' && hashFiles('target/native-ffmpeg/*/complete.json') != ''
         uses: actions/cache/save@v4

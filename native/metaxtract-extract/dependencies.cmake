@@ -1,5 +1,17 @@
 include(FetchContent)
 
+function(metaxtract_verify_source name directory revision)
+  find_package(Git REQUIRED QUIET)
+  execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${directory}" rev-parse HEAD
+    OUTPUT_VARIABLE actual_revision OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE revision_status ERROR_QUIET)
+  execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${directory}" diff --no-ext-diff --quiet HEAD --
+    RESULT_VARIABLE change_status ERROR_QUIET)
+  if(NOT revision_status EQUAL 0 OR NOT actual_revision STREQUAL revision OR NOT change_status EQUAL 0)
+    message(FATAL_ERROR "Cached ${name} source differs from reviewed commit ${revision}: ${directory}")
+  endif()
+endfunction()
+
 function(metaxtract_source name)
   file(READ "${PROJECT_SOURCE_DIR}/third-party.lock.toml" dependency_lock)
   string(REGEX MATCH "name = \"${name}\"[^\[]*" entry "${dependency_lock}")
@@ -11,11 +23,31 @@ function(metaxtract_source name)
     set(${field} "${CMAKE_MATCH_1}")
   endforeach()
   string(TOLOWER "${name}" id)
+  string(TOUPPER "${id}" upper_id)
+  set(source_options)
+  if(NOT FETCHCONTENT_SOURCE_DIR_${upper_id})
+    set(cache_root "${PROJECT_SOURCE_DIR}/target/native-sources")
+    set(cached_source "${cache_root}/${id}-${revision}")
+    file(MAKE_DIRECTORY "${cache_root}")
+    file(LOCK "${cached_source}.lock" GUARD FUNCTION TIMEOUT 120 RESULT_VARIABLE lock_status)
+    if(NOT lock_status STREQUAL "0")
+      message(FATAL_ERROR "Could not lock ${name} source cache: ${lock_status}")
+    endif()
+    if(EXISTS "${cached_source}/.git")
+      metaxtract_verify_source("${name}" "${cached_source}" "${revision}")
+      set(FETCHCONTENT_SOURCE_DIR_${upper_id} "${cached_source}")
+    endif()
+    set(source_options SOURCE_DIR "${cached_source}")
+  endif()
   FetchContent_Declare(${id}
     GIT_REPOSITORY "${source}" GIT_TAG "${revision}"
     GIT_SUBMODULES ""
+    ${source_options}
     SOURCE_SUBDIR _metaxtract_sources_only)
   FetchContent_MakeAvailable(${id})
+  if(cached_source)
+    metaxtract_verify_source("${name}" "${cached_source}" "${revision}")
+  endif()
   set(${name}_SOURCE_DIR "${${id}_SOURCE_DIR}" PARENT_SCOPE)
   set(${name}_REVISION "${revision}" PARENT_SCOPE)
 endfunction()
