@@ -127,6 +127,9 @@ fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
         || bytes.starts_with(b"ttcf")
         || bytes.starts_with(b"wOFF")
         || bytes.starts_with(b"wOF2")
+        || bytes.starts_with(b"true")
+        || bytes.starts_with(b"typ1")
+        || bytes.get(60..68) == Some(b"BOOKMOBI")
     {
         result.push("formats.resource");
     }

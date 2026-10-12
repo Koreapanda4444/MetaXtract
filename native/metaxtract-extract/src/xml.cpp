@@ -54,4 +54,32 @@ std::string expanded_xml_name(pugi::xml_node node, const std::string& name, cons
     return name;
 }
 
+void inspect_xml_fields(Reader& reader, const std::span<const std::uint8_t> bytes, const std::string& packet) {
+    XmlBudgetScope scope(reader.context.budget());
+    pugi::xml_document document;
+    const auto parsed = document.load_buffer(bytes.data(), bytes.size(), pugi::parse_full, pugi::encoding_auto);
+    if (!parsed) { throw Failure{parsed.status == pugi::status_out_of_memory ? ParseStatus::AllocationFailure : ParseStatus::Malformed, "Invalid metadata XML", 0}; }
+    auto node = document.first_child(); std::uint32_t depth = 0; std::uint64_t index = 0;
+    while (node) {
+        reader.entry();
+        if (!reader.context.budget().check_depth(depth)) { throw Failure{ParseStatus::Internal, "Metadata XML depth limit", 0}; }
+        auto field = reader; field.group += ".xml" + std::to_string(index++);
+        if (!valid_xml_string(node.name()) || !valid_xml_string(node.value())) { throw Failure{ParseStatus::Malformed, "Invalid metadata XML encoding", 0}; }
+        field.derived("depth", depth);
+        if (node.type() == pugi::node_element) {
+            field.decoded("element", ValueKind::Text, expanded_xml_name(node, node.name()), packet);
+            for (const auto attribute : node.attributes()) {
+                field.entry(); const auto name = expanded_xml_name(node, attribute.name(), true);
+                if (!valid_xml_string(name) || !valid_xml_string(attribute.value())) { throw Failure{ParseStatus::Malformed, "Invalid metadata XML attribute", 0}; }
+                field.decoded(name, ValueKind::Text, attribute.value(), packet);
+            }
+        } else {
+            field.decoded("value", ValueKind::Text, node.value(), packet);
+            if (node.type() == pugi::node_doctype) { field.diagnostic("doctype", "DTD retained without external or custom entity expansion", 0); }
+        }
+        if (node.first_child()) { node = node.first_child(); ++depth; }
+        else { while (node && !node.next_sibling()) { node = node.parent(); if (depth) { --depth; } } if (node) { node = node.next_sibling(); } }
+    }
+}
+
 }

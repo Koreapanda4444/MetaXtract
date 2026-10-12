@@ -22,6 +22,7 @@ std::unique_ptr<Parser> document_ole_parser();
 std::unique_ptr<Parser> email_mime_parser();
 std::unique_ptr<Parser> archive_metadata_parser();
 std::unique_ptr<Parser> binary_metadata_parser();
+std::unique_ptr<Parser> resource_metadata_parser();
 #ifdef METAXTRACT_CONFORMANCE
 std::unique_ptr<Parser> conformance_parser();
 #endif
@@ -65,6 +66,7 @@ const ParserRegistry& default_registry() noexcept {
         result.add(email_mime_parser());
         result.add(archive_metadata_parser());
         result.add(binary_metadata_parser());
+        result.add(resource_metadata_parser());
 #ifdef METAXTRACT_CONFORMANCE
         result.add(conformance_parser());
 #endif
