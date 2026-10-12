@@ -2,6 +2,7 @@
 
 mod containers;
 mod detection;
+mod evidence;
 mod images;
 
 pub use containers::{

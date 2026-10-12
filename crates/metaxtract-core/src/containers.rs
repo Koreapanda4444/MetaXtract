@@ -355,6 +355,25 @@ pub fn extract_recursive(
                             "filename" | "filename_utf8" | "part_name" | "attachment_filename"
                         )
                 });
+                let member_ordinal = result
+                    .observations
+                    .iter()
+                    .find_map(|field| {
+                        if field.namespace
+                            != observation.namespace.trim_end_matches(".body.decoded")
+                            || !matches!(
+                                field.key.as_str(),
+                                "member_index" | "part_index" | "stream_index"
+                            )
+                        {
+                            return None;
+                        }
+                        match field.value {
+                            RawValue::Unsigned(value) => u32::try_from(value).ok(),
+                            _ => None,
+                        }
+                    })
+                    .unwrap_or(ordinal as u32);
                 let name = member
                     .map(|field| match &field.value {
                         RawValue::Bytes(bytes) => bytes.clone(),
@@ -374,7 +393,7 @@ pub fn extract_recursive(
                     depth: work.depth + 1,
                     identity: Some(NestedIdentity {
                         parent: index,
-                        ordinal: ordinal as u32,
+                        ordinal: member_ordinal,
                         kind,
                         name,
                         packet_id: observation.stream_id.clone(),
