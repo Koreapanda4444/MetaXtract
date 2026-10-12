@@ -175,12 +175,19 @@ def main() -> None:
             make_config = build / "ffbuild/config.mak"
             contents = make_config.read_text()
             fixed = []
+            source_link_seen = False
             for line in contents.splitlines(keepends=True):
+                if line.startswith("SRC_LINK="):
+                    line = "SRC_LINK=source\n"
+                    source_link_seen = True
                 if line.startswith(("CCDEP=", "CXXDEP=")):
+                    line = line.replace("$<", "$(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<)")
                     line = re.sub(r'gsub\(/\\+/, "/"\)', 'gsub(sprintf("%c%c", 92, 92), "/")', line)
                     if 'gsub(sprintf("%c%c", 92, 92), "/")' not in line:
                         raise RuntimeError("Reviewed MSVC dependency path conversion was not found")
                 fixed.append(line)
+            if not source_link_seen:
+                raise RuntimeError("Reviewed FFmpeg source-link configuration was not found")
             make_config.write_text("".join(fixed))
         for item in ("GPL", "NONFREE", "NETWORK"):
             if f"#define CONFIG_{item} 0" not in config:
@@ -206,3 +213,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
