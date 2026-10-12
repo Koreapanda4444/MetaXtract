@@ -9,12 +9,30 @@
 
 #include <algorithm>
 #include <new>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 namespace metaxtract::bridge {
 
 namespace {
+
+rust::String observation_identity(const std::string& value) {
+    // String identities may contain arbitrary tag/stream bytes. Reserve this
+    // prefix and encode invalid UTF-8 losslessly instead of dropping a run.
+    if (!value.starts_with("~raw-bytes:")) {
+        try { return rust::String(value); }
+        catch (const std::invalid_argument&) {}
+    }
+    constexpr char hex[] = "0123456789abcdef";
+    std::string encoded = "~raw-bytes:";
+    encoded.reserve(encoded.size() + value.size() * 2);
+    for (const auto character : value) {
+        const auto byte = static_cast<unsigned char>(character);
+        encoded.push_back(hex[byte >> 4U]); encoded.push_back(hex[byte & 15U]);
+    }
+    return rust::String(encoded);
+}
 
 class RustInput final : public metaxtract::native::RandomAccessInput {
 public:
@@ -197,12 +215,12 @@ FfiExtraction ffi_extract(const ReadSource& source, const rust::Str parser_id, c
             rust::Vec<std::uint8_t> text;
             for (const auto byte : value.value) { text.push_back(static_cast<std::uint8_t>(byte)); }
             values.push_back({
-                .name_space = rust::String(value.name_space), .key = rust::String(value.key),
+                .name_space = observation_identity(value.name_space), .key = observation_identity(value.key),
                 .kind = static_cast<std::uint32_t>(value.kind), .value = std::move(text),
-                .encoded = std::move(encoded), .encoding = rust::String(value.encoding),
+                .encoded = std::move(encoded), .encoding = observation_identity(value.encoding),
                 .offset = value.offset, .length = value.length, .located = value.located,
                 .tag_code = value.tag_code, .numeric_tag = value.numeric_tag,
-                .method = value.method, .stream_id = rust::String(value.stream_id),
+                .method = value.method, .stream_id = observation_identity(value.stream_id),
             });
         }
         return {.run = {

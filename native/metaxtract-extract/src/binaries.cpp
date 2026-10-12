@@ -11,7 +11,7 @@ void raw(Reader& r, const std::string& key, std::uint64_t at, std::uint64_t size
 }
 void string_field(Reader& r, const std::string& key, std::uint64_t at, std::uint64_t size, const std::string& encoding = "UTF-8") {
     auto bytes = r.read(at, size); const auto decoded = decode_text(r, bytes, encoding);
-    r.put(key, decoded.valid && decoded.supported ? ValueKind::Text : ValueKind::Bytes, decoded.value, at, std::move(bytes), encoding);
+    r.put(key, decoded.valid && decoded.supported ? ValueKind::Utf8Text : ValueKind::Bytes, decoded.value, at, std::move(bytes), encoding);
 }
 void cstring(Reader& r, const std::string& key, std::uint64_t at, std::uint64_t maximum) {
     r.require(at, 0); std::uint64_t length = 0;
@@ -207,7 +207,24 @@ class BinaryParser final : public Parser {
             const auto magic = r.read(0, std::min<std::uint64_t>(4, r.size));
             if (formats::starts(magic, "MZ")) { r.group = "binary.pe"; formats::pe(r); }
             else if (formats::starts(magic, "\x7f" "ELF")) { r.group = "binary.elf"; formats::elf(r); }
-            else if (magic.size() == 4 && (magic[0] == 0xca || magic[0] == 0xfe || magic[0] == 0xcf || magic[0] == 0xce || magic[0] == 0xbe || magic[0] == 0xbf)) { r.group = "binary.macho"; formats::macho(r, 0); }
+            else if (magic.size() == 4) {
+                const auto code = formats::integer(magic, 0, 4);
+                const bool mach = code == 0xcafebabe || code == 0xcafebabf || code == 0xbebafeca || code == 0xbfbafeca || code == 0xfeedface || code == 0xfeedfacf || code == 0xcefaedfe || code == 0xcffaedfe;
+                if (!mach) { r.group = "binary.script"; return formats::script(r); }
+                if (code == 0xcafebabe) {
+                    // JVM class files share this signature. Confirm a file-backed
+                    // Mach-O slice before treating the header as a fat binary.
+                    bool slice = false;
+                    if (r.size >= 28) {
+                        const auto header = r.read(0, 28); const auto count = formats::integer(header, 4, 4), at = formats::integer(header, 16, 4), length = formats::integer(header, 20, 4);
+                        if (count && count <= (r.size - 8) / 20 && at <= r.size && length >= 4 && length <= r.size - at) {
+                            const auto thin = formats::integer(r.read(at, 4), 0, 4); slice = thin == 0xfeedface || thin == 0xfeedfacf || thin == 0xcefaedfe || thin == 0xcffaedfe;
+                        }
+                    }
+                    if (!slice) { formats::raw(r, "ambiguous_header_raw", 0, std::min<std::uint64_t>(32, r.size)); r.diagnostic("ambiguous_signature", "CAFEBABE may identify a JVM class or a fat Mach-O; a Mach-O slice was not confirmed", 0); return ParseStatus::Unsupported; }
+                }
+                r.group = "binary.macho"; formats::macho(r, 0);
+            }
             else { r.group = "binary.script"; return formats::script(r); }
             return ParseStatus::Complete;
         } catch (const formats::Failure& error) { r.diagnostic("failure", error.message, error.offset <= r.size ? error.offset : 0); return error.status; }

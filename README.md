@@ -13,17 +13,16 @@ the results.
 ## Current status
 
 The Python reference provides the working GUI and CLI during migration. The Rust/C++ engine
-now includes bounded input and schema/bridge contracts, content detection, deep image/RAW
-and audio metadata, media container/track details, in-process inspection and bounded decoding.
-PDF extraction adds Info/XMP, page geometry, attachments, revision chains, encryption settings,
-signature ranges and active-content structures. Rust reconciles
-OOXML/ODF package properties, relationships and revision/comment metadata are also available.
+includes bounded input, schema/bridge contracts, content detection, deep image/RAW and audio
+metadata, media inspection/decoding, PDF structure/security, Office documents and EML/MIME.
 
-OLE compound files and legacy Word, Excel, and PowerPoint now expose directory metadata, typed document properties, macros and embedded stream inventories through `document.ole`. Fragmented streams keep physical fragments and decoded stream identity; unsupported encryption and character sets are reported explicitly.
+Native archive readers handle ZIP, TAR, 7z and common compressed streams. Rust recurses through
+archives, attachments and OLE streams under shared limits and preserves virtual evidence paths.
+Executable/script, font/ebook/package, DICOM and geospatial adapters retain raw metadata and
+explicitly identify unsupported encodings or transforms.
 
-`email.mime` extracts EML/MIME headers, ordered route claims, text bodies, attachments and nested messages. It preserves duplicates and original bytes, decodes RFC2047/RFC2231 and common transfer encodings, and labels authentication/signature verification as not performed.
-
-image claims. The Rust GUI/CLI and full workflow parity remain pending;
+Rust reconciles image claims and preserves unknown fields and separate backend claims.
+The Rust GUI/CLI and full workflow parity remain pending;
 see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 
 The Python source remains frozen as a comparison baseline. It will be removed after the new
@@ -69,7 +68,7 @@ or establish metadata parity for format adapters that have not been implemented.
 | Path | Purpose |
 |---|---|
 | [`crates/`](crates/README.md) | Rust schema, native bridge, and application foundation |
-| [`native/`](native/README.md) | C++ extraction core and future native library adapters |
+| [`native/`](native/README.md) | C++ raw parsers, native library adapters, and bounded decoding |
 | [`legacy/python/`](legacy/python/README.md) | Working Python application and frozen source reference |
 | [`reference/python/`](reference/python/README.md) | Stable behavior captured from the Python application |
 | [`conformance/`](conformance/README.md) | Fixtures and compatibility checks for the migration |

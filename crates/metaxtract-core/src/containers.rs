@@ -113,6 +113,9 @@ fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
         || bytes.starts_with(b"\x7fELF")
         || bytes.starts_with(b"#!")
         || bytes.starts_with(b"\xca\xfe\xba\xbe")
+        || bytes.starts_with(b"\xca\xfe\xba\xbf")
+        || bytes.starts_with(b"\xbe\xba\xfe\xca")
+        || bytes.starts_with(b"\xbf\xba\xfe\xca")
         || bytes.starts_with(b"\xfe\xed\xfa")
         || bytes.starts_with(b"\xcf\xfa\xed\xfe")
         || bytes.starts_with(b"\xce\xfa\xed\xfe")
@@ -149,6 +152,7 @@ fn payload_kind(parser: &str, key: &str) -> Option<EvidenceKind> {
     match (parser, key) {
         ("container.archive", "member_payload") => Some(EvidenceKind::ArchiveMember),
         ("document.ole", "embedded_payload") => Some(EvidenceKind::EmbeddedObject),
+        ("document.ole", "stream_payload") => Some(EvidenceKind::AlternateStream),
         ("email.mime", "body_payload") => Some(EvidenceKind::Attachment),
         ("pdf.metadata", "attachment_data") => Some(EvidenceKind::Attachment),
         _ => None,
@@ -178,8 +182,17 @@ pub fn extract_recursive(
     name: Vec<u8>,
     limits: RecursiveLimits,
 ) -> Result<RecursiveExtraction, NativeError> {
-    if limits.max_nodes == 0 || limits.max_wall_time_ms == 0 || limits.max_member_bytes == 0 {
+    if limits.max_nodes == 0
+        || limits.max_wall_time_ms == 0
+        || limits.max_member_bytes == 0
+        || limits.parser.max_wall_time_ms == 0
+    {
         return Err(capacity_error(NativeErrorCode::InvalidRequest));
+    }
+    if bytes.len() as u64 > limits.max_member_bytes
+        || bytes.len() as u64 > limits.max_total_input_bytes
+    {
+        return Err(capacity_error(NativeErrorCode::SourceTooLarge));
     }
     let capabilities = parser_capabilities()?;
     let deadline = Instant::now() + Duration::from_millis(u64::from(limits.max_wall_time_ms));
@@ -325,9 +338,6 @@ pub fn extract_recursive(
                 let RawValue::Bytes(payload) = &observation.value else {
                     continue;
                 };
-                if payload.is_empty() {
-                    continue;
-                }
                 if work.depth >= limits.max_depth {
                     output.stopped = Some(NativeErrorCode::ContainerDepthExceeded);
                     continue;
@@ -345,8 +355,12 @@ pub fn extract_recursive(
                 let charge = child_size.saturating_mul(2).saturating_add(4096);
                 if child_size > limits.max_member_bytes
                     || queued_bytes.saturating_add(child_size) > limits.max_total_input_bytes
-                    || output.usage.allocation_bytes.saturating_add(charge)
-                        > limits.parser.max_allocation_bytes
+                {
+                    output.stopped = Some(NativeErrorCode::SourceTooLarge);
+                    continue;
+                }
+                if output.usage.allocation_bytes.saturating_add(charge)
+                    > limits.parser.max_allocation_bytes
                 {
                     output.stopped = Some(NativeErrorCode::AllocationBudgetExceeded);
                     continue;
@@ -355,7 +369,11 @@ pub fn extract_recursive(
                     field.namespace == observation.namespace.trim_end_matches(".body.decoded")
                         && matches!(
                             field.key.as_str(),
-                            "filename" | "filename_utf8" | "part_name" | "attachment_filename"
+                            "filename"
+                                | "filename_utf8"
+                                | "part_name"
+                                | "attachment_filename"
+                                | "storage_path"
                         )
                 });
                 let member_ordinal = result

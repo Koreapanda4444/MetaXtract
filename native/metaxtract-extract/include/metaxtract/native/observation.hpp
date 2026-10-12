@@ -10,6 +10,7 @@ enum class ValueKind : std::uint32_t {
     Bytes = 0, Unsigned = 1, Signed = 2, Float = 3, Text = 4, Rational = 5,
     UnsignedSequence = 6, SignedSequence = 7, FloatSequence = 8, RationalSequence = 9,
     DecodedBytes = 10,
+    Utf8Text = 11, // Decoded UTF-8 value; encoding still describes the original bytes.
 };
 
 struct Observation final {

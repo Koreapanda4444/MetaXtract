@@ -7,6 +7,26 @@ use metaxtract_schema::{
     ParserDescriptor, Provenance, Rational, RawValue, TagCode, TagIdentity, TextValue,
 };
 
+pub fn original_identity_bytes(identity: &str) -> Vec<u8> {
+    if let Some(hex) = identity.strip_prefix("~raw-bytes:") {
+        if hex.len() % 2 == 0 {
+            if let Some(bytes) = hex
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| {
+                    let high = char::from(pair[0]).to_digit(16)?;
+                    let low = char::from(pair[1]).to_digit(16)?;
+                    Some((high * 16 + low) as u8)
+                })
+                .collect::<Option<Vec<_>>>()
+            {
+                return bytes;
+            }
+        }
+    }
+    identity.as_bytes().to_vec()
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct NativeObservation {
     pub namespace: String,
@@ -36,7 +56,16 @@ impl NativeObservation {
                     .unwrap_or_else(|| TagCode::Text(self.key.clone())),
                 name: Some(self.key.clone()),
             },
-            raw_value: RawValue::Bytes(self.encoded.clone()),
+            raw_value: if !self.encoded.is_empty() {
+                RawValue::Bytes(self.encoded.clone())
+            } else if let RawValue::Text(text) = &self.value {
+                text.encoded_bytes.as_ref().map_or_else(
+                    || self.value.clone(),
+                    |bytes| RawValue::Bytes(bytes.clone()),
+                )
+            } else {
+                self.value.clone()
+            },
             interpreted_value: Some(self.value.clone()),
             unit: None,
             provenance: Provenance {
@@ -69,14 +98,18 @@ fn rational(value: &str) -> Option<RawValue> {
 
 fn decoded(kind: u32, bytes: &[u8], encoded: &[u8], encoding: &str) -> Option<RawValue> {
     if kind == 0 {
-        return Some(RawValue::Bytes(encoded.to_vec()));
+        return Some(RawValue::Bytes(if encoded.is_empty() {
+            bytes.to_vec()
+        } else {
+            encoded.to_vec()
+        }));
     }
     if kind == 10 {
         return Some(RawValue::Bytes(bytes.to_vec()));
     }
     let text = String::from_utf8_lossy(bytes);
-    if kind == 4 {
-        let latin1 = encoding == "ISO-8859-1";
+    if kind == 4 || kind == 11 {
+        let latin1 = kind == 4 && encoding == "ISO-8859-1";
         return Some(RawValue::Text(TextValue {
             text: if latin1 {
                 bytes.iter().map(|&byte| char::from(byte)).collect()
@@ -85,8 +118,13 @@ fn decoded(kind: u32, bytes: &[u8], encoded: &[u8], encoding: &str) -> Option<Ra
             },
             original_encoding: (!encoding.is_empty()).then(|| encoding.to_owned()),
             language: None,
-            encoded_bytes: Some(encoded.to_vec()),
-            lossless: latin1
+            encoded_bytes: Some(if encoded.is_empty() {
+                bytes.to_vec()
+            } else {
+                encoded.to_vec()
+            }),
+            lossless: (kind == 11 && std::str::from_utf8(bytes).is_ok())
+                || latin1
                 || (std::str::from_utf8(bytes).is_ok()
                     && (encoding != "ASCII" || bytes.is_ascii())
                     && encoding != "unspecified"),

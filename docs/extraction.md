@@ -271,12 +271,26 @@ Identity MIME parts retain source ranges; transfer-decoded nested messages use p
 
 `container.archive` uses pinned libarchive with bundled zlib, liblzma and bzip2 for ZIP, TAR, 7z, gzip, bzip2, XZ/LZMA and UNIX compress streams. Member names, owners, modes, timestamps, link targets and decoded regular-file payloads are retained. Names and library claims remain separate from physical ranges. Links and unsafe names are recorded without following or writing them. Encrypted members are marked as requiring a password. Native codecs are registered individually, without external-program fallback. Library, decoder and adapter allocations share the parser ledger; sparse gaps count toward expansion limits.
 
+## Nested extraction and evidence paths
+
 `metaxtract_core::extract_recursive` walks archive members and document/email attachments in Rust. Native parser ledgers are shared cumulatively across backends and children. Depth, queued bytes, member size, node count, allocation, decoded bytes, reads, observations and one tree deadline are bounded; previously extracted nodes survive a limit stop. Links are never followed and child byte content is processed in memory.
 
 Nested evidence is converted into separate canonical records with `evidence_paths()` and `canonical_records()`. Each path records member kind and ordinal, so duplicate names remain distinct. Invalid UTF-8, traversal and absolute member names use a reversible hexadecimal name; their original bytes remain in `NestedIdentity`. Ranges in decoded children refer to those virtual sources, never to fabricated offsets in the outer file. Resource limits and individual parser failures remain visible as partial-result diagnostics.
 
+## Executable and script metadata
+
 `binaries.metadata` reads PE headers, sections, data directories, imports, export summaries, CodeView/PDB information, resource trees and version blocks; ELF headers, sections, notes, dynamic library references and program tables; and thin/fat Mach-O headers, load commands, UUIDs, paths and version declarations. Certificate and signing data remain raw and do not establish trust. Script headers and shebangs are read without executing content. Binary timestamps remain unconverted declarations. All ranges, counts and recursive resource trees use the shared budgets.
+
+## Fonts ebooks and package resources
 
 `formats.resource` retains font tables and interprets TTF/OTF/TTC/WOFF naming records, language declarations, font permissions and core properties. WOFF metadata XML uses bounded zlib decoding. WOFF2 headers, private data and transformed bytes are retained, with an explicit unsupported-transform result. EPUB package/container XML, JAR manifests, APK binary XML attributes, Appx manifests and Python package metadata retain unknown fields and part identities. MOBI/Palm headers and EXTH records retain original IDs and bytes. Font glyphs, scripts, package code and external XML references are never executed or fetched.
 
+## DICOM and geospatial metadata
+
 `formats.dicom` reads file meta, explicit/implicit VR datasets, little/big endian values, bounded sequences and deflated metadata. Every unknown/private element retains its tag, VR and bytes. Common patient, study, device, imaging and acquisition declarations are decoded where their charset/VR is supported. Unsupported transfer syntaxes and charsets remain explicit; pixel data is described by ranges and fragment lengths rather than clinically interpreted. `formats.geo` reads GeoJSON properties and coordinates, GPX/KML XML fields, SHP records, DBF field/record bytes and GeoTIFF model/GeoKey declarations. CRS codes remain declarations; no projection sidecar, network map or coordinate conversion is assumed. Large geometry and private metadata use the same resource limits.
+
+## Unknown fields and independent backend claims
+
+Raw observations preserve unknown tag IDs, names, source bytes, decoded payload bytes and derived values. The bridge distinguishes already decoded UTF-8 from original Latin-1/UTF-16 bytes, preventing double conversion and keeping lossless text provenance. `independent_backend_claims()` creates a separate unresolved claim for every supported scalar/sequence observation, linked to its parser and observation ID; identical values are not merged or counted as independent agreement. Reversible raw keys retain case, punctuation and unknown names. Lossy text, opaque bytes and exact rationals stay raw until a supported interpretation is available. Claim count, value depth/nodes and text/key memory have separate limits, and exhausted claims retain earlier results and all original observations. Fixed scores describe interpretation provenance, not authenticity or statistical probabilities. OLE streams and nested payloads retain typed virtual source identities.
+
+Non-UTF-8 tag, namespace, encoding and packet identities use reversible `~raw-bytes:` hexadecimal escaping across the bridge. Literal identities starting with that reserved prefix are escaped too. `original_identity_bytes()` recovers the exact identity bytes; invalid names cannot discard an otherwise recoverable extraction run.

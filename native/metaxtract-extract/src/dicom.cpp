@@ -86,7 +86,7 @@ bool valid_vr(const std::string_view vr) {
     constexpr std::string_view all = " AE AS AT CS DA DS DT FL FD IS LO LT OB OD OF OL OV OW PN SH SL SQ SS ST SV TM UC UI UL UN UR US UT UV ";
     return vr.size() == 2 && all.find(" " + std::string(vr) + " ") != std::string_view::npos;
 }
-bool long_vr(const std::string_view vr) { return vr == "OB" || vr == "OD" || vr == "OF" || vr == "OL" || vr == "OV" || vr == "OW" || vr == "SQ" || vr == "UC" || vr == "UN" || vr == "UR" || vr == "UT"; }
+bool long_vr(const std::string_view vr) { return vr == "OB" || vr == "OD" || vr == "OF" || vr == "OL" || vr == "OV" || vr == "OW" || vr == "SQ" || vr == "SV" || vr == "UC" || vr == "UN" || vr == "UR" || vr == "UT" || vr == "UV"; }
 struct DicomState { bool explicit_vr = true, little = true; std::string charset = "ASCII", transfer; };
 std::uint64_t dnum(Reader& r, std::uint64_t at, unsigned width, bool little) { return integer(r.read(at, width), 0, width, little); }
 std::uint32_t dtag(Reader& r, std::uint64_t at, bool little) { const auto bytes = r.read(at, 4); return static_cast<std::uint32_t>((integer(bytes, 0, 2, little) << 16U) | integer(bytes, 2, 2, little)); }
@@ -100,6 +100,7 @@ Element element(Reader& r, std::uint64_t at, const DicomState& state) {
         header = long_vr(vr) ? 12 : 8;
         if (header == 12 && dnum(r, at + 6, 2, state.little)) { throw Failure{ParseStatus::Malformed, "DICOM reserved VR bytes are nonzero", r.base + at}; }
         length = dnum(r, at + (header == 12 ? 8 : 6), header == 12 ? 4 : 2, state.little);
+        if (length == 0xffffffffU && (vr == "SV" || vr == "UC" || vr == "UR" || vr == "UV" || vr == "UT")) { throw Failure{ParseStatus::Malformed, "DICOM VR forbids undefined length", r.base + at}; }
     } else { length = dnum(r, at + 4, 4, state.little); }
     r.require(at, header); if (length != 0xffffffffU) { r.require(at + header, length); }
     return {tag, vr, header, at + header, length};
@@ -119,7 +120,7 @@ void dicom_value(Reader& r, const Element& item, DicomState& state) {
         const auto encoding = vr == "UI" || vr == "CS" || vr == "DA" || vr == "DS" || vr == "DT" || vr == "IS" || vr == "TM" ? "ASCII" : state.charset;
         const auto converted = decode_text(r, raw, encoding); auto value = converted.value;
         while (!value.empty() && (value.back() == '\0' || value.back() == ' ')) { value.pop_back(); }
-        r.put(key, converted.valid && converted.supported ? ValueKind::Text : ValueKind::Bytes, value, item.payload, std::move(raw), encoding, item.tag, true); return;
+        r.put(key, converted.valid && converted.supported ? ValueKind::Utf8Text : ValueKind::Bytes, value, item.payload, std::move(raw), encoding, item.tag, true); return;
     }
     const unsigned width = vr == "US" || vr == "SS" ? 2 : vr == "UL" || vr == "SL" || vr == "FL" ? 4 : vr == "UV" || vr == "SV" || vr == "FD" ? 8 : 0;
     if (!width || raw.empty() || raw.size() % width) { r.put(key, ValueKind::Bytes, "", item.payload, std::move(raw), "binary", item.tag, true); return; }

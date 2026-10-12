@@ -21,6 +21,11 @@ OOXML·ODF 패키지 속성·관계와 수정 이력·주석 메타데이터도 
 
 `email.mime`은 EML/MIME 헤더, 순서가 유지된 전달 경로 주장, 본문, 첨부와 중첩 메시지를 추출합니다. 중복 항목·원본 바이트를 유지하고 RFC2047/RFC2231과 일반 전송 인코딩을 해독하며, 인증·서명은 실제 검증하지 않았다고 표시합니다.
 
+ZIP·TAR·7z와 일반 압축 스트림은 네이티브 라이브러리로 읽습니다. Rust는 공통 한도 안에서
+압축파일·첨부·OLE 스트림을 재귀 분석하고 가상 증거 경로를 보존합니다. 실행파일·스크립트,
+글꼴·전자책·패키지, DICOM과 지리정보 어댑터는 원시 메타데이터를 유지하며 미지원 인코딩과
+변환을 명시합니다. 알 수 없는 필드와 백엔드별 독립 주장을 보존합니다.
+
 Rust GUI·CLI와 전체 사용 흐름의 동등성 확보는 이후 작업입니다.
 지원 필드와 한계는 [추출 지원 범위](docs/extraction_KR.md)를 참고합니다.
 
@@ -66,7 +71,7 @@ python conformance/run.py
 | 경로 | 역할 |
 |---|---|
 | [`crates/`](crates/README_KR.md) | Rust 스키마, 네이티브 연결부와 앱 기반 |
-| [`native/`](native/README_KR.md) | C++ 추출 코어와 향후 네이티브 라이브러리 어댑터 |
+| [`native/`](native/README_KR.md) | C++ 원시 파서·네이티브 라이브러리 어댑터·제한된 디코딩 |
 | [`legacy/python/`](legacy/python/README_KR.md) | 실행 가능한 Python 앱과 동결된 소스 기준판 |
 | [`reference/python/`](reference/python/README_KR.md) | Python 앱에서 기록한 기존 동작 기준 |
 | [`conformance/`](conformance/README_KR.md) | 전환용 샘플과 호환성 검증 |

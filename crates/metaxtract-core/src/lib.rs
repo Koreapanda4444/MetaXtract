@@ -1,10 +1,14 @@
 #![forbid(unsafe_code)]
 
+mod backend_claims;
 mod containers;
 mod detection;
 mod evidence;
 mod images;
 
+pub use backend_claims::{
+    BackendClaimLimit, BackendClaimLimits, BackendClaims, independent_backend_claims,
+};
 pub use containers::{
     NestedIdentity, RecursiveExtraction, RecursiveLimits, RecursiveNode, extract_recursive,
 };

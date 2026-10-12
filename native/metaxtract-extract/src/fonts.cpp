@@ -19,7 +19,7 @@ void font_table(Reader& r, const std::string& tag) {
             const auto at = strings + font_num(entry, 10, 2), size = font_num(entry, 8, 2); auto bytes = r.read(at, size);
             const std::string charset = platform == 0 || (platform == 3 && (encoding == 0 || encoding == 1 || encoding == 10)) ? "UTF-16BE" : "unspecified";
             const auto text = decode_text(r, bytes, charset); auto value = r; value.group = entry.group;
-            value.put("name_value", text.supported && text.valid ? ValueKind::Text : ValueKind::Bytes, text.value, at, std::move(bytes), charset, id, true);
+            value.put("name_value", text.supported && text.valid ? ValueKind::Utf8Text : ValueKind::Bytes, text.value, at, std::move(bytes), charset, id, true);
         }
         if (format == 1) {
             const auto at = 6 + count * 12, languages = font_num(r, at, 2); r.require(at + 2, languages * 4);

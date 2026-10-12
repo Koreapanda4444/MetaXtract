@@ -6,7 +6,9 @@ mod extraction;
 mod ffi;
 
 pub use detection::{ContentCandidate, DetectionState, detect_content};
-pub use extraction::{ExtractionResult, NativeObservation, extract_parser};
+pub use extraction::{
+    ExtractionResult, NativeObservation, extract_parser, original_identity_bytes,
+};
 
 use std::{error::Error, fmt, fs::File};
 

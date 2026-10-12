@@ -5,7 +5,7 @@ use metaxtract_schema::{
     RelativePath, SourceDescriptor, SourceKind,
 };
 
-use crate::RecursiveExtraction;
+use crate::{BackendClaimLimits, RecursiveExtraction, independent_backend_claims};
 
 fn member_path(bytes: &[u8]) -> RelativePath {
     if let Ok(text) = std::str::from_utf8(bytes) {
@@ -126,6 +126,23 @@ impl RecursiveExtraction {
                 };
             } else if complete {
                 record.status = ExtractionStatus::Complete;
+            }
+            let claims =
+                independent_backend_claims(&record.observations, BackendClaimLimits::default());
+            record.claims = claims.claims;
+            if let Some(code) = claims.stopped {
+                record.status = ExtractionStatus::Partial;
+                record.diagnostics.push(Diagnostic {
+                    code: format!("claims.{code:?}"),
+                    severity: DiagnosticSeverity::Warning,
+                    stage: DiagnosticStage::ResourceLimit,
+                    message: "Independent claim generation reached its limit; original observations remain available".into(),
+                    parser: None,
+                    source: path,
+                    source_range: None,
+                    related_observations: Vec::new(),
+                    recoverable: true,
+                });
             }
             records.push(record);
         }
