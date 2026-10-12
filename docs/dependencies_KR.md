@@ -65,7 +65,8 @@ sanitizer 설정을 반영하고 Cargo 구성마다 동일한 소스 경로를 �
 PDF 어댑터는 고정한 qpdf 라이브러리·내장 암호 처리 소스와 검토한 libjpeg-turbo를 정적으로
 배포합니다. JPEG SIMD·실행 도구·TurboJPEG는 비활성화하고 시스템 zlib·JPEG·OpenSSL·GnuTLS를
 자동 선택하지 않습니다. 원본 Apache·IJG·libjpeg 안내를 설치 결과에 포함합니다. 생성한
-qpdf Pl_Buffer 사본에는 파서별 자원 제한 확인을 한 곳 추가하며 원본 리비전과 수정 내용을
-명시합니다. 아래 문구는 IJG 원본 배포 요구 사항입니다.
+qpdf 버퍼·문자열 파이프라인과 경고 보존 사본에 파서별 자원 제한 확인을 추가하며 원본
+리비전과 수정 내용을 명시합니다. 원본 소스 파일은 변경하지 않습니다. 아래 문구는
+IJG 원본 배포 요구 사항입니다.
 
 This software is based in part on the work of the Independent JPEG Group.

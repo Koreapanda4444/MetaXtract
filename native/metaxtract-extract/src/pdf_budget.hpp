@@ -3,6 +3,7 @@
 namespace metaxtract::native::formats::pdf {
 class BufferBudgetScope final {
     ParserBudget* previous_;
+    std::uint32_t previous_warnings_;
 public:
     explicit BufferBudgetScope(ParserBudget& budget) noexcept;
     ~BufferBudgetScope();

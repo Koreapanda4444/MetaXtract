@@ -39,13 +39,21 @@ public:
         return static_cast<std::size_t>(completed);
     }
     qpdf_offset_t findAndSkipNextEOL() override {
+        if (static_cast<std::uint64_t>(position_) >= r_.size) {
+            position_ = static_cast<qpdf_offset_t>(r_.size);
+            setLastOffset(position_);
+            return position_;
+        }
+        const auto previous = getLastOffset();
         char c = 0;
         while (read(&c, 1)) {
             if (c != '\r' && c != '\n') { continue; }
             const auto result = position_ - 1;
             while (read(&c, 1)) { if (c != '\r' && c != '\n') { unreadCh(c); break; } }
+            setLastOffset(previous);
             return result;
         }
+        setLastOffset(previous);
         return position_;
     }
 };
@@ -221,7 +229,7 @@ ParseStatus inspect(ParserContext& context, SecurityInspector security) {
         BufferBudgetScope buffers(context.budget());
         QPDF raw; raw.setSuppressWarnings(true); raw.emptyPDF();
         const auto revisions = history(r, raw);
-        QPDF document; document.setSuppressWarnings(true); document.setAttemptRecovery(false); document.setMaxWarnings(100);
+        QPDF document; document.setSuppressWarnings(true); document.setAttemptRecovery(false);
         try { document.processInputSource(std::make_shared<Source>(r)); }
         catch (const QPDFExc& error) {
             if (error.getErrorCode() != qpdf_e_password) { throw; }

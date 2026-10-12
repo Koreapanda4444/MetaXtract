@@ -63,5 +63,6 @@ compiler, CRT and sanitizer settings and uses a stable source path across Cargo 
 The PDF adapter statically bundles qpdf's locked library/native-crypto source lists and reviewed
 libjpeg-turbo, with JPEG SIMD, tools and TurboJPEG disabled. It does not discover system zlib,
 JPEG, OpenSSL or GnuTLS packages. Original Apache, IJG and libjpeg notices are installed.
-The generated qpdf Pl_Buffer copy adds one parser-local budget hook; its pinned source and
-modification remain identified. This software is based in part on the work of the Independent JPEG Group.
+Generated qpdf buffer/string pipelines and warning retention add parser-local budget hooks;
+their pinned source and modifications remain identified. Original source files remain unchanged.
+This software is based in part on the work of the Independent JPEG Group.

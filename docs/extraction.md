@@ -205,8 +205,10 @@ and report incomplete extraction. Empty-password encryption can be opened by qpd
 documents report password_required and remain partial. Password entry is not yet exposed.
 
 The adapter charges a 32 MiB working allowance, checks read/traversal/output limits and inserts
-parser-local budget checks before qpdf's internal Pl_Buffer growth, including object-stream
-decompression. This does not meter every allocation or provide preemptive worker isolation.
+parser-local budget checks before qpdf's internal buffer and string growth, including object-stream
+decompression. Warnings are limited to 100 per extraction and charged before retention. The adapter
+does not enable qpdf's eager page-repair pass; page traversal and inherited geometry use the bounded
+read-only adapter. These checks do not meter every allocation or provide preemptive worker isolation.
 
 ## PDF security structures
 

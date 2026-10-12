@@ -129,8 +129,8 @@ def main() -> None:
         if os.name == "nt":
             flags += ["--toolchain=msvc", "--target-os=win64", "--arch=x86_64", "--cc=cl", "--ld=link"]
             cflags += " -MT" if args.static_crt == "ON" else " -MD"
-            # configure does not retroactively translate its initial LDFLAGS.
-            ldflags = '/LIBPATH:"' + pinned.as_posix() + '"'
+            ldflags = '-libpath:"' + pinned.as_posix() + '"'
+            env["LIB"] = str(pinned) + os.pathsep + env.get("LIB", "")
         else:
             flags += ["--cc=" + args.cc]
             if sys.platform == "darwin":
