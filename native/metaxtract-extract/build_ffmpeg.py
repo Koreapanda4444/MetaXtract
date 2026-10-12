@@ -90,6 +90,15 @@ def main() -> None:
             if source.exists():
                 shutil.rmtree(source)
             shutil.copytree(incoming, source, ignore=shutil.ignore_patterns(".git"))
+        if os.name == "nt":
+            resource_wrapper = source / "compat/windows/mswindres"
+            original_command = 'rc.exe "$@" -fo "$OUT" "$IN"'
+            native_command = 'rc.exe "$@" -fo "$(cygpath -m "$OUT")" "$(cygpath -m "$IN")"'
+            contents = resource_wrapper.read_text()
+            if original_command in contents:
+                resource_wrapper.write_text(contents.replace(original_command, native_command))
+            elif native_command not in contents:
+                raise RuntimeError("Reviewed MSVC resource path conversion point was not found")
         prefix = build / "install"
         pinned = build / "pinned-zlib"
         pinned.mkdir(exist_ok=True)
@@ -143,6 +152,8 @@ def main() -> None:
             ldflags += " -fsanitize=address,undefined"
         flags += ["--extra-cflags=" + cflags, "--extra-ldflags=" + ldflags]
         configuration = {"source": str(source), "flags": flags, "compiler": args.cc}
+        if os.name == "nt":
+            configuration["resource_path_adapter"] = "MSYS2 cygpath to native MSVC paths"
         if sys.platform.startswith("linux"):
             configuration["shared_library_runpath"] = "$ORIGIN"
         config_file = build / "reviewed-configuration.json"
