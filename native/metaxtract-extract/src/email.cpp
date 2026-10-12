@@ -91,6 +91,10 @@ class Email final {
             if (c == '"' && comments == 0) { quoted = !quoted; continue; }
             if (!quoted && c == '(') { ++comments; continue; }
             if (!quoted && c == ')' && comments != 0) { --comments; continue; }
+            if (!quoted && comments == 0 && c == '=' && at + 1 < text.size() && text[at + 1] == '?') {
+                const auto word_end = text.find("?=", at + 2);
+                if (word_end != std::string_view::npos) { at = word_end + 1; continue; }
+            }
             if (quoted || comments != 0 || c != '<') { continue; }
             field.entry();
             const auto end = text.find('>', at + 1);
@@ -131,7 +135,7 @@ class Email final {
                     field.decoded("header_text", ValueKind::Text, text, packet);
                     field.decoded("header." + header.name, ValueKind::Text, text, packet);
                     if (header.name == "from" || header.name == "to" || header.name == "cc" || header.name == "bcc" || header.name == "reply-to" || header.name == "sender") {
-                        addresses(field, text, packet);
+                        addresses(field, header.value, packet);
                     }
                 }
             } catch (const Failure& error) { failure(field, error); }

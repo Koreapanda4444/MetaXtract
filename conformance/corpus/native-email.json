@@ -633,6 +633,48 @@
           "7265616c406578616d706c652e696e76616c6964"
         ]
       }
+    },
+    {
+      "name": "eml-encoded-display-word-cannot-create-address-syntax",
+      "parser": "email.mime",
+      "base64": "RnJvbTogPT91dGYtOD9CP1BHWmhhMlZBYVc1MllXeHBaRDQ9Pz0gPHJlYWxAZXhhbXBsZS5pbnZhbGlkPg0KDQpCb2R5",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "angle_address_claim": [
+          "7265616c406578616d706c652e696e76616c6964"
+        ]
+      }
+    },
+    {
+      "name": "mime-comments-separate-lexical-tokens",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogR3JhbW1hcg0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyKGNvbW1lbnQpc2V0PXV0Zi04DQoNCkJvZHk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {
+        "header.subject": [
+          "4772616d6d6172"
+        ]
+      }
+    },
+    {
+      "name": "mime-comments-around-type-slash",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogR3JhbW1hcg0KQ29udGVudC1UeXBlOiB0ZXh0ICh0eXBlKSAvIHBsYWluIChzdWJ0eXBlKTsgY2hhcnNldD11dGYtOA0KDQpCb2R5",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "media_type": [
+          "746578742f706c61696e"
+        ],
+        "body_text": [
+          "426f6479"
+        ]
+      }
     }
   ]
 }

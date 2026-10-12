@@ -162,6 +162,7 @@ MimeType parse_mime_type(Reader& reader, const std::string_view original, const 
         }
         if (c == '"' && comment_depth == 0) { quoted = !quoted; cleaned.push_back(c); continue; }
         if (!quoted && c == '(') {
+            if (comment_depth == 0 && !cleaned.empty() && !space(cleaned.back())) { cleaned.push_back(' '); }
             ++comment_depth;
             if (!reader.context.budget().check_depth(comment_depth)) { throw Failure{ParseStatus::Internal, "MIME comment depth budget exceeded", 0}; }
             continue;
@@ -174,9 +175,21 @@ MimeType parse_mime_type(Reader& reader, const std::string_view original, const 
     MimeType result;
     std::size_t at = 0;
     const auto semicolon = input.find(';');
-    result.token = ascii_lower(trim(input.substr(0, semicolon)));
-    if (result.token.empty() || std::any_of(result.token.begin(), result.token.end(), [](const auto c) { return static_cast<unsigned char>(c) < 0x21 || static_cast<unsigned char>(c) > 0x7e; })) {
-        throw Failure{ParseStatus::Malformed, "Invalid MIME type/disposition token", 0};
+    const auto atom = [](const std::string_view token) {
+        constexpr std::string_view special("()<>@,;:\\\"/[]?=");
+        return !token.empty() && std::all_of(token.begin(), token.end(), [special](const auto c) {
+            return static_cast<unsigned char>(c) > 0x20 && static_cast<unsigned char>(c) < 0x7f && special.find(c) == std::string_view::npos;
+        });
+    };
+    const auto token = trim(input.substr(0, semicolon));
+    const auto slash = token.find('/');
+    if (slash == std::string_view::npos) {
+        if (!atom(token)) { throw Failure{ParseStatus::Malformed, "Invalid MIME disposition token", 0}; }
+        result.token = ascii_lower(token);
+    } else {
+        const auto left = trim(token.substr(0, slash)), right = trim(token.substr(slash + 1));
+        if (!atom(left) || !atom(right)) { throw Failure{ParseStatus::Malformed, "Invalid MIME media type token", 0}; }
+        result.token = ascii_lower(left) + "/" + ascii_lower(right);
     }
     if (semicolon == std::string_view::npos) { return result; }
     at = semicolon + 1;
@@ -187,7 +200,7 @@ MimeType parse_mime_type(Reader& reader, const std::string_view original, const 
         const auto equal = input.find('=', at);
         if (equal == std::string_view::npos || input.substr(at, equal - at).find(';') != std::string_view::npos) { throw Failure{ParseStatus::Malformed, "MIME parameter has no value", 0}; }
         const auto name = ascii_lower(trim(input.substr(at, equal - at)));
-        if (name.empty() || std::any_of(name.begin(), name.end(), [](const auto c) { return static_cast<unsigned char>(c) < 0x21 || static_cast<unsigned char>(c) > 0x7e; })) {
+        if (!atom(name)) {
             throw Failure{ParseStatus::Malformed, "Invalid MIME parameter name", 0};
         }
         at = equal + 1;
@@ -209,6 +222,7 @@ MimeType parse_mime_type(Reader& reader, const std::string_view original, const 
         } else {
             const auto end = input.find(';', at);
             value = trim(input.substr(at, end == std::string_view::npos ? input.size() - at : end - at));
+            if (!atom(value)) { throw Failure{ParseStatus::Malformed, "Invalid unquoted MIME parameter token", 0}; }
             at = end == std::string_view::npos ? input.size() : end;
         }
         reader.decoded("parameter_name", ValueKind::Text, name, packet);
