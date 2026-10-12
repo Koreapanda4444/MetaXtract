@@ -28,6 +28,7 @@ add_library(metaxtract_extract STATIC
   src/archive.cpp
   src/archive_budget.cpp
   src/budget.cpp
+  src/binaries.cpp
   src/core.cpp
   src/detection.cpp
   src/images.cpp
