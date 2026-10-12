@@ -59,11 +59,12 @@ jobs:
       - name: Verify upstream release commits
         if: runner.os == 'Linux'
         run: python conformance/validate.py --online
-      - name: Check formatting and Rust warnings
-        run: |
-          cargo fmt --all -- --check
-          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-          cargo test --workspace --locked
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Check Rust warnings
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - name: Check Rust policy regressions
+        run: cargo test --workspace --locked
       - name: Check debug extraction contracts
         run: python conformance/run.py
       - name: Save reviewed native media build cache
@@ -74,11 +75,12 @@ jobs:
           key: ${{ steps.native-media-cache.outputs.cache-primary-key }}
       - name: Build production workspace
         run: cargo build --workspace --release --locked
-      - name: Build and check native core
-        run: |
-          cmake --preset dev
-          cmake --build --preset dev --config Debug
-          ctest --preset dev -C Debug
+      - name: Configure native core
+        run: cmake --preset dev
+      - name: Build native core
+        run: cmake --build --preset dev --config Debug
+      - name: Check native core
+        run: ctest --preset dev -C Debug
       - name: Check release extraction contracts
         run: python conformance/run.py --release
 

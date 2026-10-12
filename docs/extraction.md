@@ -215,7 +215,9 @@ including unreachable dictionaries and compressed objects. Direct dictionaries/a
 and entry limits; indirect edges retain identities and are inspected once through the object table,
 so ordinary page-parent and action-reference cycles do not cause unbounded descent. Unknown
 keys, strings and string bytes, stream filters, object-stream identities and original object offsets
-remain available. Historical replaced/deleted objects are not reconstructed.
+remain available, with original dictionary bytes for current uncompressed dictionaries/streams.
+Compression and embedding markers are separate from active-content features; neither implies
+maliciousness. Historical replaced/deleted objects are not reconstructed.
 
 Encryption inspection preserves raw Standard/security-handler and crypt-filter dictionaries even
 when the document requires a password. Empty-password RC4/AES documents additionally expose

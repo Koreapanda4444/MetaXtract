@@ -41,7 +41,8 @@
         ],
         "encrypted": [
           "0"
-        ]
+        ],
+        "library_warning": []
       }
     },
     {
@@ -258,7 +259,9 @@
       "allocation_max": 536870912,
       "decoded_max": 2000,
       "status": "DecodeBudgetExceeded",
-      "fields": {}
+      "fields": {
+        "library_error": []
+      }
     },
     {
       "name": "pdf-truncated-footer",
@@ -405,7 +408,7 @@
       "observation_max": 10000,
       "allocation_max": 536870912,
       "decoded_max": 268435456,
-      "status": "DepthLimitExceeded",
+      "status": "ContainerDepthExceeded",
       "fields": {},
       "depth_max": 1
     },

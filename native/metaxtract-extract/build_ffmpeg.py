@@ -129,6 +129,8 @@ def main() -> None:
         if os.name == "nt":
             flags += ["--toolchain=msvc", "--target-os=win64", "--arch=x86_64", "--cc=cl", "--ld=link"]
             cflags += " -MT" if args.static_crt == "ON" else " -MD"
+            # configure does not retroactively translate its initial LDFLAGS.
+            ldflags = '/LIBPATH:"' + pinned.as_posix() + '"'
         else:
             flags += ["--cc=" + args.cc]
             if sys.platform == "darwin":
@@ -148,7 +150,12 @@ def main() -> None:
                 except subprocess.CalledProcessError:
                     print((build / "configure.log").read_text(errors="replace")[-12000:], file=sys.stderr)
                     if (build / "ffbuild/config.log").is_file():
-                        print((build / "ffbuild/config.log").read_text(errors="replace")[-16000:], file=sys.stderr)
+                        configuration_log = (build / "ffbuild/config.log").read_text(errors="replace")
+                        for token in ("check_lib zlib", "zlibVersion", "zlib.lib"):
+                            at = configuration_log.find(token)
+                            if at >= 0:
+                                print(configuration_log[max(0, at - 800):at + 2600], file=sys.stderr)
+                        print(configuration_log[-16000:], file=sys.stderr)
                     raise
             config_file.write_text(json.dumps(configuration, indent=2) + "\n")
         if sys.platform.startswith("linux"):

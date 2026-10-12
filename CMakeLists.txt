@@ -12,5 +12,10 @@ if(MSVC AND NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
   endif()
 endif()
 
+if(MSVC)
+  # Exception unwinding must also be enabled in library adapters and dependencies.
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EHsc>)
+endif()
+
 include(CTest)
 add_subdirectory(native/metaxtract-extract)

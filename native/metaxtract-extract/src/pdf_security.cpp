@@ -24,10 +24,12 @@ class Objects final {
     Reader& source_;
     unsigned signatures_ = 0;
     std::uint64_t features_ = 0;
+    std::uint64_t active_features_ = 0;
     std::set<QPDFObjGen> scripts_;
     bool original_offsets_ = false;
-    void feature(Reader& r, const std::string& name, const std::string& id) {
-        ++features_; value(r, "active_content_feature", ValueKind::Text, name, id);
+    void feature(Reader& r, const std::string& name, const std::string& id, bool active = true) {
+        ++features_; value(r, "security_structure_feature", ValueKind::Text, name, id);
+        if (active) { ++active_features_; value(r, "active_content_feature", ValueKind::Text, name, id); }
     }
     void script(Reader& r, QPDFObjectHandle data, const std::string& id) {
         if (data.isString()) { value(r, "javascript_data", ValueKind::DecodedBytes, data.getStringValue(), id); return; }
@@ -78,7 +80,7 @@ class Objects final {
         if (!valid) { value(r, "byte_range_issue", ValueKind::Text, "invalid_count_type_order_or_source_bounds", id); return; }
         number(r, "signed_covered_end", static_cast<std::int64_t>(last), id);
         number(r, "unsigned_tail_bytes", static_cast<std::int64_t>(source_.size - last), id);
-        number(r, "covers_current_file", last == source_.size ? 1 : 0, id);
+        number(r, "covered_end_is_current_eof", last == source_.size ? 1 : 0, id);
         const auto parsed_offset = contents.isString() && !contents.isIndirect() ? contents.getParsedOffset() : -1;
         const bool can_check = count == 4 && contents.isString() && !contents.isIndirect() && original_offsets_ && parsed_offset >= 0;
         number(r, "contents_gap_checked", can_check ? 1 : 0, id);
@@ -126,7 +128,7 @@ class Objects final {
             }
             if (type.isName()) {
                 const auto name = type.getName();
-                if (name == "/EmbeddedFile" || name == "/ObjStm" || name == "/XRef" || name == "/RichMedia") { feature(r, "type:" + name, id); }
+                if (name == "/EmbeddedFile" || name == "/ObjStm" || name == "/XRef" || name == "/RichMedia") { feature(r, "type:" + name, id, name == "/RichMedia"); }
             }
             auto action = dictionary.getKey("/S");
             if (action.isName()) {
@@ -138,7 +140,7 @@ class Objects final {
                 r.entry(); value(r, "object_dictionary_key", ValueKind::Text, name, id);
                 if (name == "/OpenAction" || name == "/AA" || name == "/JS" || name == "/JavaScript" || name == "/Launch" ||
                     name == "/RichMedia" || name == "/RichMediaContent" || name == "/XFA" || name == "/EmbeddedFiles" ||
-                    name == "/URI" || name == "/EF") { feature(r, "key:" + name, id); }
+                    name == "/URI" || name == "/EF") { feature(r, "key:" + name, id, name != "/EmbeddedFiles" && name != "/EF"); }
                 auto item = dictionary.getKey(name);
                 if (name == "/JS") { script(r, item, id); }
                 if (object.isStream() && name == "/F") { value(r, "external_stream_not_opened", ValueKind::Text, "Filesystem access is disabled", id); }
@@ -159,7 +161,7 @@ class Objects final {
 public:
     explicit Objects(Reader& r) : source_(r) {}
     void dictionary(Reader& r, QPDFObjectHandle dictionary, const std::string& key, const std::string& id) { walk(r, dictionary, key, id, 0, true); }
-    void inventory(QPDF& document, const History& revisions) {
+    void inventory(QPDF& document, QPDF& raw, const History& revisions) {
         constexpr std::uint64_t entry_allowance = 96;
         const auto known = static_cast<std::uint64_t>(revisions.slots.size());
         if (known > UINT64_MAX / entry_allowance || !source_.context.budget().reserve_allocation(known * entry_allowance)) {
@@ -189,13 +191,17 @@ public:
                 const auto offset = slot.getOffset();
                 if (offset < 0 || static_cast<std::uint64_t>(offset) >= source_.size) { throw Failure{ParseStatus::Malformed, "PDF library object offset escapes source", 0}; }
                 number(r, "object_offset", offset, id);
+                if (object.isDictionary() || object.isStream()) {
+                    static_cast<void>(raw_dictionary(r, raw, static_cast<std::uint64_t>(offset), static_cast<std::uint64_t>(identity.getObj()), static_cast<std::uint64_t>(identity.getGen())));
+                }
             }
             original_offsets_ = type == 1;
             dictionary(r, object, "", id); ++count;
         }
         number(source_, "inspected_object_count", static_cast<std::int64_t>(count), "pdf.container");
         number(source_, "signature_count", signatures_, "pdf.container");
-        number(source_, "active_content_feature_count", static_cast<std::int64_t>(features_), "pdf.container");
+        number(source_, "security_structure_feature_count", static_cast<std::int64_t>(features_), "pdf.container");
+        number(source_, "active_content_feature_count", static_cast<std::int64_t>(active_features_), "pdf.container");
     }
 };
 void encryption(QPDF* document, QPDF& raw, Reader& source, const History& revisions, Objects& objects) {
@@ -264,7 +270,7 @@ void security(QPDF* document, QPDF& raw, Reader& source, const History& revision
     if (!document) {
         value(r, "object_inventory_status", ValueKind::Text, "password_required", "pdf.container"); return;
     }
-    objects.inventory(*document, revisions);
+    objects.inventory(*document, raw, revisions);
 }
 }
 ParseStatus inspect_security(ParserContext& context) { return inspect(context, security); }

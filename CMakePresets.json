@@ -19,17 +19,21 @@
       "name": "sanitize",
       "inherits": "dev",
       "binaryDir": "${sourceDir}/cmake-build-sanitize",
-      "cacheVariables": { "METAXTRACT_SANITIZERS": "address,undefined" }
+      "cacheVariables": {
+        "METAXTRACT_SANITIZERS": "address,undefined"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "dev",
-      "configurePreset": "dev"
+      "configurePreset": "dev",
+      "jobs": 3
     },
     {
       "name": "sanitize",
-      "configurePreset": "sanitize"
+      "configurePreset": "sanitize",
+      "jobs": 3
     }
   ],
   "testPresets": [
@@ -39,13 +43,19 @@
       "output": {
         "outputOnFailure": true
       },
-      "execution": { "noTestsAction": "error" }
+      "execution": {
+        "noTestsAction": "error"
+      }
     },
     {
       "name": "sanitize",
       "configurePreset": "sanitize",
-      "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error" }
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
     }
   ]
 }

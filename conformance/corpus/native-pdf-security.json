@@ -54,9 +54,6 @@
         "contents_gap_matches": [
           "1"
         ],
-        "covers_current_file": [
-          "1"
-        ],
         "unsigned_tail_bytes": [
           "0"
         ],
@@ -67,6 +64,9 @@
           "1"
         ],
         "signature_field_has_value": [
+          "1"
+        ],
+        "covered_end_is_current_eof": [
           "1"
         ]
       }
@@ -90,9 +90,6 @@
         "contents_gap_matches": [
           "1"
         ],
-        "covers_current_file": [
-          "0"
-        ],
         "unsigned_tail_bytes": [
           "157"
         ],
@@ -101,6 +98,9 @@
         ],
         "revision_count": [
           "2"
+        ],
+        "covered_end_is_current_eof": [
+          "0"
         ]
       }
     },
@@ -156,7 +156,7 @@
         "contents_gap_matches": [
           "0"
         ],
-        "covers_current_file": [
+        "covered_end_is_current_eof": [
           "1"
         ]
       }
@@ -358,6 +358,9 @@
         ],
         "active_content_execution": [
           "64697361626c6564"
+        ],
+        "active_content_feature_count": [
+          "0"
         ]
       }
     },
@@ -528,7 +531,7 @@
       "observation_max": 10000,
       "allocation_max": 536870912,
       "decoded_max": 268435456,
-      "status": "DepthLimitExceeded",
+      "status": "ContainerDepthExceeded",
       "fields": {},
       "depth_max": 1
     },
@@ -574,7 +577,7 @@
         "contents_gap_matches": [
           "0"
         ],
-        "covers_current_file": [
+        "covered_end_is_current_eof": [
           "1"
         ]
       }
