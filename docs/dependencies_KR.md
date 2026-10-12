@@ -74,3 +74,5 @@ qpdf 버퍼·문자열 파이프라인과 경고 보존 사본에 파서별 자�
 IJG 원본 배포 요구 사항입니다.
 
 This software is based in part on the work of the Independent JPEG Group.
+
+아카이브 어댑터는 libarchive 3.8.9, XZ 5.8.4의 liblzma(0BSD), libbzip2 1.0.8(bzip2-1.0.6 라이선스)을 포함합니다. 소스를 고정한 라이브러리 빌드이며 CLI·스크립트·상류 테스트·암묵적인 시스템 라이브러리 탐색을 끕니다. Julian R. Seward의 libbzip2와 XZ Utils 저자·기여자의 코드를 포함합니다. 할당 가로채기는 MetaXtract 빌드에서 적용한 변경이며 검토한 상류 소스 캐시는 수정하지 않습니다.

@@ -172,3 +172,23 @@ source = "https://github.com/libjpeg-turbo/libjpeg-turbo"
 license = "IJG AND BSD-3-Clause AND Zlib"
 role = "reviewed qpdf JPEG stream dependency"
 linkage = "bundled-static"
+
+[[dependency]]
+name = "xz"
+version = "5.8.4"
+revision = "d3e650e63c110e830fd5391e7f8b45df0b91d3da"
+tag = "v5.8.4"
+source = "https://github.com/tukaani-project/xz"
+license = "0BSD"
+role = "library-only LZMA and XZ archive decoding"
+linkage = "bundled-static"
+
+[[dependency]]
+name = "bzip2"
+version = "1.0.8"
+revision = "6a8690fc8d26c815e798c588f796eabe9d684cf0"
+tag = "bzip2-1.0.8"
+source = "https://github.com/libarchive/bzip2"
+license = "bzip2-1.0.6"
+role = "in-process bzip2 archive decoding"
+linkage = "bundled-static"

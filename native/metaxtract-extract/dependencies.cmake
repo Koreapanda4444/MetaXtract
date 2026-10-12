@@ -131,3 +131,5 @@ install(FILES "${utfcpp_SOURCE_DIR}/LICENSE" DESTINATION share/metaxtract/licens
 
 include(ffmpeg.cmake)
 include(qpdf.cmake)
+
+include(archive.cmake)

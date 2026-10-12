@@ -71,3 +71,5 @@ JPEG, OpenSSL or GnuTLS packages. Original Apache, IJG and libjpeg notices are i
 Generated qpdf buffer/string pipelines and warning retention add parser-local budget hooks;
 their pinned source and modifications remain identified. Original source files remain unchanged.
 This software is based in part on the work of the Independent JPEG Group.
+
+The archive adapter additionally bundles libarchive 3.8.9, liblzma from XZ 5.8.4 (0BSD), and libbzip2 1.0.8 (bzip2-1.0.6 license). These are source-pinned library-only builds; command-line tools, scripts, upstream tests and implicit host-library discovery are disabled. This software includes libbzip2 by Julian R. Seward and XZ Utils by its authors and contributors. Allocation interception is a MetaXtract build modification, while the reviewed upstream source cache remains unchanged.

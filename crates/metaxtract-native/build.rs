@@ -80,6 +80,9 @@ fn main() {
         built.join("lib").display()
     );
     println!("cargo:rustc-link-lib=static=metaxtract_extract");
+    println!("cargo:rustc-link-lib=static=mx_archive");
+    println!("cargo:rustc-link-lib=static=mx_lzma");
+    println!("cargo:rustc-link-lib=static=mx_bzip2");
     println!("cargo:rustc-link-lib=static=mx_pugixml");
     println!("cargo:rustc-link-lib=static=mx_qpdf");
     println!("cargo:rustc-link-lib=static=mx_jpeg");
