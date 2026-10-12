@@ -96,7 +96,7 @@ def main() -> None:
             native_command = 'rc.exe "$@" -fo "$(cygpath -m "$OUT")" "$(cygpath -m "$IN")"'
             contents = resource_wrapper.read_text()
             if original_command in contents:
-                resource_wrapper.write_text(contents.replace(original_command, native_command))
+                resource_wrapper.write_text(contents.replace(original_command, native_command), newline="\n")
             elif native_command not in contents:
                 raise RuntimeError("Reviewed MSVC resource path conversion point was not found")
         prefix = build / "install"
