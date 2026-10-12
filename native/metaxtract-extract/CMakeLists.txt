@@ -37,6 +37,8 @@ add_library(metaxtract_extract STATIC
   src/ole.cpp
   src/ole_properties.cpp
   src/ole_legacy.cpp
+  src/mime.cpp
+  src/email.cpp
   src/heif.cpp
   src/raw.cpp
   src/audio.cpp

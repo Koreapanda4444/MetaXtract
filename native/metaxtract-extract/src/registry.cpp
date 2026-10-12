@@ -19,6 +19,7 @@ std::unique_ptr<Parser> pdf_metadata_parser();
 std::unique_ptr<Parser> pdf_security_parser();
 std::unique_ptr<Parser> document_package_parser();
 std::unique_ptr<Parser> document_ole_parser();
+std::unique_ptr<Parser> email_mime_parser();
 #ifdef METAXTRACT_CONFORMANCE
 std::unique_ptr<Parser> conformance_parser();
 #endif
@@ -59,6 +60,7 @@ const ParserRegistry& default_registry() noexcept {
         result.add(pdf_security_parser());
         result.add(document_package_parser());
         result.add(document_ole_parser());
+        result.add(email_mime_parser());
 #ifdef METAXTRACT_CONFORMANCE
         result.add(conformance_parser());
 #endif

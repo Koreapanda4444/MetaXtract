@@ -21,6 +21,8 @@ OOXML/ODF package properties, relationships and revision/comment metadata are al
 
 OLE compound files and legacy Word, Excel, and PowerPoint now expose directory metadata, typed document properties, macros and embedded stream inventories through `document.ole`. Fragmented streams keep physical fragments and decoded stream identity; unsupported encryption and character sets are reported explicitly.
 
+`email.mime` extracts EML/MIME headers, ordered route claims, text bodies, attachments and nested messages. It preserves duplicates and original bytes, decodes RFC2047/RFC2231 and common transfer encodings, and labels authentication/signature verification as not performed.
+
 image claims. The Rust GUI/CLI and full workflow parity remain pending;
 see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 

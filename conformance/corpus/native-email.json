@@ -1,0 +1,638 @@
+{
+  "schema": 1,
+  "provenance": "Independently generated RFC5322/6532 and MIME byte messages with RFC2047 encoded words, RFC2231 parameters, Base64 and quoted-printable, UTF-8/UTF-16/Latin-1 text, binary attachments and nested messages. Includes malformed encodings, ambiguous headers, boundary and resource limit failures. No mail client, network fetch or external metadata executable is used.",
+  "cases": [
+    {
+      "name": "eml-headers-routes-addresses-and-body",
+      "parser": "email.mime",
+      "base64": "RnJvbTogQW5hbHlzdCA8YW5hbHlzdEBleGFtcGxlLmludmFsaWQ+DQpUbzogUmVhZGVyIDxyZWFkZXJAZXhhbXBsZS5pbnZhbGlkPg0KU3ViamVjdDogRXZpZGVuY2UNCkRhdGU6IE1vbiwgMTIgT2N0IDIwMjYgMTI6MDA6MDAgKzAwMDANCk1lc3NhZ2UtSUQ6IDxjYXNlQGV4YW1wbGUuaW52YWxpZD4NClJlY2VpdmVkOiBmcm9tIHJlbGF5LmludmFsaWQgYnkgZmluYWwuaW52YWxpZDsgTW9uLCAxMiBPY3QgMjAyNiAxMjowMDowMSArMDAwMA0KUmVjZWl2ZWQ6IGZyb20gc2VuZGVyLmludmFsaWQgYnkgcmVsYXkuaW52YWxpZDsgTW9uLCAxMiBPY3QgMjAyNiAxMjowMDowMCArMDAwMA0KREtJTS1TaWduYXR1cmU6IHY9MTsgZD1leGFtcGxlLmludmFsaWQ7IGI9QUFBQQ0KDQpIZWxsbw0K",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "header.subject": [
+          "45766964656e6365"
+        ],
+        "angle_address_claim": [
+          "616e616c797374406578616d706c652e696e76616c6964",
+          "726561646572406578616d706c652e696e76616c6964"
+        ],
+        "body_text": [
+          "48656c6c6f0d0a"
+        ],
+        "received_route_count": [
+          "2"
+        ],
+        "route_verification": [
+          "6e6f745f706572666f726d6564",
+          "6e6f745f706572666f726d6564"
+        ],
+        "authentication_verification": [
+          "6e6f745f706572666f726d6564"
+        ]
+      }
+    },
+    {
+      "name": "eml-rfc2047-korean-folded-adjacent-words",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogPT9VVEYtOD9CPzdaV2M2cmlBPz0NCgk9P1VURi04P0I/SU95Z25PdXFxUT09Pz0NCg0KQVNDSUk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "header.subject": [
+          "ed959ceab88020eca09cebaaa9"
+        ]
+      }
+    },
+    {
+      "name": "eml-rfc2047-q-windows1252",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogPT93aW5kb3dzLTEyNTI/UT9SPUU5c3VtPUU5X3Rlc3Q/PQ0KDQo=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "header.subject": [
+          "52c3a973756dc3a92074657374"
+        ]
+      }
+    },
+    {
+      "name": "eml-duplicate-subjects-preserved",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogRmlyc3QNClN1YmplY3Q6IFNlY29uZA0KDQpCb2R5",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "header.subject": [
+          "4669727374",
+          "5365636f6e64"
+        ],
+        "duplicate_header": [
+          "0",
+          "1"
+        ]
+      }
+    },
+    {
+      "name": "eml-lf-only-headers",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogTEYKCkJvZHk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_text": [
+          "426f6479"
+        ]
+      }
+    },
+    {
+      "name": "eml-utf8-base64-body",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogVW5pY29kZQ0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PVVURi04DQpDb250ZW50LVRyYW5zZmVyLUVuY29kaW5nOiBiYXNlNjQNCg0KNjdPNDY2eTRJUENmbUlBPQ==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_payload": [
+          "ebb3b8ebacb820f09f9880"
+        ],
+        "body_text": [
+          "ebb3b8ebacb820f09f9880"
+        ]
+      }
+    },
+    {
+      "name": "eml-quoted-printable-soft-break-and-space",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUVANCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOA0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogcXVvdGVkLXByaW50YWJsZQ0KDQpIZWxsbz0yMD0NCndvcmxkIAkNCktlZXA9MjA=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_text": [
+          "48656c6c6f20776f726c640d0a4b65657020"
+        ]
+      }
+    },
+    {
+      "name": "eml-qp-lf-soft-break",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUVANCkNvbnRlbnQtVHJhbnNmZXItRW5jb2Rpbmc6IHF1b3RlZC1wcmludGFibGUNCg0KYT0KYg==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_payload": [
+          "6162"
+        ]
+      }
+    },
+    {
+      "name": "eml-latin1-text",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogTGF0aW4NCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD1pc28tODg1OS0xDQpDb250ZW50LVRyYW5zZmVyLUVuY29kaW5nOiA4Yml0DQoNCmNhZuk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_text": [
+          "636166c3a9"
+        ]
+      }
+    },
+    {
+      "name": "eml-utf16-body",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogVVRGMTYNCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD11dGYtMTZsZQ0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogYmFzZTY0DQoNCk9Mc2N3UT09",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_text": [
+          "ebacb8ec849c"
+        ]
+      }
+    },
+    {
+      "name": "mime-binary-attachment-rfc2231-korean-name",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogTWl4ZWQNCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeT0iQk9VTkQiDQoNClByZWFtYmxlDQotLUJPVU5EDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXRmLTgNCg0KVGV4dA0KLS1CT1VORA0KQ29udGVudC1UeXBlOiBhcHBsaWNhdGlvbi9vY3RldC1zdHJlYW0NCkNvbnRlbnQtRGlzcG9zaXRpb246IGF0dGFjaG1lbnQ7IGZpbGVuYW1lKj11dGYtOCdrbyclRUQlOTUlOUMlRUElQjglODAuYmluDQpDb250ZW50LVRyYW5zZmVyLUVuY29kaW5nOiBiYXNlNjQNCg0KQVA4QkFnTT0NCi0tQk9VTkQtLQ0KRXBpbG9ndWU=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "filename": [
+          "ed959ceab8802e62696e"
+        ],
+        "attachment_size": [
+          "5"
+        ],
+        "body_payload": [
+          "54657874",
+          "00ff010203"
+        ],
+        "attachment_count": [
+          "1"
+        ],
+        "multipart_child_count": [
+          "2"
+        ],
+        "part_count": [
+          "3"
+        ],
+        "media_type": [
+          "6d756c7469706172742f6d69786564",
+          "746578742f706c61696e",
+          "6170706c69636174696f6e2f6f637465742d73747265616d"
+        ]
+      }
+    },
+    {
+      "name": "mime-rfc2231-continuation-filename",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogRmlsZW5hbWUNCkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtDQpDb250ZW50LURpc3Bvc2l0aW9uOiBhdHRhY2htZW50Ow0KIGZpbGVuYW1lKjAqPXV0Zi04J2tvJyVFRCU5NSU5QzsgZmlsZW5hbWUqMSo9JUVBJUI4JTgwLnR4dA0KDQpEQVRB",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "filename": [
+          "ed959ceab8802e747874"
+        ],
+        "attachment_size": [
+          "4"
+        ]
+      }
+    },
+    {
+      "name": "mime-quoted-escaped-filename",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogRmlsZW5hbWUNCkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtDQpDb250ZW50LURpc3Bvc2l0aW9uOiBhdHRhY2htZW50OyBmaWxlbmFtZT0icmVwb3J0XCJuYW1lLnR4dCINCg0KWA==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "filename": [
+          "7265706f7274226e616d652e747874"
+        ]
+      }
+    },
+    {
+      "name": "mime-unsafe-filename-is-not-written",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogRmlsZW5hbWUNCkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtDQpDb250ZW50LURpc3Bvc2l0aW9uOiBhdHRhY2htZW50OyBmaWxlbmFtZT0iLi4vLi4veC5leGUiDQoNClg=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "unsafe_filename": [
+          "1"
+        ]
+      }
+    },
+    {
+      "name": "mime-message-rfc822-identity",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogT3V0ZXINCkNvbnRlbnQtVHlwZTogbWVzc2FnZS9yZmM4MjINCg0KRnJvbTogTmVzdGVkIDxuZXN0ZWRAZXhhbXBsZS5pbnZhbGlkPg0KU3ViamVjdDogSW5uZXINCg0KTmVzdGVkIGJvZHk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "header.subject": [
+          "4f75746572",
+          "496e6e6572"
+        ],
+        "message_count": [
+          "2"
+        ],
+        "body_text": [
+          "4e657374656420626f6479"
+        ]
+      }
+    },
+    {
+      "name": "mime-message-rfc822-base64",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogT3V0ZXINCkNvbnRlbnQtVHlwZTogbWVzc2FnZS9yZmM4MjINCkNvbnRlbnQtVHJhbnNmZXItRW5jb2Rpbmc6IGJhc2U2NA0KDQpSbkp2YlRvZ1RtVnpkR1ZrSUR4dVpYTjBaV1JBWlhoaGJYQnNaUzVwYm5aaGJHbGtQZzBLVTNWaWFtVmpkRG9nU1c1dVpYSU5DZzBLVG1WemRHVmtJR0p2WkhrPQ==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "header.subject": [
+          "4f75746572",
+          "496e6e6572"
+        ],
+        "message_count": [
+          "2"
+        ],
+        "body_text": [
+          "4e657374656420626f6479"
+        ]
+      }
+    },
+    {
+      "name": "mime-multipart-digest-default-nested-message",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogRGlnZXN0DQpDb250ZW50LVR5cGU6IG11bHRpcGFydC9kaWdlc3Q7IGJvdW5kYXJ5PUQNCg0KLS1EDQoNCkZyb206IE5lc3RlZCA8bmVzdGVkQGV4YW1wbGUuaW52YWxpZD4NClN1YmplY3Q6IElubmVyDQoNCk5lc3RlZCBib2R5DQotLUQtLQ==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "message_count": [
+          "2"
+        ],
+        "part_count": [
+          "3"
+        ],
+        "media_type": [
+          "6d756c7469706172742f646967657374",
+          "6d6573736167652f726663383232",
+          "746578742f706c61696e"
+        ]
+      }
+    },
+    {
+      "name": "mime-html-body-retained-without-rendering",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogSFRNTA0KQ29udGVudC1UeXBlOiB0ZXh0L2h0bWw7IGNoYXJzZXQ9dXRmLTgNCg0KPHNjcmlwdD5uZXZlciBleGVjdXRlPC9zY3JpcHQ+",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_text": [
+          "3c7363726970743e6e6576657220657865637574653c2f7363726970743e"
+        ]
+      }
+    },
+    {
+      "name": "mime-type-comments",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogQ29tbWVudA0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluIChuZXN0ZWQgKGNvbW1lbnQpKTsgY2hhcnNldD0idXRmLTgiDQoNCkJvZHk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_text": [
+          "426f6479"
+        ],
+        "media_type": [
+          "746578742f706c61696e"
+        ]
+      }
+    },
+    {
+      "name": "eml-rfc6532-direct-utf8-header",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDog7KeB7KCRIO2VnOq4gA0KDQpCb2R5",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "header.subject": [
+          "eca781eca09120ed959ceab880"
+        ]
+      }
+    },
+    {
+      "name": "mime-pkcs7-verification-is-not-claimed",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogU2lnbmVkDQpDb250ZW50LVR5cGU6IGFwcGxpY2F0aW9uL3BrY3M3LXNpZ25hdHVyZQ0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogYmFzZTY0DQoNCkFBRUM=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "mime_security_verification": [
+          "6e6f745f706572666f726d6564"
+        ],
+        "body_payload": [
+          "000102"
+        ]
+      }
+    },
+    {
+      "name": "mime-boundary-prefix-does-not-split-body",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogQm91bmRhcnkNCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeT1CDQoNCi0tQg0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluDQoNCi0tQmV4dHJhDQphY3R1YWwNCi0tQi0t",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "body_text": [
+          "2d2d4265787472610d0a61637475616c"
+        ],
+        "multipart_child_count": [
+          "1"
+        ]
+      }
+    },
+    {
+      "name": "mime-missing-closing-boundary-retains-part",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUGFydGlhbA0KQ29udGVudC1UeXBlOiBtdWx0aXBhcnQvbWl4ZWQ7IGJvdW5kYXJ5PUINCg0KLS1CDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW4NCg0KUmV0YWluZWQ=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {
+        "body_text": [
+          "52657461696e6564"
+        ],
+        "multipart_child_count": [
+          "1"
+        ]
+      }
+    },
+    {
+      "name": "mime-missing-opening-boundary",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUGFydGlhbA0KQ29udGVudC1UeXBlOiBtdWx0aXBhcnQvbWl4ZWQ7IGJvdW5kYXJ5PUINCg0Kbm90aGluZw==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {}
+    },
+    {
+      "name": "mime-invalid-base64-alphabet",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUGFydGlhbA0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogYmFzZTY0DQoNCkFBQD0=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {
+        "header.subject": [
+          "5061727469616c"
+        ]
+      }
+    },
+    {
+      "name": "mime-invalid-base64-pad-bits",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUGFydGlhbA0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogYmFzZTY0DQoNCkFCPT0=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {}
+    },
+    {
+      "name": "mime-data-after-base64-padding",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUGFydGlhbA0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogYmFzZTY0DQoNCkFBPT1BQUFB",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {}
+    },
+    {
+      "name": "mime-incomplete-base64-quantum",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUGFydGlhbA0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogYmFzZTY0DQoNCkFBQQ==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {}
+    },
+    {
+      "name": "mime-invalid-quoted-printable-escape",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUGFydGlhbA0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogcXVvdGVkLXByaW50YWJsZQ0KDQo9Wlo=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {}
+    },
+    {
+      "name": "mime-unsupported-body-charset-keeps-payload",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogQ1A5NDkNCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD1rc19jXzU2MDEtMTk4Nw0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogYmFzZTY0DQoNCnNLRXg=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "UnsupportedParser",
+      "fields": {
+        "body_payload": [
+          "b0a131"
+        ]
+      }
+    },
+    {
+      "name": "mime-invalid-utf8-body-keeps-payload",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogVVRGOA0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04DQpDb250ZW50LVRyYW5zZmVyLUVuY29kaW5nOiBiYXNlNjQNCg0KL3c9PQ==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {
+        "body_payload": [
+          "ff"
+        ]
+      }
+    },
+    {
+      "name": "eml-invalid-rfc2047-word",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogPT91dGYtOD9YP2FiYz89DQoNCmJvZHk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {}
+    },
+    {
+      "name": "eml-unsupported-rfc2047-charset-keeps-header",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogPT94LXVua25vd24/Qj9RUT09Pz0NCg0KYm9keQ==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "UnsupportedParser",
+      "fields": {
+        "unfolded_bytes": [
+          "3d3f782d756e6b6e6f776e3f423f51513d3d3f3d"
+        ],
+        "body_text": [
+          "626f6479"
+        ]
+      }
+    },
+    {
+      "name": "mime-unknown-transfer-encoding",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogVW5rbm93bg0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogdXVlbmNvZGUNCg0KcmV0YWluZWQ=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "UnsupportedParser",
+      "fields": {}
+    },
+    {
+      "name": "mime-duplicate-control-header-is-ambiguous",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogRHVwbGljYXRlDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW4NCkNvbnRlbnQtVHlwZTogdGV4dC9odG1sDQoNCkJvZHk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {
+        "media_type": [
+          "746578742f706c61696e"
+        ]
+      }
+    },
+    {
+      "name": "mime-rfc2231-missing-segment",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogRmlsZW5hbWUNCkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtDQpDb250ZW50LURpc3Bvc2l0aW9uOiBhdHRhY2htZW50OyBmaWxlbmFtZSowKj11dGYtOCcnb25lOyBmaWxlbmFtZSoyKj10d28NCg0KWA==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {
+        "body_payload": [
+          "58"
+        ]
+      }
+    },
+    {
+      "name": "mime-rfc2231-bad-percent",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogRmlsZW5hbWUNCkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtDQpDb250ZW50LURpc3Bvc2l0aW9uOiBhdHRhY2htZW50OyBmaWxlbmFtZSo9dXRmLTgnJ2JhZCVaWg0KDQpY",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {}
+    },
+    {
+      "name": "mime-multipart-encoded-container-rejected",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogQ29udGFpbmVyDQpDb250ZW50LVR5cGU6IG11bHRpcGFydC9taXhlZDsgYm91bmRhcnk9Qg0KQ29udGVudC1UcmFuc2Zlci1FbmNvZGluZzogYmFzZTY0DQoNCkFBPT0=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {}
+    },
+    {
+      "name": "eml-7bit-body-with-high-byte",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogSW52YWxpZA0KDQr/",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {
+        "body_payload": [
+          "ff"
+        ]
+      }
+    },
+    {
+      "name": "eml-header-control-byte",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogUmV0YWluZWQNClgtQmFkOiAADQoNCkJvZHk=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "MalformedData",
+      "fields": {
+        "header.subject": [
+          "52657461696e6564"
+        ]
+      }
+    },
+    {
+      "name": "eml-non-email-input",
+      "parser": "email.mime",
+      "base64": "bm90IGFuIGVtYWls",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "UnsupportedParser",
+      "fields": {}
+    },
+    {
+      "name": "mime-allocation-budget",
+      "parser": "email.mime",
+      "base64": "RnJvbTogQW5hbHlzdCA8YW5hbHlzdEBleGFtcGxlLmludmFsaWQ+DQpUbzogUmVhZGVyIDxyZWFkZXJAZXhhbXBsZS5pbnZhbGlkPg0KU3ViamVjdDogRXZpZGVuY2UNCkRhdGU6IE1vbiwgMTIgT2N0IDIwMjYgMTI6MDA6MDAgKzAwMDANCk1lc3NhZ2UtSUQ6IDxjYXNlQGV4YW1wbGUuaW52YWxpZD4NClJlY2VpdmVkOiBmcm9tIHJlbGF5LmludmFsaWQgYnkgZmluYWwuaW52YWxpZDsgTW9uLCAxMiBPY3QgMjAyNiAxMjowMDowMSArMDAwMA0KUmVjZWl2ZWQ6IGZyb20gc2VuZGVyLmludmFsaWQgYnkgcmVsYXkuaW52YWxpZDsgTW9uLCAxMiBPY3QgMjAyNiAxMjowMDowMCArMDAwMA0KREtJTS1TaWduYXR1cmU6IHY9MTsgZD1leGFtcGxlLmludmFsaWQ7IGI9QUFBQQ0KDQpIZWxsbw0K",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "AllocationBudgetExceeded",
+      "fields": {},
+      "allocation_max": 100
+    },
+    {
+      "name": "mime-decoded-budget",
+      "parser": "email.mime",
+      "base64": "RnJvbTogQW5hbHlzdCA8YW5hbHlzdEBleGFtcGxlLmludmFsaWQ+DQpUbzogUmVhZGVyIDxyZWFkZXJAZXhhbXBsZS5pbnZhbGlkPg0KU3ViamVjdDogRXZpZGVuY2UNCkRhdGU6IE1vbiwgMTIgT2N0IDIwMjYgMTI6MDA6MDAgKzAwMDANCk1lc3NhZ2UtSUQ6IDxjYXNlQGV4YW1wbGUuaW52YWxpZD4NClJlY2VpdmVkOiBmcm9tIHJlbGF5LmludmFsaWQgYnkgZmluYWwuaW52YWxpZDsgTW9uLCAxMiBPY3QgMjAyNiAxMjowMDowMSArMDAwMA0KUmVjZWl2ZWQ6IGZyb20gc2VuZGVyLmludmFsaWQgYnkgcmVsYXkuaW52YWxpZDsgTW9uLCAxMiBPY3QgMjAyNiAxMjowMDowMCArMDAwMA0KREtJTS1TaWduYXR1cmU6IHY9MTsgZD1leGFtcGxlLmludmFsaWQ7IGI9QUFBQQ0KDQpIZWxsbw0K",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "DecodeBudgetExceeded",
+      "fields": {},
+      "decoded_max": 8
+    },
+    {
+      "name": "mime-entry-budget",
+      "parser": "email.mime",
+      "base64": "RnJvbTogQW5hbHlzdCA8YW5hbHlzdEBleGFtcGxlLmludmFsaWQ+DQpUbzogUmVhZGVyIDxyZWFkZXJAZXhhbXBsZS5pbnZhbGlkPg0KU3ViamVjdDogRXZpZGVuY2UNCkRhdGU6IE1vbiwgMTIgT2N0IDIwMjYgMTI6MDA6MDAgKzAwMDANCk1lc3NhZ2UtSUQ6IDxjYXNlQGV4YW1wbGUuaW52YWxpZD4NClJlY2VpdmVkOiBmcm9tIHJlbGF5LmludmFsaWQgYnkgZmluYWwuaW52YWxpZDsgTW9uLCAxMiBPY3QgMjAyNiAxMjowMDowMSArMDAwMA0KUmVjZWl2ZWQ6IGZyb20gc2VuZGVyLmludmFsaWQgYnkgcmVsYXkuaW52YWxpZDsgTW9uLCAxMiBPY3QgMjAyNiAxMjowMDowMCArMDAwMA0KREtJTS1TaWduYXR1cmU6IHY9MTsgZD1leGFtcGxlLmludmFsaWQ7IGI9QUFBQQ0KDQpIZWxsbw0K",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "EntryLimitExceeded",
+      "fields": {},
+      "entries_max": 0
+    },
+    {
+      "name": "mime-nesting-depth-budget",
+      "parser": "email.mime",
+      "base64": "U3ViamVjdDogTWl4ZWQNCkNvbnRlbnQtVHlwZTogbXVsdGlwYXJ0L21peGVkOyBib3VuZGFyeT0iQk9VTkQiDQoNClByZWFtYmxlDQotLUJPVU5EDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXRmLTgNCg0KVGV4dA0KLS1CT1VORA0KQ29udGVudC1UeXBlOiBhcHBsaWNhdGlvbi9vY3RldC1zdHJlYW0NCkNvbnRlbnQtRGlzcG9zaXRpb246IGF0dGFjaG1lbnQ7IGZpbGVuYW1lKj11dGYtOCdrbyclRUQlOTUlOUMlRUElQjglODAuYmluDQpDb250ZW50LVRyYW5zZmVyLUVuY29kaW5nOiBiYXNlNjQNCg0KQVA4QkFnTT0NCi0tQk9VTkQtLQ0KRXBpbG9ndWU=",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "ContainerDepthExceeded",
+      "fields": {},
+      "depth_max": 1
+    },
+    {
+      "name": "eml-angle-address-inside-quoted-display-is-not-guessed",
+      "parser": "email.mime",
+      "base64": "RnJvbTogIkRpc3BsYXkgPGZha2VAaW52YWxpZD4iIDxyZWFsQGV4YW1wbGUuaW52YWxpZD4NCg0KQm9keQ==",
+      "read_max": 33554432,
+      "observation_max": 100000,
+      "status": "OK",
+      "fields": {
+        "angle_address_claim": [
+          "7265616c406578616d706c652e696e76616c6964"
+        ]
+      }
+    }
+  ]
+}

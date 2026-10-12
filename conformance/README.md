@@ -88,3 +88,5 @@ configuration and relative-path checks. Standalone MSVC builds use the same CRT 
 The document corpus adds independently generated Office/ODF ZIP packages, Unicode properties, relationship/revision metadata, ambiguous members, compression/CRC/ZIP64/data descriptor cases, and resource limits.
 
 The OLE corpus independently serializes CFB v3/v4, OLEPS, Word FIB, BIFF8, PowerPoint and native embedded data. It exercises Unicode, fragmented/mini streams, orphan records, unknown property types/code pages, corrupted sector and directory links, impossible string lengths, encryption and shared resource budgets.
+
+The email corpus exercises EML headers/routes, RFC2047 Unicode words, RFC2231 filenames and continuations, MIME boundaries/digests, HTML and binary bodies, identity/decoded nested messages, duplicate controls, invalid transfer/character encodings and shared budgets. Claims and verification states are checked separately.
