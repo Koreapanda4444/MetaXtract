@@ -181,14 +181,18 @@ def main() -> None:
                     line = "SRC_LINK=source\n"
                     source_link_seen = True
                 if line.startswith(("CCDEP=", "CXXDEP=")):
-                    line = line.replace("$<", "$(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<)")
+                    relative_source = "$(patsubst $(SRC_PATH)/%,$(SRC_LINK)/%,$<)"
+                    if relative_source not in line:
+                        line = line.replace("$<", relative_source)
                     line = re.sub(r'gsub\(/\\+/, "/"\)', 'gsub(sprintf("%c%c", 92, 92), "/")', line)
                     if 'gsub(sprintf("%c%c", 92, 92), "/")' not in line:
                         raise RuntimeError("Reviewed MSVC dependency path conversion was not found")
                 fixed.append(line)
             if not source_link_seen:
                 raise RuntimeError("Reviewed FFmpeg source-link configuration was not found")
-            make_config.write_text("".join(fixed))
+            updated = "".join(fixed)
+            if updated != contents:
+                make_config.write_text(updated)
         for item in ("GPL", "NONFREE", "NETWORK"):
             if f"#define CONFIG_{item} 0" not in config:
                 raise RuntimeError(f"Forbidden FFmpeg configuration: {item}")
@@ -213,4 +217,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
