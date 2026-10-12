@@ -33,6 +33,10 @@ add_library(metaxtract_extract STATIC
   src/xml.cpp
   src/zip.cpp
   src/documents.cpp
+  src/text.cpp
+  src/ole.cpp
+  src/ole_properties.cpp
+  src/ole_legacy.cpp
   src/heif.cpp
   src/raw.cpp
   src/audio.cpp

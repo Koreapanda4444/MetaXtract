@@ -19,6 +19,8 @@ PDF extraction adds Info/XMP, page geometry, attachments, revision chains, encry
 signature ranges and active-content structures. Rust reconciles
 OOXML/ODF package properties, relationships and revision/comment metadata are also available.
 
+OLE compound files and legacy Word, Excel, and PowerPoint now expose directory metadata, typed document properties, macros and embedded stream inventories through `document.ole`. Fragmented streams keep physical fragments and decoded stream identity; unsupported encryption and character sets are reported explicitly.
+
 image claims. The Rust GUI/CLI and full workflow parity remain pending;
 see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 
