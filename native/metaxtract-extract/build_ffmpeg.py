@@ -5,6 +5,7 @@ import contextlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -101,8 +102,10 @@ def main() -> None:
             shell, make = str(msys / "bash.exe"), str(msys / "make.exe")
             if not Path(shell).is_file() or not Path(make).is_file():
                 raise RuntimeError("MSVC FFmpeg builds require MSYS2 bash and GNU make (see README)")
-            env["PATH"] = env.get("PATH", "") + os.pathsep + str(msys)
+            compiler_directory = str(Path(shutil.which("cl", path=env["PATH"])).parent)
+            env["PATH"] = compiler_directory + os.pathsep + str(msys) + os.pathsep + env["PATH"]
             env["MSYS2_ARG_CONV_EXCL"] = "*"
+            env["VSLANG"] = "1033"
         else:
             shell = shutil.which("bash") or "/bin/sh"
             make = shutil.which("gmake") or shutil.which("make")
@@ -168,13 +171,27 @@ def main() -> None:
                 make_config.write_text(contents + override)
             configuration["shared_library_runpath"] = "$ORIGIN"
         config = (build / "config.h").read_text()
+        if os.name == "nt":
+            make_config = build / "ffbuild/config.mak"
+            contents = make_config.read_text()
+            fixed = []
+            for line in contents.splitlines(keepends=True):
+                if line.startswith(("CCDEP=", "CXXDEP=")):
+                    line = re.sub(r'gsub\(/\\+/, "/"\)', 'gsub(sprintf("%c%c", 92, 92), "/")', line)
+                    if 'gsub(sprintf("%c%c", 92, 92), "/")' not in line:
+                        raise RuntimeError("Reviewed MSVC dependency path conversion was not found")
+                fixed.append(line)
+            make_config.write_text("".join(fixed))
         for item in ("GPL", "NONFREE", "NETWORK"):
             if f"#define CONFIG_{item} 0" not in config:
                 raise RuntimeError(f"Forbidden FFmpeg configuration: {item}")
         with (build / "build.log").open("w") as log:
             try:
-                subprocess.run([make, "-j", "3"], cwd=build, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
-                subprocess.run([make, "install"], cwd=build, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+                make_command = [make]
+                if os.name == "nt":
+                    make_command.append("SHELL=" + (msys / "bash.exe").as_posix())
+                subprocess.run([*make_command, "-j", "3"], cwd=build, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+                subprocess.run([*make_command, "install"], cwd=build, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
             except subprocess.CalledProcessError:
                 print((build / "build.log").read_text(errors="replace")[-12000:], file=sys.stderr)
                 raise

@@ -64,7 +64,7 @@ jobs:
       - name: Check Rust warnings
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - name: Check Rust policy regressions
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --all-features --locked
       - name: Check debug extraction contracts
         run: python conformance/run.py
       - name: Save reviewed native media build cache
