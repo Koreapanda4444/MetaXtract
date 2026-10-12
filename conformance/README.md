@@ -67,7 +67,8 @@ Windows needs MSVC and MSYS2 bash/make in C:/msys64, or METAXTRACT_MSYS_ROOT.
 PDF fixtures declare known Info/XMP strings, page geometry, Unicode names and attachment
 bytes; exercise actual table/stream references, compressed objects and incremental changes;
 and check invalid trees, unsupported filters, partial results and each resource ceiling.
-The object-stream budget case checks qpdf's internal decoded-buffer guard.
+The object-stream budget case checks qpdf's internal decoded-buffer guard. A malformed
+cross-reference fixture checks the 100-warning retention ceiling without page repair.
 
 PDF security cases use deliberately unauthenticated structural signature placeholders to check
 valid, missing, negative, overlapping and out-of-bounds ByteRanges, incorrect exclusion gaps,
