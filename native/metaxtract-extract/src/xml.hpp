@@ -19,6 +19,7 @@ public:
 
 std::string expanded_xml_name(pugi::xml_node node, const std::string& name, bool attribute = false);
 bool valid_xml_string(std::string_view value);
-void inspect_xml_fields(Reader& reader, std::span<const std::uint8_t> bytes, const std::string& packet);
+void inspect_xml_fields(Reader& reader, std::span<const std::uint8_t> bytes, const std::string& packet,
+    std::string_view root_a = {}, std::string_view root_b = {});
 
 }

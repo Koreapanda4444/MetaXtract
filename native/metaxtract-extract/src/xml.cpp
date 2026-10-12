@@ -54,11 +54,15 @@ std::string expanded_xml_name(pugi::xml_node node, const std::string& name, cons
     return name;
 }
 
-void inspect_xml_fields(Reader& reader, const std::span<const std::uint8_t> bytes, const std::string& packet) {
+void inspect_xml_fields(Reader& reader, const std::span<const std::uint8_t> bytes, const std::string& packet,
+    const std::string_view root_a, const std::string_view root_b) {
     XmlBudgetScope scope(reader.context.budget());
     pugi::xml_document document;
     const auto parsed = document.load_buffer(bytes.data(), bytes.size(), pugi::parse_full, pugi::encoding_auto);
     if (!parsed) { throw Failure{parsed.status == pugi::status_out_of_memory ? ParseStatus::AllocationFailure : ParseStatus::Malformed, "Invalid metadata XML", 0}; }
+    const std::string root = document.document_element().name(); const auto colon = root.find(':');
+    const auto local = colon == std::string::npos ? root : root.substr(colon + 1);
+    if (!root_a.empty() && local != root_a && local != root_b) { throw Failure{ParseStatus::Unsupported, "XML root is outside the supported metadata formats", 0}; }
     auto node = document.first_child(); std::uint32_t depth = 0; std::uint64_t index = 0;
     while (node) {
         reader.entry();

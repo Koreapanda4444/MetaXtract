@@ -23,6 +23,8 @@ std::unique_ptr<Parser> email_mime_parser();
 std::unique_ptr<Parser> archive_metadata_parser();
 std::unique_ptr<Parser> binary_metadata_parser();
 std::unique_ptr<Parser> resource_metadata_parser();
+std::unique_ptr<Parser> dicom_metadata_parser();
+std::unique_ptr<Parser> geo_metadata_parser();
 #ifdef METAXTRACT_CONFORMANCE
 std::unique_ptr<Parser> conformance_parser();
 #endif
@@ -67,6 +69,8 @@ const ParserRegistry& default_registry() noexcept {
         result.add(archive_metadata_parser());
         result.add(binary_metadata_parser());
         result.add(resource_metadata_parser());
+        result.add(dicom_metadata_parser());
+        result.add(geo_metadata_parser());
 #ifdef METAXTRACT_CONFORMANCE
         result.add(conformance_parser());
 #endif

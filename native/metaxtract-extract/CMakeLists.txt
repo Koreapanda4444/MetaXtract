@@ -31,6 +31,8 @@ add_library(metaxtract_extract STATIC
   src/binaries.cpp
   src/fonts.cpp
   src/resources.cpp
+  src/dicom.cpp
+  src/geo.cpp
   src/core.cpp
   src/detection.cpp
   src/images.cpp
