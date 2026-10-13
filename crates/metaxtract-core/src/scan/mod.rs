@@ -5,3 +5,9 @@ pub use walk::{
 
 mod hash;
 pub use hash::{EvidenceHashes, HashOptions, hash_evidence};
+
+mod pipeline;
+pub use pipeline::{
+    ExtractionBackend, ExtractionBatch, FileTask, NativeExtractor, ScanEvent, ScanOptions,
+    ScanSummary, ScannedFile, scan_stream,
+};

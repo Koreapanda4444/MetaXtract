@@ -1,4 +1,8 @@
-use std::time::{Duration, Instant};
+use std::{
+    fs::File,
+    io,
+    time::{Duration, Instant},
+};
 
 use metaxtract_native::{
     BoundedInput, ExtractionResult, InputLimits, NativeError, NativeErrorCode, ParserLimits,
@@ -6,7 +10,7 @@ use metaxtract_native::{
 };
 use metaxtract_schema::{EvidenceKind, RawValue};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug)]
 pub struct RecursiveLimits {
     pub parser: ParserLimits,
     pub max_depth: u32,
@@ -54,7 +58,7 @@ pub struct RecursiveExtraction {
     pub stopped: Option<NativeErrorCode>,
 }
 
-fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
+pub(crate) fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
     let mut result = Vec::new();
     let lower = String::from_utf8_lossy(name).to_ascii_lowercase();
     let archive = bytes.starts_with(b"PK")
@@ -93,6 +97,19 @@ fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
     if bytes.get(4..8) == Some(b"ftyp") {
         result.extend(["images.heif", "media.structure", "media.inspect"]);
     }
+    if bytes.starts_with(b"II")
+        || bytes.starts_with(b"MM")
+        || bytes.starts_with(b"FUJIFILMCCD-RAW")
+        || bytes.get(6..14) == Some(b"HEAPCCDR")
+        || [
+            ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".dng", ".raf", ".rw2", ".orf", ".pef",
+            ".srw",
+        ]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+    {
+        result.push("images.raw");
+    }
     if bytes.starts_with(b"ID3")
         || bytes.starts_with(b"fLaC")
         || bytes.starts_with(b"OggS")
@@ -100,6 +117,25 @@ fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
         || bytes.starts_with(b"FORM")
     {
         result.extend(["audio.metadata", "media.inspect"]);
+    }
+    if bytes.starts_with(b"RIFF")
+        || bytes.starts_with(b"\x1a\x45\xdf\xa3")
+        || bytes.starts_with(b"\0\0\x01")
+        || bytes.starts_with(b"\xff")
+        || [
+            ".avi", ".mkv", ".mka", ".webm", ".mp4", ".mov", ".m4a", ".mp3", ".mp2", ".mpg",
+            ".mpeg", ".ts", ".m2ts", ".mts", ".ape", ".wv",
+        ]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+    {
+        result.extend(["media.structure", "media.inspect"]);
+    }
+    if result
+        .iter()
+        .any(|id| id.starts_with("media.") || *id == "audio.metadata")
+    {
+        result.push("media.details");
     }
     if lower.ends_with(".eml")
         || lower.ends_with(".mime")
@@ -139,12 +175,16 @@ fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
     if bytes.get(128..132) == Some(b"DICM") || lower.ends_with(".dcm") {
         result.push("formats.dicom");
     }
-    if [".geojson", ".gpx", ".kml", ".shp", ".dbf", ".tif", ".tiff"]
-        .iter()
-        .any(|ext| lower.ends_with(ext))
+    if bytes.starts_with(b"II")
+        || bytes.starts_with(b"MM")
+        || [".geojson", ".gpx", ".kml", ".shp", ".dbf", ".tif", ".tiff"]
+            .iter()
+            .any(|ext| lower.ends_with(ext))
     {
         result.push("formats.geo");
     }
+    result.sort_unstable();
+    result.dedup();
     result
 }
 
@@ -182,6 +222,64 @@ pub fn extract_recursive(
     name: Vec<u8>,
     limits: RecursiveLimits,
 ) -> Result<RecursiveExtraction, NativeError> {
+    extract_input(WorkInput::Bytes(bytes), name, limits, &|| Ok(()))
+}
+
+pub fn extract_file_recursive(
+    file: File,
+    prefix: Vec<u8>,
+    name: Vec<u8>,
+    limits: RecursiveLimits,
+) -> Result<RecursiveExtraction, NativeError> {
+    extract_file_recursive_controlled(file, prefix, name, limits, || Ok(()))
+}
+
+pub fn extract_file_recursive_controlled(
+    file: File,
+    prefix: Vec<u8>,
+    name: Vec<u8>,
+    limits: RecursiveLimits,
+    checkpoint: impl Fn() -> io::Result<()>,
+) -> Result<RecursiveExtraction, NativeError> {
+    let size = file
+        .metadata()
+        .map_err(|_| capacity_error(NativeErrorCode::ReadFailure))?
+        .len();
+    if size > limits.parser.max_source_bytes {
+        return Err(capacity_error(NativeErrorCode::SourceTooLarge));
+    }
+    extract_input(
+        WorkInput::File(file, prefix, size),
+        name,
+        limits,
+        &checkpoint,
+    )
+}
+
+enum WorkInput {
+    Bytes(Vec<u8>),
+    File(File, Vec<u8>, u64),
+}
+impl WorkInput {
+    fn size(&self) -> u64 {
+        match self {
+            Self::Bytes(bytes) => bytes.len() as u64,
+            Self::File(_, _, size) => *size,
+        }
+    }
+    fn prefix(&self) -> &[u8] {
+        match self {
+            Self::Bytes(bytes) => bytes,
+            Self::File(_, prefix, _) => prefix,
+        }
+    }
+}
+fn extract_input(
+    input: WorkInput,
+    name: Vec<u8>,
+    limits: RecursiveLimits,
+    checkpoint: &impl Fn() -> io::Result<()>,
+) -> Result<RecursiveExtraction, NativeError> {
     if limits.max_nodes == 0
         || limits.max_wall_time_ms == 0
         || limits.max_member_bytes == 0
@@ -189,21 +287,21 @@ pub fn extract_recursive(
     {
         return Err(capacity_error(NativeErrorCode::InvalidRequest));
     }
-    if bytes.len() as u64 > limits.max_member_bytes
-        || bytes.len() as u64 > limits.max_total_input_bytes
+    if matches!(&input, WorkInput::Bytes(_))
+        && (input.size() > limits.max_member_bytes || input.size() > limits.max_total_input_bytes)
     {
         return Err(capacity_error(NativeErrorCode::SourceTooLarge));
     }
     let capabilities = parser_capabilities()?;
     let deadline = Instant::now() + Duration::from_millis(u64::from(limits.max_wall_time_ms));
     struct Work {
-        bytes: Vec<u8>,
+        input: WorkInput,
         name: Vec<u8>,
         identity: Option<NestedIdentity>,
         depth: u32,
     }
     let mut pending = vec![Work {
-        bytes,
+        input,
         name,
         identity: None,
         depth: 0,
@@ -214,8 +312,19 @@ pub fn extract_recursive(
         input_bytes: 0,
         stopped: None,
     };
-    let mut queued_bytes = pending[0].bytes.len() as u64;
+    let mut queued_bytes = if matches!(&pending[0].input, WorkInput::Bytes(_)) {
+        pending[0].input.size()
+    } else {
+        0
+    };
     while let Some(work) = pending.pop() {
+        checkpoint().map_err(|e| {
+            capacity_error(if e.kind() == io::ErrorKind::TimedOut {
+                NativeErrorCode::DeadlineExceeded
+            } else {
+                NativeErrorCode::ReadFailure
+            })
+        })?;
         if Instant::now() >= deadline {
             output.stopped = Some(NativeErrorCode::DeadlineExceeded);
             break;
@@ -228,21 +337,29 @@ pub fn extract_recursive(
             output.stopped = Some(NativeErrorCode::EntryLimitExceeded);
             break;
         }
-        let size = work.bytes.len() as u64;
-        if size > limits.max_member_bytes || queued_bytes > limits.max_total_input_bytes {
+        let size = work.input.size();
+        let file_root = matches!(&work.input, WorkInput::File(..));
+        if (!file_root && size > limits.max_member_bytes)
+            || queued_bytes > limits.max_total_input_bytes
+        {
             output.stopped = Some(NativeErrorCode::SourceTooLarge);
             continue;
         }
         output.input_bytes = output.input_bytes.saturating_add(size);
-        let parsers = selected_parsers(&work.bytes, &work.name);
-        let input = BoundedInput::from_bytes(
-            work.bytes,
-            InputLimits {
-                max_source_bytes: limits.max_member_bytes,
-                max_single_read: 1024 * 1024,
-                max_total_read: limits.parser.max_read_bytes.max(1),
+        let parsers = selected_parsers(work.input.prefix(), &work.name);
+        let input_limits = InputLimits {
+            max_source_bytes: if file_root {
+                limits.parser.max_source_bytes
+            } else {
+                limits.max_member_bytes.min(limits.parser.max_source_bytes)
             },
-        )?;
+            max_single_read: 1024 * 1024,
+            max_total_read: limits.parser.max_read_bytes.max(1),
+        };
+        let input = match work.input {
+            WorkInput::Bytes(bytes) => BoundedInput::from_bytes(bytes, input_limits)?,
+            WorkInput::File(file, _, _) => BoundedInput::from_file(file, input_limits)?,
+        };
         let index = output.nodes.len();
         let mut node = RecursiveNode {
             identity: work.identity,
@@ -251,6 +368,13 @@ pub fn extract_recursive(
             results: Vec::new(),
         };
         for id in parsers {
+            checkpoint().map_err(|e| {
+                capacity_error(if e.kind() == io::ErrorKind::TimedOut {
+                    NativeErrorCode::DeadlineExceeded
+                } else {
+                    NativeErrorCode::ReadFailure
+                })
+            })?;
             if !capabilities.iter().any(|cap| cap.id == id) {
                 continue;
             }
@@ -262,7 +386,11 @@ pub fn extract_recursive(
                 break;
             }
             let available = ParserLimits {
-                max_source_bytes: limits.parser.max_source_bytes.min(limits.max_member_bytes),
+                max_source_bytes: if file_root {
+                    limits.parser.max_source_bytes
+                } else {
+                    limits.parser.max_source_bytes.min(limits.max_member_bytes)
+                },
                 max_read_bytes: limits
                     .parser
                     .max_read_bytes
@@ -409,7 +537,7 @@ pub fn extract_recursive(
                 output.usage.allocation_bytes += charge;
                 queued_bytes += child_size;
                 pending.push(Work {
-                    bytes: data,
+                    input: WorkInput::Bytes(data),
                     name: name.clone(),
                     depth: work.depth + 1,
                     identity: Some(NestedIdentity {

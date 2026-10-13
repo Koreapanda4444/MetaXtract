@@ -11,7 +11,8 @@ pub use backend_claims::{
     BackendClaimLimit, BackendClaimLimits, BackendClaims, independent_backend_claims,
 };
 pub use containers::{
-    NestedIdentity, RecursiveExtraction, RecursiveLimits, RecursiveNode, extract_recursive,
+    NestedIdentity, RecursiveExtraction, RecursiveLimits, RecursiveNode, extract_file_recursive,
+    extract_file_recursive_controlled, extract_recursive,
 };
 
 pub use detection::{ContentAssessment, TypeConflict, TypeConflictKind, assess_content};
