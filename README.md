@@ -22,6 +22,11 @@ Executable/script, font/ebook/package, DICOM and geospatial adapters retain raw 
 explicitly identify unsupported encodings or transforms.
 
 Rust reconciles image claims and preserves unknown fields and separate backend claims.
+The Rust core now provides safe traversal, streaming SHA-256/BLAKE3 hashing, bounded parallel
+scanning, content-addressed caching, incremental SQLite persistence, durable pause/resume and
+bundled parser-process isolation. IO buffers are reused, work is scheduled within a bounded cost
+window, and completed records are committed in short batches.
+
 The Rust GUI/CLI and full workflow parity remain pending;
 see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 

@@ -10,6 +10,9 @@ pub(crate) trait ScanJournal: Send + Sync {
     fn discovery_done(&self) -> io::Result<bool>;
     fn finish_discovery(&self) -> io::Result<()>;
     fn started(&self, task: &FileTask) -> io::Result<()>;
+    fn persist_batch(&self, _events: &[&ScanEvent]) -> io::Result<()> {
+        Ok(())
+    }
 }
 pub(crate) struct NoJournal;
 impl ScanJournal for NoJournal {
@@ -65,6 +68,9 @@ pub(crate) fn check_generation(tx: &Transaction<'_>, run: u64, generation: u64) 
     Ok(())
 }
 impl ScanJournal for RunJournal {
+    fn persist_batch(&self, events: &[&ScanEvent]) -> io::Result<()> {
+        self.store.persist_events(self.run, self.generation, events)
+    }
     fn schedule(&self, mut task: FileTask) -> io::Result<Option<FileTask>> {
         let mut conn = self
             .store
@@ -266,7 +272,8 @@ impl ScanStore {
         }
         if !matches!(
             event,
-            ScanEvent::Discovered(_)
+            ScanEvent::Completed(_)
+                | ScanEvent::Discovered(_)
                 | ScanEvent::Resumed(_)
                 | ScanEvent::Started(_)
                 | ScanEvent::DiscoveryFinished

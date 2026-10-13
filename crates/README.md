@@ -11,10 +11,11 @@ normalization, analysis, search, reports, and case management.
 |---|---|
 | `metaxtract-schema` | Evidence identity, raw observations, normalized claims, provenance, diagnostics, and records |
 | `metaxtract-native` | `cxx` bridge, bounded input, content detection, raw observation transport, parser capabilities, and native error mapping |
-| `metaxtract-core` | Schema exports, engine information, and extension/MIME/container conflict analysis |
+| `metaxtract-core` | Extraction orchestration, typed records, traversal, hashing, bounded scheduling, cache, durable scan storage and recovery |
+| `metaxtract-worker` | Bundled internal parser process with a private read-only snapshot and framed checked output |
 
-The workspace does not yet provide a Rust GUI, CLI, scanner, or case-management workflow.
-These product responsibilities will be implemented above the schema and native bridge.
+The scanner is a Rust library API. Full case management, the Rust GUI and CLI remain pending.
+The worker is an internal executable; it is launched by the core rather than used as a CLI.
 Build from the repository root with `cargo build --workspace --locked`.
 
 See [architecture](../docs/architecture.md), [the boundary contract](../docs/ffi.md), and

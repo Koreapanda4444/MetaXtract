@@ -39,8 +39,8 @@ libraries are hidden behind adapters and their objects never cross the language 
 ## Extraction flow
 
 This is the intended end-to-end flow. The schema, bridge, bounded input, and parser dispatcher
-are implemented. An initial image structure adapter is available; remaining format adapters and
-Rust application workflows remain pending.
+are implemented, together with the native adapters listed in the extraction guide. The Rust
+scanner now orchestrates this flow; GUI, CLI and full case-management workflows remain pending.
 
 1. Rust resolves the scan target and opens a bounded read-only source.
 2. Rust records file identity and hashes content according to evidence policy.
@@ -81,3 +81,23 @@ Evidence records use portable relative paths while `NativePath` retains original
 or Windows UTF-16 units for reopening. Unrepresentable names use reversible `~os-` encoding.
 Opened-handle identity includes size, timestamps, device and file ID. Windows identity uses
 the available 64-bit file index; it does not claim full 128-bit ReFS identity.
+
+## Scan persistence and parser isolation
+
+`scan_local` resolves the adjacent bundled worker. `scan_stream_with_control` accepts an explicit
+backend for embedding; `NativeExtractor` is the controlled in-process implementation. Production
+callers should use `BundledWorker`, optionally wrapped by `CachedExtractor`. The worker exchanges
+only bounded, checksummed typed data and handles; it invokes no external metadata program.
+Installed bundles must include the reviewed native libraries alongside the executable or in `lib/`.
+
+`ScanStore::scan` commits tasks and records incrementally. `resume` uses a fresh `ScanControl`,
+requeues unfinished tasks and rejects a different root or engine/backend fingerprint. Completed
+records survive a crash. Pending evidence that changed is recorded as unstable rather than mixed
+with earlier content. An invocation generation rejects stale writers when a scan is resumed.
+Incomplete discovery is walked again; complete discovery only replays its durable pending tasks.
+This is a scan-store foundation, not an importer for Python case files or the final case UI.
+
+Cache keys include content hashes, filename hints, schema/API, compiled parser/library source
+fingerprints and scan options. Checksums catch damaged payloads; partial results are not cached.
+Typed storage keeps raw bytes, IEEE float bits and signed 128-bit timestamps without lossy JSON
+conversion. Paths, ranges and confidence values are validated again when decoded.

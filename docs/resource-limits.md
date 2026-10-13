@@ -16,7 +16,7 @@ The allocation ceiling is a conservative cumulative charged allocation budget, n
 of peak resident memory. Third-party
 internal allocations still require adapter-specific accounting or allocator hooks. Deadlines are
 cooperative and are checked before and after an adapter call; they cannot forcibly interrupt a
-native library call. Scanner process isolation will provide that separate hard boundary.
+native library call. The bundled scanner worker supplies the separate process boundary.
 
 The current defaults in `ParserLimits` are:
 
@@ -39,3 +39,25 @@ transport retain observations emitted before a failure. The conformance-only
 fixture parser exercises every budget and the exception boundary through the same dispatcher.
 
 See the [boundary contract](ffi.md) and [conformance guide](../conformance/README.md).
+
+## Scanner policy
+
+Default scan policy uses up to four worker threads, an eight-entry queue, a sixteen-file cost
+window and a 1 MiB reusable hash buffer. Hashing and root parsing accept up to 1 GiB per source;
+virtual inputs retain the separate 64 MiB/member and 256 MiB/scan-tree limits. The file deadline
+is 120 seconds. Scan-wide deadlines are optional. Pause/cancel and ordinary file IO are cooperative.
+
+A 4 GiB planned-memory budget admits jobs by conservative reservations. Result records have a
+256 MiB retained-size ceiling; the wire/SQLite blob ceiling is 1 GiB. Reservations and retained-size
+estimates are not measurements of aggregate RSS. Worker processes additionally enforce Linux
+address-space, macOS data-segment or Windows process-memory limits. macOS does not offer the
+same address-space guarantee as Linux through this interface.
+
+Each worker receives a private captured file whose hashes match the evidence read. It never
+receives the original writable evidence handle. Timeout, cancellation, crash and malformed output
+are caught by the parent; incomplete work is not cached as complete. This is crash/resource
+isolation, not an OS security sandbox. Capture and verification add disk IO deliberately.
+
+Completed records are batched up to sixteen records or about 16 MiB of estimated retained data.
+A 25 ms idle flush prevents memory leases from waiting on a full batch. One transaction stores
+result checksums and completion markers before delivering the records to the consumer.

@@ -103,6 +103,14 @@ impl ScanStore {
         generation: u64,
         event: &ScanEvent,
     ) -> io::Result<()> {
+        self.persist_events(run, generation, &[event])
+    }
+    pub(crate) fn persist_events(
+        &self,
+        run: u64,
+        generation: u64,
+        events: &[&ScanEvent],
+    ) -> io::Result<()> {
         let mut conn = self
             .conn
             .lock()
@@ -111,7 +119,9 @@ impl ScanStore {
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(io::Error::other)?;
         super::checkpoint::check_generation(&tx, run, generation)?;
-        persist(&tx, run, event)?;
+        for event in events {
+            persist(&tx, run, event)?;
+        }
         tx.commit().map_err(io::Error::other)
     }
     pub fn page_tasks(&self, run: u64, after: u64, limit: usize) -> io::Result<Vec<TaskRow>> {

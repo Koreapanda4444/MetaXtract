@@ -1,7 +1,8 @@
 use super::{
     EvidenceHashes, ExecutionContext, FileStamp, HashOptions, NativePath, OpenedEvidence,
-    ScanControl, ScanRoot, StopReason, WalkEntry, WalkOptions, hash_evidence,
-    memory::{MemoryBudget, MemoryLease, bound_records},
+    ScanControl, ScanRoot, StopReason, WalkEntry, WalkOptions,
+    hash::hash_capture,
+    memory::{MemoryBudget, MemoryLease, bound_records, record_bytes},
     walk::invalid,
 };
 use crate::{
@@ -28,10 +29,15 @@ pub struct ScanOptions {
     pub recursive: RecursiveLimits,
     pub workers: usize,
     pub queue_capacity: usize,
+    #[serde(default = "default_window")]
+    pub scheduling_window: usize,
     pub max_memory_bytes: u64,
     pub max_result_bytes: u64,
     pub file_wall_time_ms: u64,
     pub scan_wall_time_ms: Option<u64>,
+}
+fn default_window() -> usize {
+    16
 }
 impl Default for ScanOptions {
     fn default() -> Self {
@@ -41,6 +47,7 @@ impl Default for ScanOptions {
             recursive: RecursiveLimits::default(),
             workers: thread::available_parallelism().map_or(2, |n| n.get().min(4)),
             queue_capacity: 8,
+            scheduling_window: 16,
             max_memory_bytes: 4 * 1024 * 1024 * 1024,
             max_result_bytes: 256 * 1024 * 1024,
             file_wall_time_ms: 120_000,
@@ -51,7 +58,10 @@ impl Default for ScanOptions {
 impl ScanOptions {
     pub(crate) fn validate(&self) -> io::Result<()> {
         self.hash.validate()?;
-        if !(1..=32).contains(&self.workers) || !(1..=256).contains(&self.queue_capacity) {
+        if !(1..=32).contains(&self.workers)
+            || !(1..=256).contains(&self.queue_capacity)
+            || !(1..=256).contains(&self.scheduling_window)
+        {
             return Err(invalid("invalid scan concurrency"));
         }
         if self.file_wall_time_ms == 0
@@ -61,7 +71,10 @@ impl ScanOptions {
                 .is_some_and(|v| v == 0 || v > 31 * 86_400_000)
             || self.max_result_bytes < 1024 * 1024
             || self.max_result_bytes > 256 * 1024 * 1024
-            || self.reservation() > self.max_memory_bytes
+            || self
+                .reservation()
+                .saturating_add((self.workers as u64).saturating_mul(self.hash.buffer_bytes as u64))
+                > self.max_memory_bytes
         {
             return Err(invalid("invalid scan resource policy"));
         }
@@ -298,25 +311,29 @@ pub(crate) fn run_pipeline(
                     return Ok(());
                 }
                 let mut next = 0_u64;
+                let mut window = Vec::with_capacity(opts.scheduling_window);
                 for entry in root.walk(opts.walk.clone())? {
                     producer_control.checkpoint()?;
                     match entry {
-                        WalkEntry::File(file) => {
+                        WalkEntry::File(mut file) => {
                             next += 1;
+                            let cost = file_cost(&mut file);
                             let task = FileTask {
                                 id: next,
                                 relative: file.relative.clone(),
                                 evidence_path: file.evidence_path.clone(),
                                 stamp: file.stamp.clone(),
                             };
-                            if let Some(task) = producer_journal.schedule(task)? {
-                                if tx
-                                    .send(Envelope::Event(ScanEvent::Discovered(task.clone())))
-                                    .is_err()
-                                    || !send_job(&jobs_tx, (task, Ok(file)), &producer_control)
-                                {
-                                    return Ok(());
-                                }
+                            window.push((cost, task, file));
+                            if window.len() >= opts.scheduling_window {
+                                dispatch_window(
+                                    &mut window,
+                                    false,
+                                    producer_journal.as_ref(),
+                                    &jobs_tx,
+                                    &tx,
+                                    &producer_control,
+                                )?;
                             }
                         }
                         WalkEntry::Notice {
@@ -337,6 +354,15 @@ pub(crate) fn run_pipeline(
                         }
                     }
                 }
+                dispatch_window(
+                    &mut window,
+                    true,
+                    producer_journal.as_ref(),
+                    &jobs_tx,
+                    &tx,
+                    &producer_control,
+                )?;
+                producer_control.checkpoint()?;
                 producer_journal.finish_discovery()?;
                 let _ = tx.send(Envelope::Event(ScanEvent::DiscoveryFinished));
                 Ok(())
@@ -361,6 +387,12 @@ pub(crate) fn run_pipeline(
             let memory = Arc::clone(&memory);
             let worker_journal = Arc::clone(&journal);
             scope.spawn(move || {
+                let Ok(_hash_buffer_lease) =
+                    memory.acquire(opts.hash.buffer_bytes as u64, &worker_control)
+                else {
+                    return;
+                };
+                let mut hash_buffer = Vec::new();
                 loop {
                     if worker_control.checkpoint().is_err() {
                         break;
@@ -392,7 +424,14 @@ pub(crate) fn run_pipeline(
                     }
                     let context = worker_control.context(opts.file_wall_time_ms);
                     let result = match file {
-                        Ok(mut file) => process(task, &mut file, opts, backend.as_ref(), &context),
+                        Ok(mut file) => process(
+                            task,
+                            &mut file,
+                            opts,
+                            backend.as_ref(),
+                            &context,
+                            &mut hash_buffer,
+                        ),
                         Err(error) => {
                             let mut result = ScannedFile {
                                 task,
@@ -413,7 +452,7 @@ pub(crate) fn run_pipeline(
                     }
                     if tx
                         .send(Envelope::Completed {
-                            file: Box::new(result),
+                            event: ScanEvent::Completed(Box::new(result)),
                             _lease: lease,
                         })
                         .is_err()
@@ -424,27 +463,49 @@ pub(crate) fn run_pipeline(
             });
         }
         drop(events_tx);
-        for envelope in events_rx {
-            let (event, _lease) = match envelope {
-                Envelope::Event(e) => (e, None),
-                Envelope::Completed { file, _lease } => (ScanEvent::Completed(file), Some(_lease)),
-            };
-            match &event {
-                ScanEvent::Discovered(_) => summary.discovered += 1,
-                ScanEvent::Completed(file) => {
-                    summary.completed += 1;
-                    summary.failed += u64::from(file.failed());
-                    summary.unstable += u64::from(file.unstable);
-                    summary.bytes_hashed = summary
-                        .bytes_hashed
-                        .saturating_add(file.hashes.as_ref().map_or(0, |h| h.bytes_read));
+        let mut batch = Vec::new();
+        let mut batch_bytes = 0_u64;
+        loop {
+            match events_rx.recv_timeout(Duration::from_millis(25)) {
+                Ok(envelope @ Envelope::Completed { .. }) => {
+                    if let Envelope::Completed {
+                        event: ScanEvent::Completed(file),
+                        ..
+                    } = &envelope
+                    {
+                        batch_bytes = batch_bytes.saturating_add(
+                            file.records
+                                .iter()
+                                .fold(0_u64, |n, r| n.saturating_add(record_bytes(r))),
+                        );
+                    }
+                    batch.push(envelope);
+                    if batch.len() >= 16 || batch_bytes >= 16 * 1024 * 1024 {
+                        flush_batch(&mut batch, &journal, &mut summary, &mut sink, &control)?;
+                        batch_bytes = 0;
+                    }
                 }
-                ScanEvent::Notice { .. } => summary.notices += 1,
-                _ => {}
-            }
-            if let Err(e) = sink(event) {
-                control.cancel();
-                return Err(e);
+                Ok(Envelope::Event(event)) => {
+                    flush_batch(&mut batch, &journal, &mut summary, &mut sink, &control)?;
+                    batch_bytes = 0;
+                    match &event {
+                        ScanEvent::Discovered(_) => summary.discovered += 1,
+                        ScanEvent::Notice { .. } => summary.notices += 1,
+                        _ => {}
+                    }
+                    if let Err(error) = sink(event) {
+                        control.cancel();
+                        return Err(error);
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    flush_batch(&mut batch, &journal, &mut summary, &mut sink, &control)?;
+                    batch_bytes = 0;
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    flush_batch(&mut batch, &journal, &mut summary, &mut sink, &control)?;
+                    break;
+                }
             }
         }
         Ok(())
@@ -456,7 +517,7 @@ pub(crate) fn run_pipeline(
 enum Envelope {
     Event(ScanEvent),
     Completed {
-        file: Box<ScannedFile>,
+        event: ScanEvent,
         _lease: MemoryLease,
     },
 }
@@ -481,6 +542,7 @@ fn process(
     options: &ScanOptions,
     backend: &dyn ExtractionBackend,
     context: &ExecutionContext,
+    buffer: &mut Vec<u8>,
 ) -> ScannedFile {
     let mut result = ScannedFile {
         task,
@@ -497,7 +559,7 @@ fn process(
                 "checkpoint source changed since discovery",
             ));
         }
-        let hashes = hash_evidence(file, &options.hash, || context.checkpoint())?;
+        let hashes = hash_capture(file, &options.hash, || context.checkpoint(), None, buffer)?;
         result.unstable = !hashes.stable;
         result.hashes = Some(hashes);
         if result.unstable {
@@ -569,4 +631,98 @@ pub(crate) fn finalize(result: &mut ScannedFile) {
             recoverable: true,
         });
     }
+}
+
+fn file_cost(file: &mut OpenedEvidence) -> u64 {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut prefix = [0_u8; 4096];
+    let _ = file.file.seek(SeekFrom::Start(0));
+    let n = file.file.read(&mut prefix).unwrap_or(0);
+    let _ = file.file.seek(SeekFrom::Start(0));
+    let name = file.relative.name_bytes().unwrap_or_default();
+    let weight = crate::containers::selected_parsers(&prefix[..n], &name)
+        .iter()
+        .map(|id| match *id {
+            "images.raw" => 16,
+            "media.inspect" => 12,
+            "container.archive" | "pdf.metadata" => 10,
+            "document.ole" | "document.package" => 8,
+            _ => 2,
+        })
+        .sum::<u64>()
+        .max(1);
+    file.stamp
+        .size_bytes
+        .saturating_div(4096)
+        .saturating_add(1)
+        .saturating_mul(weight)
+}
+fn dispatch_window(
+    window: &mut Vec<(u64, FileTask, OpenedEvidence)>,
+    heavy_first: bool,
+    journal: &dyn super::checkpoint::ScanJournal,
+    jobs: &SyncSender<(FileTask, io::Result<OpenedEvidence>)>,
+    events: &SyncSender<Envelope>,
+    control: &ScanControl,
+) -> io::Result<()> {
+    window.sort_by_key(|(cost, _, _)| if heavy_first { *cost } else { u64::MAX - *cost });
+    while let Some((_, task, file)) = window.pop() {
+        control.checkpoint()?;
+        if let Some(task) = journal.schedule(task)? {
+            if events
+                .send(Envelope::Event(ScanEvent::Discovered(task.clone())))
+                .is_err()
+                || !send_job(jobs, (task, Ok(file)), control)
+            {
+                control.checkpoint()?;
+                return Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "dispatch interrupted",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+fn flush_batch(
+    batch: &mut Vec<Envelope>,
+    journal: &Arc<dyn super::checkpoint::ScanJournal>,
+    summary: &mut ScanSummary,
+    sink: &mut impl FnMut(ScanEvent) -> io::Result<()>,
+    control: &ScanControl,
+) -> io::Result<()> {
+    if batch.is_empty() {
+        return Ok(());
+    }
+    let events: Vec<_> = batch
+        .iter()
+        .filter_map(|e| match e {
+            Envelope::Completed { event, .. } => Some(event),
+            _ => None,
+        })
+        .collect();
+    let refs = events;
+    if let Err(error) = journal.persist_batch(&refs) {
+        control.cancel();
+        return Err(error);
+    }
+    for envelope in batch.drain(..) {
+        if let Envelope::Completed {
+            event: ScanEvent::Completed(file),
+            _lease,
+        } = envelope
+        {
+            summary.completed += 1;
+            summary.failed += u64::from(file.failed());
+            summary.unstable += u64::from(file.unstable);
+            summary.bytes_hashed = summary
+                .bytes_hashed
+                .saturating_add(file.hashes.as_ref().map_or(0, |h| h.bytes_read));
+            if let Err(error) = sink(ScanEvent::Completed(file)) {
+                control.cancel();
+                return Err(error);
+            }
+        }
+    }
+    Ok(())
 }
