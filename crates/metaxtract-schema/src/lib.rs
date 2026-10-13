@@ -2,6 +2,7 @@
 
 mod claim;
 mod diagnostic;
+mod float_bits;
 mod provenance;
 mod raw;
 mod record;

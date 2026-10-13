@@ -3,20 +3,20 @@ use crate::{
     SourceDescriptor,
 };
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub enum DigestAlgorithm {
     Sha256,
     Blake3,
     Other(String),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct ContentDigest {
     pub algorithm: DigestAlgorithm,
     pub bytes: Vec<u8>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ExtractionStatus {
     Complete,
     Partial,
@@ -24,7 +24,7 @@ pub enum ExtractionStatus {
     Failed,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct ExtractionRecord {
     pub source: SourceDescriptor,
     pub digests: Vec<ContentDigest>,

@@ -5,6 +5,7 @@ mod containers;
 mod detection;
 mod evidence;
 mod images;
+pub mod scan;
 
 pub use backend_claims::{
     BackendClaimLimit, BackendClaimLimits, BackendClaims, independent_backend_claims,

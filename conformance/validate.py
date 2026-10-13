@@ -16,6 +16,17 @@ def load(path: str) -> dict:
     return tomllib.loads((ROOT / path).read_text(encoding="utf-8"))
 
 
+def allowed_license(expression: str, policy: dict) -> bool:
+    tokens = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9.+-]*", expression))
+    exceptions = set(re.findall(r"\bWITH\s+([A-Za-z0-9][A-Za-z0-9.+-]*)", expression))
+    licenses = tokens - {"OR", "AND", "WITH"} - exceptions
+    return bool(licenses) and not (
+        licenses - set(policy["allowed_licenses"])
+        or licenses & set(policy["denied_licenses"])
+        or exceptions - set(policy.get("allowed_license_exceptions", []))
+    )
+
+
 def validate_repository() -> list[str]:
     errors = []
     architecture = load("architecture.toml")
@@ -66,8 +77,7 @@ def validate_repository() -> list[str]:
             errors.append(f"dependency is not commit-pinned: {name}")
         if not dependency["tag"].endswith(dependency["version"]):
             errors.append(f"release tag and version differ: {name}")
-        licenses = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9.+-]*", dependency["license"])) - {"OR", "AND"}
-        if not licenses or licenses - set(policy["allowed_licenses"]) or licenses & set(policy["denied_licenses"]):
+        if not allowed_license(dependency["license"], policy):
             errors.append(f"unreviewed dependency license: {name}")
         if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", dependency["source"]):
             errors.append(f"unexpected dependency source: {name}")
@@ -120,8 +130,7 @@ def validate_cargo_licenses() -> list[str]:
     for package in json.loads(result.stdout)["packages"]:
         if package["source"] is None:
             continue
-        licenses = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9.+-]*", package.get("license") or "")) - {"OR", "AND"}
-        if not licenses or licenses - set(policy["allowed_licenses"]) or licenses & set(policy["denied_licenses"]):
+        if not allowed_license(package.get("license") or "", policy):
             errors.append(f"unreviewed Cargo license: {package['name']} {package['version']}: {package['license']}")
     return errors
 

@@ -3,7 +3,10 @@ use std::fmt::{self, Display, Formatter};
 
 use crate::ObservationId;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd,
+)]
+#[serde(try_from = "String")]
 pub struct CanonicalKey(String);
 
 impl CanonicalKey {
@@ -37,7 +40,7 @@ impl Display for CanonicalKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum KeyError {
     Empty,
     EmptySegment,
@@ -57,7 +60,9 @@ impl Display for KeyError {
 
 impl Error for KeyError {}
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd,
+)]
 pub struct ClaimId(u64);
 
 impl ClaimId {
@@ -70,7 +75,7 @@ impl ClaimId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum TimestampPrecision {
     Year,
     Month,
@@ -80,7 +85,7 @@ pub enum TimestampPrecision {
     FractionalSecond,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct TimestampValue {
     pub original: String,
     pub unix_seconds: Option<i64>,
@@ -89,7 +94,7 @@ pub struct TimestampValue {
     pub precision: TimestampPrecision,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct GeoPoint {
     pub latitude: f64,
     pub longitude: f64,
@@ -110,13 +115,13 @@ impl GeoPoint {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub enum NormalizedValue {
     Null,
     Bool(bool),
     Signed(i64),
     Unsigned(u64),
-    Number(f64),
+    Number(#[serde(with = "crate::float_bits")] f64),
     Text(String),
     Timestamp(TimestampValue),
     DurationNanoseconds(i128),
@@ -124,7 +129,7 @@ pub enum NormalizedValue {
     Sequence(Vec<NormalizedValue>),
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConfidenceBasis {
     DirectTag,
     StructuralValidation,
@@ -134,7 +139,8 @@ pub enum ConfidenceBasis {
     UserOverride,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
+#[serde(try_from = "CheckedConfidence")]
 pub struct Confidence {
     score_millis: u16,
     pub basis: Vec<ConfidenceBasis>,
@@ -156,14 +162,14 @@ impl Confidence {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum AgreementLevel {
     SingleParser,
     Corroborated,
     Disputed,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ClaimResolution {
     Accepted,
     Unresolved,
@@ -171,7 +177,7 @@ pub enum ClaimResolution {
     UserSelected,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct NormalizedClaim {
     pub id: ClaimId,
     pub key: CanonicalKey,
@@ -185,9 +191,27 @@ pub struct NormalizedClaim {
     pub resolution: ClaimResolution,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct ClaimConflict {
     pub key: CanonicalKey,
     pub alternatives: Vec<ClaimId>,
     pub reason: String,
+}
+
+impl TryFrom<String> for CanonicalKey {
+    type Error = KeyError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+}
+#[derive(serde::Deserialize)]
+struct CheckedConfidence {
+    score_millis: u16,
+    basis: Vec<ConfidenceBasis>,
+}
+impl TryFrom<CheckedConfidence> for Confidence {
+    type Error = &'static str;
+    fn try_from(value: CheckedConfidence) -> Result<Self, Self::Error> {
+        Self::new(value.score_millis, value.basis).ok_or("confidence exceeds 1000")
+    }
 }

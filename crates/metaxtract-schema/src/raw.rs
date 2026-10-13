@@ -1,6 +1,8 @@
 use crate::Provenance;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd,
+)]
 pub struct ObservationId(u64);
 
 impl ObservationId {
@@ -13,7 +15,7 @@ impl ObservationId {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum TagCode {
     Numeric(u64),
     FourCc([u8; 4]),
@@ -21,20 +23,20 @@ pub enum TagCode {
     Text(String),
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct TagIdentity {
     pub namespace: String,
     pub code: TagCode,
     pub name: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct Rational {
     pub numerator: i64,
     pub denominator: i64,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct TextValue {
     pub text: String,
     pub original_encoding: Option<String>,
@@ -43,19 +45,19 @@ pub struct TextValue {
     pub lossless: bool,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct RawField {
     pub name: String,
     pub value: RawValue,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub enum RawValue {
     Null,
     Bool(bool),
     Signed(i64),
     Unsigned(u64),
-    Float(f64),
+    Float(#[serde(with = "crate::float_bits")] f64),
     Rational(Rational),
     Text(TextValue),
     Bytes(Vec<u8>),
@@ -63,7 +65,7 @@ pub enum RawValue {
     Structure(Vec<RawField>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 pub struct MetadataObservation {
     pub id: ObservationId,
     pub tag: TagIdentity,

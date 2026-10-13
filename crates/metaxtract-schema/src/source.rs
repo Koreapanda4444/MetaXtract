@@ -1,7 +1,10 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd,
+)]
+#[serde(try_from = "String")]
 pub struct RelativePath(String);
 
 impl RelativePath {
@@ -47,7 +50,7 @@ impl Display for RelativePath {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PathError {
     Empty,
     Absolute,
@@ -71,7 +74,7 @@ impl Display for PathError {
 
 impl Error for PathError {}
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum EvidenceKind {
     ArchiveMember,
     Attachment,
@@ -80,7 +83,7 @@ pub enum EvidenceKind {
     Resource,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EvidenceSegment {
     pub kind: EvidenceKind,
     pub path: RelativePath,
@@ -97,7 +100,7 @@ impl EvidenceSegment {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EvidencePath {
     root: RelativePath,
     nested: Vec<EvidenceSegment>,
@@ -162,7 +165,8 @@ fn write_path_component(formatter: &mut Formatter<'_>, value: &str) -> fmt::Resu
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[serde(try_from = "CheckedByteRange")]
 pub struct ByteRange {
     offset: u64,
     length: u64,
@@ -191,7 +195,7 @@ impl ByteRange {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct FileIdentity {
     pub size_bytes: u64,
     pub modified_ns: Option<i128>,
@@ -199,7 +203,7 @@ pub struct FileIdentity {
     pub stable_id: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SourceKind {
     File,
     ArchiveMember,
@@ -208,7 +212,7 @@ pub enum SourceKind {
     Stream,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct SourceDescriptor {
     pub path: EvidencePath,
     pub kind: SourceKind,
@@ -217,7 +221,7 @@ pub struct SourceDescriptor {
     pub detected_media_type: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum StreamKind {
     Metadata,
     Image,
@@ -229,7 +233,7 @@ pub enum StreamKind {
     Unknown,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct StreamDescriptor {
     pub id: String,
     pub kind: StreamKind,
@@ -239,10 +243,28 @@ pub struct StreamDescriptor {
     pub source_range: Option<ByteRange>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct ContainerDescriptor {
     pub format: String,
     pub encrypted: Option<bool>,
     pub declared_entry_count: Option<u64>,
     pub streams: Vec<StreamDescriptor>,
+}
+
+impl TryFrom<String> for RelativePath {
+    type Error = PathError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(value)
+    }
+}
+#[derive(serde::Deserialize)]
+struct CheckedByteRange {
+    offset: u64,
+    length: u64,
+}
+impl TryFrom<CheckedByteRange> for ByteRange {
+    type Error = &'static str;
+    fn try_from(value: CheckedByteRange) -> Result<Self, Self::Error> {
+        Self::new(value.offset, value.length).ok_or("byte range overflows")
+    }
 }

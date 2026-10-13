@@ -126,7 +126,7 @@ fn validate_input_limits(size: u64, limits: InputLimits) -> Result<(), NativeErr
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ParserLimits {
     pub max_source_bytes: u64,
     pub max_read_bytes: u64,

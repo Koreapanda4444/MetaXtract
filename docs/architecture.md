@@ -67,3 +67,17 @@ workspace compatibility, and end-to-end acceptance gates pass.
 [`architecture.toml`](../architecture.toml) is the machine-readable ownership policy used by
 repository validation. See the [boundary contract](ffi.md), [dependency policy](dependencies.md),
 and [resource limits](resource-limits.md) for the related implementation constraints.
+
+## Evidence discovery
+
+`metaxtract_core::scan::ScanRoot` accepts a regular file or directory. Child access is
+relative to an opened directory capability, so following a link cannot grant access outside
+the authorized root. The default policy skips symbolic links; `FollowWithinRoot` permits
+links whose targets remain inside it. Directory identities prevent cycles and aliases.
+Discovery limits cover files, entries, directories and depth. Dot-prefixed entries are
+hidden by default; this is a name policy, not the Windows hidden-attribute policy.
+
+Evidence records use portable relative paths while `NativePath` retains original Unix bytes
+or Windows UTF-16 units for reopening. Unrepresentable names use reversible `~os-` encoding.
+Opened-handle identity includes size, timestamps, device and file ID. Windows identity uses
+the available 64-bit file index; it does not claim full 128-bit ReFS identity.

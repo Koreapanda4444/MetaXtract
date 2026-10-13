@@ -1,12 +1,12 @@
 use crate::{ByteRange, EvidencePath};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct LibraryDescriptor {
     pub name: String,
     pub version: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct ParserDescriptor {
     pub id: String,
     pub name: String,
@@ -14,7 +14,7 @@ pub struct ParserDescriptor {
     pub library: Option<LibraryDescriptor>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ExtractionMethod {
     Structure,
     Direct,
@@ -23,7 +23,7 @@ pub enum ExtractionMethod {
     Heuristic,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct Provenance {
     pub parser: ParserDescriptor,
     pub source: EvidencePath,

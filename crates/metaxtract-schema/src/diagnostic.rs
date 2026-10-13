@@ -1,6 +1,6 @@
 use crate::{ByteRange, EvidencePath, ObservationId, ParserDescriptor};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DiagnosticSeverity {
     Information,
     Warning,
@@ -8,7 +8,7 @@ pub enum DiagnosticSeverity {
     Fatal,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DiagnosticStage {
     Probe,
     Structure,
@@ -18,7 +18,7 @@ pub enum DiagnosticStage {
     Integrity,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct Diagnostic {
     pub code: String,
     pub severity: DiagnosticSeverity,
