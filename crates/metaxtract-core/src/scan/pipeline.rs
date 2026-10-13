@@ -21,7 +21,7 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ScanOptions {
     pub walk: WalkOptions,
     pub hash: HashOptions,
@@ -59,7 +59,7 @@ impl ScanOptions {
             || self
                 .scan_wall_time_ms
                 .is_some_and(|v| v == 0 || v > 31 * 86_400_000)
-            || self.max_result_bytes == 0
+            || self.max_result_bytes < 1024 * 1024
             || self.max_result_bytes > 256 * 1024 * 1024
             || self.reservation() > self.max_memory_bytes
         {
@@ -68,14 +68,14 @@ impl ScanOptions {
         Ok(())
     }
 }
-#[derive(Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct FileTask {
     pub id: u64,
     pub relative: NativePath,
     pub evidence_path: crate::schema::RelativePath,
     pub stamp: FileStamp,
 }
-#[derive(Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ScannedFile {
     pub task: FileTask,
     pub hashes: Option<EvidenceHashes>,
@@ -84,7 +84,7 @@ pub struct ScannedFile {
     pub unstable: bool,
     pub cache_hit: bool,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
 pub struct ScanSummary {
     pub discovered: u64,
     pub completed: u64,
@@ -94,7 +94,7 @@ pub struct ScanSummary {
     pub bytes_hashed: u64,
     pub stopped: Option<StopReason>,
 }
-#[derive(Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub enum ScanEvent {
     Discovered(FileTask),
     Started(FileTask),
@@ -127,11 +127,7 @@ pub trait ExtractionBackend: Send + Sync {
 pub struct NativeExtractor;
 impl ExtractionBackend for NativeExtractor {
     fn fingerprint(&self) -> String {
-        format!(
-            "native:{}:{}",
-            crate::SCHEMA_REVISION,
-            metaxtract_native::NATIVE_API_REVISION
-        )
+        super::engine_fingerprint().to_owned()
     }
     fn extract(
         &self,
