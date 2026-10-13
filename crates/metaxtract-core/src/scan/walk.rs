@@ -269,7 +269,9 @@ impl ScanRoot {
             .visited
             .insert((self.stamp.device, self.stamp.file_id));
         if self.single_file.is_none() {
-            walker.stack.push((PathBuf::new(), 0, self.dir.entries()?));
+            walker
+                .stack
+                .push((PathBuf::new(), 0, self.dir.open_dir(".")?.entries()?));
         }
         Ok(walker)
     }

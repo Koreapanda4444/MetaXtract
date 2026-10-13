@@ -79,7 +79,9 @@ impl RecordCache {
             .conn
             .lock()
             .map_err(|_| io::Error::other("cache lock poisoned"))?;
-        let tx = conn.transaction().map_err(io::Error::other)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(io::Error::other)?;
         tx.execute("INSERT OR REPLACE INTO scan_cache(cache_key,data,digest,accessed) VALUES(?1,?2,?3,unixepoch())",params![key,&data,Sha256::digest(&data).to_vec()]).map_err(io::Error::other)?;
         loop {
             let (count, bytes): (i64, i64) = tx

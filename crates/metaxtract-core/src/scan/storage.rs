@@ -1,7 +1,7 @@
 use super::{
     ExtractionBackend, FileStamp, FileTask, NativePath, ScanControl, ScanEvent, ScanOptions,
     ScanRoot, ScanSummary, ScannedFile, StopReason, cache::database_artifacts, codec,
-    engine_fingerprint, scan_stream_with_control, walk::invalid,
+    walk::invalid,
 };
 use rusqlite::{OptionalExtension, Transaction, params};
 use sha2::{Digest, Sha256};
@@ -41,7 +41,9 @@ impl ScanStore {
                 r.get(0)
             })
             .map_err(io::Error::other)?;
-        if version != 1 {
+        if version == 1 {
+            conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE scan_runs ADD COLUMN generation INTEGER NOT NULL DEFAULT 1; ALTER TABLE scan_results ADD COLUMN failed INTEGER NOT NULL DEFAULT 0; ALTER TABLE scan_results ADD COLUMN unstable INTEGER NOT NULL DEFAULT 0; ALTER TABLE scan_results ADD COLUMN hashed_bytes INTEGER NOT NULL DEFAULT 0; UPDATE scan_results SET failed=(json_extract(data, '$.error') IS NOT NULL OR coalesce(json_extract(data, '$.records[0].status')='Failed',0)),unstable=coalesce(json_extract(data, '$.unstable'),0),hashed_bytes=coalesce(json_extract(data, '$.hashes.bytes_read'),0); UPDATE scan_meta SET value=2 WHERE key='schema'; COMMIT;").map_err(io::Error::other)?;
+        } else if version != 2 {
             return Err(invalid("unsupported scan store schema"));
         }
         Ok(Arc::new(Self {
@@ -72,19 +74,43 @@ impl ScanStore {
         Ok(options)
     }
     pub fn create_run(&self, root: &ScanRoot, options: &ScanOptions) -> io::Result<u64> {
+        self.create_run_with_engine(
+            root,
+            options,
+            &super::checkpoint::run_fingerprint(&super::NativeExtractor),
+        )
+    }
+    pub(crate) fn create_run_with_engine(
+        &self,
+        root: &ScanRoot,
+        options: &ScanOptions,
+        engine: &str,
+    ) -> io::Result<u64> {
         let conn = self
             .conn
             .lock()
             .map_err(|_| io::Error::other("store lock poisoned"))?;
-        conn.execute("INSERT INTO scan_runs(root,root_stamp,options,engine,status,created) VALUES(?1,?2,?3,?4,'running',unixepoch())",params![codec::encode(&root.original,1024*1024)?,codec::encode(&root.stamp,4096)?,codec::encode(options,16*1024*1024)?,engine_fingerprint()]).map_err(io::Error::other)?;
+        conn.execute("INSERT INTO scan_runs(root,root_stamp,options,engine,status,created) VALUES(?1,?2,?3,?4,'running',unixepoch())",params![codec::encode(&root.original,1024*1024)?,codec::encode(&root.stamp,4096)?,codec::encode(options,16*1024*1024)?,engine]).map_err(io::Error::other)?;
         Ok(conn.last_insert_rowid() as u64)
     }
     pub fn record_event(&self, run: u64, event: &ScanEvent) -> io::Result<()> {
+        let generation = self.checkpoint(run)?.generation;
+        self.persist_event(run, generation, event)
+    }
+    pub(crate) fn persist_event(
+        &self,
+        run: u64,
+        generation: u64,
+        event: &ScanEvent,
+    ) -> io::Result<()> {
         let mut conn = self
             .conn
             .lock()
             .map_err(|_| io::Error::other("store lock poisoned"))?;
-        let tx = conn.transaction().map_err(io::Error::other)?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(io::Error::other)?;
+        super::checkpoint::check_generation(&tx, run, generation)?;
         persist(&tx, run, event)?;
         tx.commit().map_err(io::Error::other)
     }
@@ -152,22 +178,26 @@ impl ScanStore {
         mut sink: impl FnMut(u64, ScanEvent) -> io::Result<()>,
     ) -> io::Result<(u64, ScanSummary)> {
         let options = self.options(&root, options, backend.as_ref())?;
-        let run = self.create_run(&root, &options)?;
-        let result = scan_stream_with_control(root, options, backend, control, |event| {
-            self.record_event(run, &event)?;
-            sink(run, event)
-        });
+        let run = self.create_run_with_engine(
+            &root,
+            &options,
+            &super::checkpoint::run_fingerprint(backend.as_ref()),
+        )?;
+        let journal = super::checkpoint::RunJournal::new(Arc::clone(self), run, 1, &options);
+        let result =
+            super::pipeline::run_pipeline(root, options, backend, control, journal, |event| {
+                sink(run, self.dispatch(run, 1, event)?)
+            });
         match result {
-            Ok(summary) => Ok((run, summary)),
+            Ok(summary) => Ok((run, self.summary(run, summary.stopped)?)),
             Err(e) => {
-                if let Ok(conn) = self.conn.lock() {
-                    let _ = conn.execute("UPDATE scan_runs SET status='failed' WHERE id=?1", [run]);
-                }
+                self.fail_generation(run, 1);
                 Err(e)
             }
         }
     }
 }
+
 pub(crate) fn persist(tx: &Transaction<'_>, run: u64, event: &ScanEvent) -> io::Result<()> {
     match event {
         ScanEvent::Discovered(task) => {
@@ -182,14 +212,15 @@ pub(crate) fn persist(tx: &Transaction<'_>, run: u64, event: &ScanEvent) -> io::
             )
             .map_err(io::Error::other)?;
         }
+        ScanEvent::Resumed(_) => {}
         ScanEvent::Started(task) => {
             if tx.execute("UPDATE scan_jobs SET state='running' WHERE run=?1 AND id=?2 AND state='queued'",params![run,task.id]).map_err(io::Error::other)?!=1{return Err(invalid("task is not queued"));}
         }
         ScanEvent::Completed(file) => {
             let data = codec::encode(file, codec::MAX_BLOB_BYTES)?;
             tx.execute(
-                "INSERT OR REPLACE INTO scan_results(run,id,data,digest) VALUES(?1,?2,?3,?4)",
-                params![run, file.task.id, &data, Sha256::digest(&data).to_vec()],
+                "INSERT OR REPLACE INTO scan_results(run,id,data,digest,failed,unstable,hashed_bytes) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![run, file.task.id, &data, Sha256::digest(&data).to_vec(),file.failed(),file.unstable,file.hashes.as_ref().map_or(0,|h|h.bytes_read)],
             )
             .map_err(io::Error::other)?;
             if tx

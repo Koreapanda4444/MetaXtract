@@ -1,5 +1,6 @@
 //! Bounded, read-only evidence discovery and processing.
 mod cache;
+mod checkpoint;
 mod storage;
 pub use storage::{ScanCheckpoint, ScanStore, TaskRow, TaskState};
 mod codec;
