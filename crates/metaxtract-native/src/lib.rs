@@ -15,6 +15,11 @@ use std::{error::Error, fmt, fs::File};
 pub const NATIVE_API_REVISION: u32 = 1;
 pub const NATIVE_SCHEMA_REVISION: u32 = 1;
 
+/// Apply a hard OS resource limit inside the bundled child, never in the GUI.
+pub fn configure_worker_memory_limit(bytes: u64) -> bool {
+    ffi::bridge::ffi_worker_memory_limit(bytes)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NativeBuildInfo {
     pub api_revision: u32,

@@ -12,8 +12,49 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <sys/resource.h>
+#endif
 
 namespace metaxtract::bridge {
+
+bool ffi_worker_memory_limit(const std::uint64_t bytes) noexcept {
+    if (bytes < 64U * 1024U * 1024U) return false;
+#ifdef _WIN32
+    const auto memory = static_cast<SIZE_T>(bytes);
+    if (static_cast<std::uint64_t>(memory) != bytes) return false;
+    const HANDLE job = CreateJobObjectW(nullptr, nullptr);
+    if (job == nullptr) return false;
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+    limits.ProcessMemoryLimit = memory;
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits,
+                                 static_cast<DWORD>(sizeof(limits))) ||
+        !AssignProcessToJobObject(job, GetCurrentProcess())) {
+        CloseHandle(job); return false;
+    }
+    // Retain the job handle for the lifetime of this short-lived worker.
+    return true;
+#else
+#ifdef __APPLE__
+    constexpr int resource = RLIMIT_DATA;
+#else
+    constexpr int resource = RLIMIT_AS;
+#endif
+    struct rlimit current{};
+    if (getrlimit(resource, &current) != 0) return false;
+    const auto requested = static_cast<rlim_t>(bytes);
+    if (static_cast<std::uint64_t>(requested) != bytes) return false;
+    current.rlim_cur = current.rlim_cur == RLIM_INFINITY
+        ? requested : std::min(current.rlim_cur, requested);
+    return setrlimit(resource, &current) == 0;
+#endif
+}
 
 namespace {
 

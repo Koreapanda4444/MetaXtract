@@ -273,6 +273,7 @@ pub(crate) mod bridge {
         fn ffi_input_check(source: &ReadSource, requested: u32) -> FfiInputCheck;
         fn ffi_input_read(source: &ReadSource, offset: u64, requested: u32) -> FfiReadResult;
         fn ffi_capabilities() -> FfiCapabilities;
+        fn ffi_worker_memory_limit(bytes: u64) -> bool;
         fn ffi_detect(source: &ReadSource, limits: FfiResourceLimits) -> FfiDetection;
         fn ffi_extract(
             source: &ReadSource,

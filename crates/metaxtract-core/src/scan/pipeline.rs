@@ -153,6 +153,46 @@ impl ExtractionBackend for NativeExtractor {
         let mut records = tree
             .canonical_records(evidence.evidence_path.clone())
             .map_err(|e| io::Error::other(e.to_string()))?;
+        let probe_limits = metaxtract_native::ParserLimits {
+            max_read_bytes: 64 * 1024,
+            max_allocation_bytes: 1024 * 1024,
+            max_wall_time_ms: context.remaining_ms().min(u64::from(u32::MAX)) as u32,
+            ..limits.parser
+        };
+        let probe = metaxtract_native::BoundedInput::from_file(
+            evidence.file.try_clone()?,
+            probe_limits.input_limits(),
+        )
+        .map_err(|e| io::Error::other(e.to_string()))?;
+        let candidates = metaxtract_native::detect_content(&probe, probe_limits)
+            .map_err(|e| io::Error::other(e.to_string()))?;
+        if let Some(root) = records.first_mut() {
+            if candidates.len() == 1
+                && matches!(
+                    candidates[0].state,
+                    metaxtract_native::DetectionState::Signature
+                        | metaxtract_native::DetectionState::HeaderValidated
+                )
+            {
+                root.source.detected_media_type = Some(candidates[0].mime.clone());
+            }
+            let name = evidence.relative.to_path()?;
+            let extension = name.extension().and_then(|e| e.to_str());
+            let assessment = crate::assess_content(&candidates, extension, None, None);
+            for conflict in assessment.conflicts {
+                root.diagnostics.push(Diagnostic {
+                    code: format!("content.{:?}", conflict.kind),
+                    severity: DiagnosticSeverity::Information,
+                    stage: DiagnosticStage::Probe,
+                    message: conflict.explanation,
+                    parser: None,
+                    source: root.source.path.clone(),
+                    source_range: None,
+                    related_observations: Vec::new(),
+                    recoverable: true,
+                });
+            }
+        }
         Ok(ExtractionBatch {
             records,
             cache_hit: false,

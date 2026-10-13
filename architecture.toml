@@ -20,6 +20,11 @@ path = "native/metaxtract-extract"
 language = "cpp"
 allows = []
 
+[components.worker]
+path = "crates/metaxtract-worker"
+language = "rust"
+allows = ["core"]
+
 [components.python_reference]
 path = "legacy/python"
 language = "python"
@@ -35,3 +40,4 @@ native_network_access = false
 exceptions_across_ffi = false
 opaque_library_objects_across_ffi = false
 python_in_production = false
+bundled_parser_worker = true

@@ -56,7 +56,12 @@ def validate_repository() -> list[str]:
             errors.append(f"native filesystem/process/network API: {path.relative_to(ROOT)}")
     for name in ("schema", "core", "native"):
         for path in (ROOT / components[name]["path"] / "src").rglob("*.rs"):
-            if re.search(r"\bCommand\s*::\s*new|std::process::Command", path.read_text(encoding="utf-8")):
+            text = path.read_text(encoding="utf-8")
+            worker_client = path == ROOT / "crates/metaxtract-core/src/scan/worker.rs"
+            if re.search(r"\bCommand\s*::\s*new|std::process::Command", text) and not (
+                worker_client and "Command::new(&self.path)" in text
+                and '"--protocol=1"' in text
+            ):
                 errors.append(f"production runtime subprocess: {path.relative_to(ROOT)}")
     rules = architecture["rules"]
     if rules["product_owner"] != "rust" or rules["raw_extraction_owner"] != "cpp":

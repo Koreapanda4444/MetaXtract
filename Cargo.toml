@@ -3,6 +3,7 @@ members = [
   "crates/metaxtract-core",
   "crates/metaxtract-native",
   "crates/metaxtract-schema",
+  "crates/metaxtract-worker",
 ]
 resolver = "3"
 
@@ -25,6 +26,7 @@ rusqlite = { version = "=0.37.0", features = ["bundled", "limits"] }
 tempfile = "=3.23.0"
 metaxtract-schema = { path = "crates/metaxtract-schema" }
 metaxtract-native = { path = "crates/metaxtract-native" }
+metaxtract-core = { path = "crates/metaxtract-core" }
 
 [profile.release]
 codegen-units = 1
