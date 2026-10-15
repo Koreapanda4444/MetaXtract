@@ -4,6 +4,7 @@ members = [
   "crates/metaxtract-native",
   "crates/metaxtract-schema",
   "crates/metaxtract-worker",
+  "crates/metaxtract-storage",
 ]
 resolver = "3"
 
@@ -27,6 +28,7 @@ tempfile = "=3.23.0"
 metaxtract-schema = { path = "crates/metaxtract-schema" }
 metaxtract-native = { path = "crates/metaxtract-native" }
 metaxtract-core = { path = "crates/metaxtract-core" }
+metaxtract-storage = { path = "crates/metaxtract-storage" }
 
 [profile.release]
 codegen-units = 1

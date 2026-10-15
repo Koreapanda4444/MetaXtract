@@ -25,6 +25,11 @@ path = "crates/metaxtract-worker"
 language = "rust"
 allows = ["core"]
 
+[components.storage]
+path = "crates/metaxtract-storage"
+language = "rust"
+allows = ["schema"]
+
 [components.python_reference]
 path = "legacy/python"
 language = "python"

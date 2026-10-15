@@ -481,6 +481,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "metaxtract-storage"
+version = "0.1.0"
+dependencies = [
+ "metaxtract-schema",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "metaxtract-worker"
 version = "0.1.0"
 dependencies = [

@@ -13,10 +13,11 @@ Rust는 사용자에게 보이는 앱 기능을 담당합니다. GUI·CLI, 파�
 | `metaxtract-native` | `cxx` 연결부, 제한된 입력, 콘텐츠 판별, 원본 관측값 전달, 파서 기능 조회와 오류 변환 |
 | `metaxtract-core` | 추출 조정, 타입이 유지되는 기록, 탐색·해싱·제한된 스케줄링·캐시·지속 가능한 스캔 저장과 복구 |
 | `metaxtract-worker` | 읽기 전용 사본을 입력받고 검증 가능한 프레임으로 결과를 반환하는 전용 파서 프로세스 |
+| `metaxtract-storage` | 단일 파일 케이스, 명시적인 읽기 전용 접근과 트랜잭션 기반 스키마 이관 |
 
 스캐너는 Rust 라이브러리 API로 제공합니다. 전체 케이스 관리와 Rust GUI·CLI는 이후 작업입니다.
 전용 파서 프로세스는 코어가 실행하는 내부 실행 파일이며 사용자용 CLI가 아닙니다.
 저장소 루트에서 `cargo build --workspace --locked`로 빌드합니다.
 
-[아키텍처](../docs/architecture_KR.md), [언어 경계](../docs/ffi_KR.md),
+[케이스 저장](../docs/cases_KR.md), [아키텍처](../docs/architecture_KR.md), [언어 경계](../docs/ffi_KR.md),
 [전환 검증](../conformance/README_KR.md)도 참고합니다.
