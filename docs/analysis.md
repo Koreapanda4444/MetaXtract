@@ -44,3 +44,15 @@ observation IDs. Rules cover location and identity exposure, local paths, confli
 lossy decoding, incomplete extraction, type mismatch, active content and unusual chronology.
 Tampering indicators are explicitly heuristic; they are not conclusions of forgery or malware.
 No external network enrichment is performed, and original observations remain reviewable.
+
+## Duplicate analysis
+
+`duplicates::exact` groups full SHA-256/BLAKE3 digests with consistent sizes, separately by algorithm.
+`fingerprint_content` streams caller-opened evidence, verifies the recorded size and SHA-256, and
+constructs content-defined chunk hashes. `near` compares chunk-set Jaccard similarity; it is a
+candidate heuristic, especially limited for short files, and does not establish byte equality.
+`visual_fingerprints` consumes C++ RGB24 preview observations, checks dimensions/length, and
+computes an explicitly oriented 64-bit dHash. `visually_similar` applies a Hamming threshold.
+No image decoder or external executable is added to Rust. Missing native previews yield no
+visual fingerprint; callers must report that coverage gap. Different algorithm scores are not
+interchangeable, and similarity never authorizes automatic evidence deletion.
