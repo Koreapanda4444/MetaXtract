@@ -46,7 +46,7 @@ impl CaseWorkspace {
     pub fn begin_scan(&self, source: &str, origin: &str) -> Result<String> {
         text(source, 1024 * 1024, false)?;
         text(origin, 256, false)?;
-        self.write(|tx|{
+        self.write_named("begin_scan",|tx|{
             let id:String=tx.query_row("SELECT lower(hex(randomblob(16)))",[],|r|r.get(0)).map_err(db)?;
             tx.execute("INSERT INTO scans(id,source,origin,status,started_ms) VALUES(?1,?2,?3,'running',?4)",params![id,source,origin,now_ms()?]).map_err(db)?;Ok(id)
         })
@@ -55,15 +55,17 @@ impl CaseWorkspace {
         if status == ScanStatus::Running {
             return Err(invalid("a final scan status is required"));
         }
-        self.write(|tx|{
+        self.write_named("finish_scan",|tx|{
             if tx.execute("UPDATE scans SET status=?2,finished_ms=?3 WHERE id=?1 AND status IN('running','paused')",params![id,status.as_str(),now_ms()?]).map_err(db)?!=1{return Err(invalid("unknown or finalized scan"));}Ok(())
         })
     }
     pub fn append_record(&self, scan: &str, record: &ExtractionRecord) -> Result<i64> {
-        self.write(|tx| insert_record(tx, scan, record))
+        self.write_named("append_record", |tx| insert_record(tx, scan, record))
     }
     pub fn append_records(&self, scan: &str, records: &[ExtractionRecord]) -> Result<Vec<i64>> {
-        self.write(|tx| records.iter().map(|r| insert_record(tx, scan, r)).collect())
+        self.write_named("append_records", |tx| {
+            records.iter().map(|r| insert_record(tx, scan, r)).collect()
+        })
     }
     pub fn record(&self, id: i64) -> Result<Option<ExtractionRecord>> {
         let conn = self.lock()?;

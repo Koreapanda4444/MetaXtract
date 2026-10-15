@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod audit;
 mod codec;
+pub use audit::{AuditAnchor, AuditEvent, IntegrityReport};
 mod history;
 mod import;
 mod signature;
@@ -27,7 +29,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub const SCHEMA_REVISION: u32 = 5;
+pub const SCHEMA_REVISION: u32 = 6;
 pub const APPLICATION_ID: i32 = 0x4d584353;
 pub(crate) type Result<T> = io::Result<T>;
 
@@ -51,6 +53,7 @@ pub struct CaseWorkspace {
     pub(crate) conn: Mutex<Connection>,
     path: PathBuf,
     access: AccessMode,
+    actor: String,
 }
 
 impl CaseWorkspace {
@@ -75,6 +78,7 @@ impl CaseWorkspace {
                 std::process::id()
             )));
             conn.execute("INSERT INTO case_info(singleton,case_id,title,notes,created_ms,updated_ms,revision) VALUES(1,?1,?2,'',?3,?3,0)",params![id,title.trim(),now]).map_err(db)?;
+            audit::ensure_anchor(&mut conn)?;
         }
         temp.as_file().sync_all()?;
         temp.persist_noclobber(path).map_err(|e| e.error)?;
@@ -113,12 +117,17 @@ impl CaseWorkspace {
             }
             schema::migrate(&mut conn)?;
         }
+        if access == AccessMode::ReadWrite {
+            audit::ensure_anchor(&mut conn)?;
+        }
         let result = Self {
             conn: Mutex::new(conn),
             path: path.canonicalize()?,
             access,
+            actor: "local".into(),
         };
         result.info()?;
+        result.audit_head()?;
         Ok(result)
     }
 
@@ -132,10 +141,18 @@ impl CaseWorkspace {
     pub fn info(&self) -> Result<CaseInfo> {
         self.lock()?.query_row("SELECT case_id,title,notes,created_ms,updated_ms,revision FROM case_info WHERE singleton=1",[],|r|Ok(CaseInfo{case_id:r.get(0)?,title:r.get(1)?,notes:r.get(2)?,created_ms:r.get(3)?,updated_ms:r.get(4)?,revision:r.get(5)?})).map_err(db)
     }
+    pub fn with_actor(mut self, actor: &str) -> Result<Self> {
+        text(actor, 1024, false)?;
+        self.actor = actor.into();
+        Ok(self)
+    }
+    pub fn actor(&self) -> &str {
+        &self.actor
+    }
 
     pub fn set_title(&self, title: &str) -> Result<()> {
         text(title, 4096, false)?;
-        self.write(|tx| {
+        self.write_named("set_title", |tx| {
             tx.execute(
                 "UPDATE case_info SET title=?1 WHERE singleton=1",
                 [title.trim()],
@@ -151,7 +168,19 @@ impl CaseWorkspace {
             .map_err(|_| io::Error::other("case lock poisoned"))
     }
 
-    pub(crate) fn write<T>(&self, action: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
+    pub(crate) fn write_named<T>(
+        &self,
+        name: &str,
+        action: impl FnOnce(&Transaction<'_>) -> Result<T>,
+    ) -> Result<T> {
+        self.write_detailed(name, &serde_json::Value::Null, action)
+    }
+    pub(crate) fn write_detailed<T>(
+        &self,
+        name: &str,
+        details: &serde_json::Value,
+        action: impl FnOnce(&Transaction<'_>) -> Result<T>,
+    ) -> Result<T> {
         if self.access == AccessMode::ReadOnly {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
@@ -168,6 +197,7 @@ impl CaseWorkspace {
             [now_ms()?],
         )
         .map_err(db)?;
+        audit::append(&tx, &self.actor, name, details)?;
         tx.commit().map_err(db)?;
         Ok(result)
     }
@@ -179,6 +209,7 @@ fn connection(path: &Path, access: AccessMode) -> Result<Connection> {
         AccessMode::ReadWrite => OpenFlags::SQLITE_OPEN_READ_WRITE,
     } | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     let conn = Connection::open_with_flags(path, flags).map_err(db)?;
+    audit::register(&conn)?;
     conn.busy_timeout(Duration::from_secs(15)).map_err(db)?;
     conn.set_limit(
         rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH,

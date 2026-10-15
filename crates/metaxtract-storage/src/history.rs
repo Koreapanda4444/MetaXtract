@@ -136,11 +136,11 @@ impl CaseWorkspace {
         Ok(ScanHistoryPage { items, next })
     }
     pub fn resume_scan(&self, id: &str) -> Result<()> {
-        self.write(|tx|{if tx.execute("UPDATE scans SET status='running',finished_ms=NULL WHERE id=?1 AND status='paused'",[id]).map_err(db)?!=1{return Err(invalid("scan is not paused"));}Ok(())})
+        self.write_named("resume_scan",|tx|{if tx.execute("UPDATE scans SET status='running',finished_ms=NULL WHERE id=?1 AND status='paused'",[id]).map_err(db)?!=1{return Err(invalid("scan is not paused"));}Ok(())})
     }
     pub fn set_notes(&self, notes: &str) -> Result<()> {
         text(notes, 1024 * 1024, true)?;
-        self.write(|tx| {
+        self.write_named("set_notes", |tx| {
             tx.execute("UPDATE case_info SET notes=?1 WHERE singleton=1", [notes])
                 .map_err(db)?;
             Ok(())
@@ -149,7 +149,7 @@ impl CaseWorkspace {
     pub fn add_note(&self, author: &str, body: &str) -> Result<i64> {
         text(author, 1024, true)?;
         text(body, 1024 * 1024, false)?;
-        self.write(|tx| {
+        self.write_named("add_note", |tx| {
             tx.execute(
                 "INSERT INTO case_notes(author,body,created_ms,updated_ms) VALUES(?1,?2,?3,?3)",
                 params![author, body, now_ms()?],
@@ -160,7 +160,7 @@ impl CaseWorkspace {
     }
     pub fn update_note(&self, id: i64, body: &str) -> Result<()> {
         text(body, 1024 * 1024, false)?;
-        self.write(|tx| {
+        self.write_named("update_note", |tx| {
             if tx
                 .execute(
                     "UPDATE case_notes SET body=?2,updated_ms=?3 WHERE id=?1",
@@ -175,7 +175,7 @@ impl CaseWorkspace {
         })
     }
     pub fn remove_note(&self, id: i64) -> Result<bool> {
-        self.write(|tx| {
+        self.write_named("remove_note", |tx| {
             tx.execute("DELETE FROM case_notes WHERE id=?1", [id])
                 .map(|n| n != 0)
                 .map_err(db)
@@ -219,7 +219,7 @@ impl CaseWorkspace {
     pub fn annotate(&self, id: i64, note: &str, tags: &[String]) -> Result<()> {
         validate_annotation(note, tags)?;
         let data = codec::encode(&tags, 64 * 1024)?;
-        self.write(|tx|{tx.execute("INSERT INTO annotations VALUES(?1,?2,?3,?4) ON CONFLICT(record_id) DO UPDATE SET note=excluded.note,tags=excluded.tags,updated_ms=excluded.updated_ms",params![id,note,data,now_ms()?]).map_err(db)?;Ok(())})
+        self.write_named("annotate",|tx|{tx.execute("INSERT INTO annotations VALUES(?1,?2,?3,?4) ON CONFLICT(record_id) DO UPDATE SET note=excluded.note,tags=excluded.tags,updated_ms=excluded.updated_ms",params![id,note,data,now_ms()?]).map_err(db)?;Ok(())})
     }
     pub fn annotation(&self, id: i64) -> Result<Option<Annotation>> {
         let row: Option<(String, Vec<u8>, i64)> = self
@@ -244,7 +244,7 @@ impl CaseWorkspace {
         .transpose()
     }
     pub fn remove_annotation(&self, id: i64) -> Result<bool> {
-        self.write(|tx| {
+        self.write_named("remove_annotation", |tx| {
             tx.execute("DELETE FROM annotations WHERE record_id=?1", [id])
                 .map(|n| n != 0)
                 .map_err(db)
@@ -265,7 +265,7 @@ impl CaseWorkspace {
             }
         }
         let query = codec::encode(query, 32 * 1024)?;
-        self.write(|tx|{tx.execute("INSERT INTO saved_filters VALUES(?1,?2,?3) ON CONFLICT(name) DO UPDATE SET query=excluded.query,updated_ms=excluded.updated_ms",params![name.trim(),query,now_ms()?]).map_err(db)?;Ok(())})
+        self.write_named("save_filter",|tx|{tx.execute("INSERT INTO saved_filters VALUES(?1,?2,?3) ON CONFLICT(name) DO UPDATE SET query=excluded.query,updated_ms=excluded.updated_ms",params![name.trim(),query,now_ms()?]).map_err(db)?;Ok(())})
     }
     pub fn filters(&self, after: Option<&str>, limit: usize) -> Result<Vec<SavedFilter>> {
         page_limit(limit)?;
@@ -291,7 +291,7 @@ impl CaseWorkspace {
         .collect()
     }
     pub fn remove_filter(&self, name: &str) -> Result<bool> {
-        self.write(|tx| {
+        self.write_named("remove_filter", |tx| {
             tx.execute(
                 "DELETE FROM saved_filters WHERE name=?1 COLLATE NOCASE",
                 [name],

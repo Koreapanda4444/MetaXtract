@@ -125,7 +125,7 @@ impl CaseWorkspace {
         limits.validate()?;
         let path = path.as_ref();
         let (snapshot, hash) = transport::snapshot(path, limits.max_input_bytes)?;
-        self.write(|tx| {
+        self.write_named("import_jsonl", |tx| {
             let scan = new_scan(tx, &path.to_string_lossy(), "import_jsonl")?;
             let (records, _) = read_records(
                 tx,
@@ -182,7 +182,7 @@ impl CaseWorkspace {
     ) -> Result<Vec<i64>> {
         crate::text(key, 1024, false)?;
         let data = codec::encode(receipt, 16 * 1024 * 1024)?;
-        self.write(|tx| {
+        self.write_named("append_records_with_receipt", |tx| {
             let ids = records
                 .iter()
                 .map(|r| insert_record(tx, scan, r))

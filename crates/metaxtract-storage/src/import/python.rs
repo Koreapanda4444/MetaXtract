@@ -73,7 +73,7 @@ impl CaseWorkspace {
         let info: Value = source
             .query_row("SELECT * FROM case_info WHERE singleton=1", [], sqlite_json)
             .map_err(db)?;
-        self.write(|tx|{
+        self.write_named("import_python_case",|tx|{
             let mut scans=Vec::new();let mut count=0u64;
             let mut runs=source.prepare("SELECT r.*,s.path AS source_path,s.kind AS source_kind FROM scan_runs r JOIN sources s ON s.source_id=r.source_id ORDER BY r.started_at,r.rowid").map_err(db)?;
             let mut rows=runs.query([]).map_err(db)?;

@@ -58,3 +58,18 @@ signature, and trusted-key receipt remain in the case.
 count, and controls. Imports are atomic and fail without partial records.
 `append_records_with_receipt` can also attach a scanner's serialized native path,
 file identity, hashes, and failure context atomically to its extraction records.
+
+## Audit and integrity
+
+Every case mutation records its actor, action, time, and changed-row commitments
+in a SHA-256 chain in the same transaction. `with_actor` labels the writer;
+`record_activity` adds explicit examiner activity. Updates process changed rows
+instead of rehashing the whole case. `verify_integrity` replays the chain into a
+temporary disk-backed index, compares it with current content, and checks payload
+hashes, record references, foreign keys, and SQLite integrity.
+
+Keep an `AuditAnchor` independently or authenticate it through a signed snapshot
+to detect replacement of an entire case with an older copy. A self-contained
+hash chain alone cannot prove authenticity against someone who can rewrite the
+whole database. Migrated pre-audit data receives an explicit baseline anchor;
+it is not represented as having a historical audit trail.

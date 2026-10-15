@@ -119,7 +119,7 @@ impl CaseWorkspace {
         if manifest.get("redacted") == Some(&Value::Bool(true)) && include {
             return Err(invalid("redacted bundle cannot include original evidence"));
         }
-        self.write(|tx|{
+        self.write_named("import_python_bundle",|tx|{
             let scan=new_scan(tx,&path.to_string_lossy(),"import_python_bundle")?;
             let member=archive.by_name("scan.jsonl").map_err(std::io::Error::other)?;
             let (records,hashes)=read_records(tx,&scan,&mut BufReader::new(member),limits,Some(&manifest))?;

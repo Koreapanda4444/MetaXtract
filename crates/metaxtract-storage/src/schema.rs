@@ -47,6 +47,13 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         CREATE TABLE legacy_records(record_id INTEGER PRIMARY KEY REFERENCES records(id) ON DELETE CASCADE,original BLOB NOT NULL,digest BLOB NOT NULL);
         CREATE TABLE scan_receipts(scan_id TEXT NOT NULL REFERENCES scans(id),key TEXT NOT NULL,data BLOB NOT NULL,digest BLOB NOT NULL,PRIMARY KEY(scan_id,key));").map_err(db)?;
     }
+    if current < 6 {
+        tx.execute_batch("CREATE TABLE audit_log(sequence INTEGER PRIMARY KEY,time_ms INTEGER NOT NULL,actor TEXT NOT NULL,action TEXT NOT NULL,payload BLOB NOT NULL,previous_hash BLOB NOT NULL,hash BLOB NOT NULL);
+        CREATE TABLE audit_state(table_name TEXT NOT NULL,key TEXT NOT NULL,digest BLOB NOT NULL,PRIMARY KEY(table_name,key));
+        CREATE TABLE audit_dirty(table_name TEXT NOT NULL,key TEXT NOT NULL,PRIMARY KEY(table_name,key));
+        CREATE TABLE audit_config(singleton INTEGER PRIMARY KEY CHECK(singleton=1),initialized INTEGER NOT NULL);
+        INSERT INTO audit_config VALUES(1,0);").map_err(db)?;
+    }
     tx.pragma_update(None, "user_version", SCHEMA_REVISION)
         .map_err(db)?;
     tx.commit().map_err(db)
