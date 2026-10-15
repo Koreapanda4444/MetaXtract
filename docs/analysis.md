@@ -95,3 +95,18 @@ scan matching index candidates. Facets count distinct records and expose paginat
 Cursors bind the full query, case and revision. Save the typed query as `FilterQuery::Structured`;
 existing legacy and record filters remain readable. These newer filters require this engine when
 opening a case. Writes remain covered by the case audit chain.
+
+## Previewable redaction profiles
+
+`redaction::preview` creates a separate metadata derivative and a change manifest without changing
+the case or source bytes. Profiles select canonical-key prefixes, raw namespaces/names, privacy
+fields or all metadata, with removal or explicit mask text. Dependency expansion covers linked
+observations, competing claims for the same field and conflict references, preventing a selected
+value from surviving in another linked interpretation. Conflicting overlapping actions are rejected.
+Masks are labelled as generated derivatives, not original parser output.
+
+The privacy profile strips encoded payloads and unstructured diagnostics/container context. File
+paths, digests and filesystem dates each have explicit options; path hiding requires a caller-
+supplied safe alias. The preview reports unselected fields for review. This is field-aware metadata
+redaction, not a sanitizer for original file content, and unselected free text may retain sensitive
+information. Export the derivative record, not the preview's original-value comparison.

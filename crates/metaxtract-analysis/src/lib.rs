@@ -6,6 +6,7 @@ pub mod findings;
 pub mod geo;
 pub mod normalize;
 pub mod provenance;
+pub mod redaction;
 pub mod search;
 pub mod timestamp;
 pub mod validation;
