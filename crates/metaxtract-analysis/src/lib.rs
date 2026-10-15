@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod findings;
 pub mod normalize;
 pub mod provenance;
 pub mod timestamp;

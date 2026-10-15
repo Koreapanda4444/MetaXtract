@@ -36,3 +36,11 @@ family; builtin parser prefixes conservatively identify a shared implementation.
 and overlapping timestamp precision are indeterminate, not contradictions. Different known
 instants or values remain explicit alternatives. Confidence is an evidence classification score,
 not a statistical probability. User selections and rejected alternatives remain identified.
+
+## Findings
+
+`findings::classify` returns stable rule IDs, severity, category, source path and supporting claim/
+observation IDs. Rules cover location and identity exposure, local paths, conflicting claims,
+lossy decoding, incomplete extraction, type mismatch, active content and unusual chronology.
+Tampering indicators are explicitly heuristic; they are not conclusions of forgery or malware.
+No external network enrichment is performed, and original observations remain reviewable.
