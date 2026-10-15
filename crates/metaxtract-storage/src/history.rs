@@ -65,6 +65,16 @@ pub struct SavedFilter {
 }
 
 impl CaseWorkspace {
+    pub fn scan_info(&self, id: &str) -> Result<Option<ScanInfo>> {
+        text(id, 1024, false)?;
+        let conn = self.lock()?;
+        let row:Option<(ScanInfo,String)>=conn.query_row("SELECT id,source,origin,status,started_ms,finished_ms,record_count,warning_count,error_count,imported_from FROM scans WHERE id=?1",[id],|r|Ok((ScanInfo{id:r.get(0)?,source:r.get(1)?,origin:r.get(2)?,status:ScanStatus::Running,started_ms:r.get(4)?,finished_ms:r.get(5)?,record_count:r.get(6)?,warning_count:r.get(7)?,error_count:r.get(8)?,imported_from:r.get(9)?},r.get(3)?))).optional().map_err(db)?;
+        row.map(|(mut scan, status)| {
+            scan.status = ScanStatus::parse(&status)?;
+            Ok(scan)
+        })
+        .transpose()
+    }
     pub fn scan_history(
         &self,
         cursor: Option<&ScanCursor>,

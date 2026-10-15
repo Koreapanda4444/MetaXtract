@@ -128,3 +128,44 @@ Both workflows verify the case chain/state, bind a revision and audit head, enfo
 budgets, and return an output SHA-256 receipt. They fail if the case changes. Output publication
 uses a same-directory temporary file and does not overwrite existing files; errors leave no partial
 destination. Audit consistency alone is not independent authentication of the case's author.
+
+## Investigation reports
+
+`reporting::build_report` verifies case state, records the scan history and audit head, and derives
+normalization, validation, field lineage, findings, timelines, duplicates, locations, clusters, tracks
+and an optional baseline comparison. Scope includes selected/total counts, extraction status and
+decoder availability. Invalid coordinates remain findings and are excluded from spatial calculations
+with explicit coverage issues. Original observations and stored claims remain distinguishable from
+new analysis; binary fields are displayed by length/SHA-256, with originals retained in the case.
+
+Optional verified content fingerprints enable near-content comparison. Absent or partial fingerprints
+and missing native previews are reported as coverage gaps. Visual reporting uses decoded preview
+orientation as supplied; callers can use the explicit orientation API for other comparisons. Reports
+do not include original evidence bytes. Generated time is supplied by the caller for reproducibility.
+
+`write_report` writes standalone HTML or JSON atomically. HTML escapes all evidence text, uses a
+restrictive Content Security Policy and fetches no external assets. Section labels support English,
+Korean or both; raw evidence and rule explanations retain their original language. The returned
+receipt includes output length/SHA-256 and, optionally, an Ed25519 signature over `signed_manifest`.
+Verify that manifest with `verify_manifest` and an independently trusted public key. Preserve the
+receipt beside the report when authentication is required; a digest inside its own report is not an
+independent signature. An optional trusted case anchor also verifies its recorded chain prefix.
+
+Redacted reports omit the original search expression and scan-source path, apply the profile before
+analysis, and preserve derivative labels. Titles, analyst names, track group labels and unselected
+free text remain caller-provided content requiring review. No new Rust CLI/GUI is introduced here.
+The library APIs are the integration surface for the next application stages.
+
+```rust,ignore
+let query = metaxtract_analysis::search::parse(&scan_id, "mime=image/jpeg size>=1024")?;
+let options = metaxtract_analysis::reporting::ReportOptions::new(
+    "Metadata investigation / 메타데이터 조사", "Analyst", generated_unix_seconds,
+);
+let report = metaxtract_analysis::reporting::build_report(
+    &case, &query, &options, None, None, Default::default(),
+)?;
+let receipt = metaxtract_analysis::reporting::write_report(
+    &report, "report.html", metaxtract_analysis::reporting::ReportFormat::Html,
+    None, Default::default(),
+)?;
+```

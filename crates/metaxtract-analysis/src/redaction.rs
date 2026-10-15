@@ -89,6 +89,7 @@ pub struct RedactionPreview {
     pub changes: Vec<RedactionChange>,
     pub removed_claims: Vec<ClaimId>,
     pub unselected_observations: usize,
+    pub stripped_payload_observations: Vec<ObservationId>,
     pub derivative: bool,
 }
 fn privacy_name(name: &str) -> bool {
@@ -154,13 +155,28 @@ fn merge<K: Ord>(
     map.insert(key, action.clone());
     Ok(true)
 }
-fn strip_payloads(value: &mut RawValue) {
+fn strip_payloads(value: &mut RawValue) -> bool {
     match value {
-        RawValue::Bytes(_) => *value = RawValue::Null,
-        RawValue::Text(t) => t.encoded_bytes = None,
-        RawValue::Sequence(v) => v.iter_mut().for_each(strip_payloads),
-        RawValue::Structure(v) => v.iter_mut().for_each(|v| strip_payloads(&mut v.value)),
-        _ => {}
+        RawValue::Bytes(_) => {
+            *value = RawValue::Null;
+            true
+        }
+        RawValue::Text(t) => t.encoded_bytes.take().is_some(),
+        RawValue::Sequence(v) => {
+            let mut changed = false;
+            for v in v {
+                changed |= strip_payloads(v);
+            }
+            changed
+        }
+        RawValue::Structure(v) => {
+            let mut changed = false;
+            for v in v {
+                changed |= strip_payloads(&mut v.value);
+            }
+            changed
+        }
+        _ => false,
     }
 }
 /// Preview a metadata derivative. Original evidence bytes and the workspace are never modified.
@@ -241,6 +257,7 @@ pub fn preview(
     }
     let mut derived = record.clone();
     let mut changes = vec![];
+    let mut stripped_payload_observations = vec![];
     derived.observations.retain_mut(|o| {
         if let Some(action) = observations.get(&o.id) {
             changes.push(RedactionChange {
@@ -270,9 +287,12 @@ pub fn preview(
             }
         }
         if profile.strip_encoded_payloads {
-            strip_payloads(&mut o.raw_value);
+            let mut stripped = strip_payloads(&mut o.raw_value);
             if let Some(v) = &mut o.interpreted_value {
-                strip_payloads(v);
+                stripped |= strip_payloads(v);
+            }
+            if stripped {
+                stripped_payload_observations.push(o.id);
             }
         }
         true
@@ -292,6 +312,8 @@ pub fn preview(
     if profile.omit_unstructured_context {
         derived.diagnostics.clear();
         derived.containers.clear();
+        derived.conflicts.clear();
+        derived.source.identity.stable_id = None;
     }
     let remaining: BTreeSet<_> = derived.observations.iter().map(|o| o.id).collect();
     for d in &mut derived.diagnostics {
@@ -323,7 +345,12 @@ pub fn preview(
             serde_json::to_vec(record).map_err(io::Error::other)?,
         )))
     };
-    let unselected_observations = record.observations.len().saturating_sub(changes.len());
+    let changed: BTreeSet<_> = changes
+        .iter()
+        .map(|c| c.observation)
+        .chain(stripped_payload_observations.iter().copied())
+        .collect();
+    let unselected_observations = record.observations.len().saturating_sub(changed.len());
     let out = RedactionPreview {
         profile: profile.name.clone(),
         original_record_sha256,
@@ -331,6 +358,7 @@ pub fn preview(
         changes,
         removed_claims,
         unselected_observations,
+        stripped_payload_observations,
         derivative: true,
     };
     check_record(&out.record, limits)?;

@@ -11,9 +11,32 @@ pub enum ValueRelation {
     Indeterminate,
 }
 pub fn relation(a: &NormalizedValue, b: &NormalizedValue) -> ValueRelation {
+    relation_at(a, b, 0)
+}
+fn relation_at(a: &NormalizedValue, b: &NormalizedValue, depth: usize) -> ValueRelation {
     use ValueRelation::*;
+    if depth > 64 {
+        return Indeterminate;
+    }
     match (a, b) {
+        (NormalizedValue::Sequence(a), NormalizedValue::Sequence(b)) => {
+            if a.len() != b.len() {
+                return Contradictory;
+            }
+            let mut result = Equivalent;
+            for (a, b) in a.iter().zip(b) {
+                match relation_at(a, b, depth + 1) {
+                    Contradictory => return Contradictory,
+                    Indeterminate => result = Indeterminate,
+                    Equivalent => {}
+                }
+            }
+            result
+        }
         (NormalizedValue::Timestamp(a), NormalizedValue::Timestamp(b)) => {
+            if !crate::timestamp::valid_timestamp(a) || !crate::timestamp::valid_timestamp(b) {
+                return Indeterminate;
+            }
             if a == b {
                 return Equivalent;
             }
@@ -55,10 +78,27 @@ pub fn relation(a: &NormalizedValue, b: &NormalizedValue) -> ValueRelation {
         {
             Indeterminate
         }
-        (NormalizedValue::GeoPoint(x), NormalizedValue::GeoPoint(y))
-            if !x.is_valid() || !y.is_valid() =>
-        {
-            Indeterminate
+        (NormalizedValue::GeoPoint(x), NormalizedValue::GeoPoint(y)) => {
+            if !x.is_valid() || !y.is_valid() {
+                return Indeterminate;
+            }
+            if x.latitude == y.latitude && x.longitude == y.longitude {
+                return if x.altitude_meters == y.altitude_meters {
+                    Equivalent
+                } else if x.altitude_meters.is_none() || y.altitude_meters.is_none() {
+                    Indeterminate
+                } else {
+                    Contradictory
+                };
+            }
+            if x.horizontal_accuracy_meters
+                .zip(y.horizontal_accuracy_meters)
+                .is_some_and(|(a, b)| crate::geo::distance_meters(*x, *y).is_ok_and(|d| d <= a + b))
+            {
+                Indeterminate
+            } else {
+                Contradictory
+            }
         }
         (NormalizedValue::Signed(x), NormalizedValue::Unsigned(y))
         | (NormalizedValue::Unsigned(y), NormalizedValue::Signed(x)) => {

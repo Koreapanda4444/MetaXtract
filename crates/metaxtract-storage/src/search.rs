@@ -10,6 +10,7 @@ use rusqlite::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::io;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchQuery {
@@ -242,6 +243,31 @@ fn matches_value(value: &NormalizedValue, op: &str, expected: &str) -> Result<bo
         nodes += 1;
         if nodes > 100_000 || depth > 64 {
             return Err(invalid("claim search value exceeds structural limit"));
+        }
+        if op == "Contains"
+            && !matches!(
+                value,
+                NormalizedValue::Sequence(_)
+                    | NormalizedValue::Text(_)
+                    | NormalizedValue::Timestamp(_)
+            )
+        {
+            let text = match value {
+                NormalizedValue::Signed(v) => v.to_string(),
+                NormalizedValue::Unsigned(v) => v.to_string(),
+                NormalizedValue::Number(v) if v.is_finite() => v.to_string(),
+                NormalizedValue::DurationNanoseconds(v) => v.to_string(),
+                NormalizedValue::Bool(v) => v.to_string(),
+                NormalizedValue::Null => "null".into(),
+                NormalizedValue::GeoPoint(p) if p.is_valid() => {
+                    serde_json::to_string(p).map_err(io::Error::other)?
+                }
+                _ => String::new(),
+            };
+            if text.contains(expected) {
+                return Ok(true);
+            }
+            continue;
         }
         let matches = match value {
             NormalizedValue::Sequence(v) => {

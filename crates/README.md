@@ -13,10 +13,10 @@ normalization, analysis, search, reports, and case management.
 | `metaxtract-native` | `cxx` bridge, bounded input, content detection, raw observation transport, parser capabilities, and native error mapping |
 | `metaxtract-core` | Extraction orchestration, typed records, traversal, hashing, bounded scheduling, cache, durable scan storage and recovery |
 | `metaxtract-worker` | Bundled internal parser process with a private read-only snapshot and framed checked output |
-| `metaxtract-analysis` | Bounded normalization with original timestamps, GPS, identities, units, and encoding status |
+| `metaxtract-analysis` | Normalization, lineage, validation, findings, duplicates, geography, comparison, search, redaction, exports and reports |
 | `metaxtract-storage` | Single-file cases, typed metadata, indexed paging, history, imports, audit, signing identities, and portable snapshots |
 
-The scanner and case workspace are Rust library APIs. The Rust GUI/CLI and remaining analysis workflows remain pending.
+Scanning, case storage and analysis are Rust library APIs. Rust GUI/CLI integration remains pending.
 The worker is an internal executable; it is launched by the core rather than used as a CLI.
 Build from the repository root with `cargo build --workspace --locked`.
 

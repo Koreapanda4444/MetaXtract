@@ -8,6 +8,7 @@ pub mod geo;
 pub mod normalize;
 pub mod provenance;
 pub mod redaction;
+pub mod reporting;
 pub mod search;
 pub mod timestamp;
 pub mod validation;
@@ -39,6 +40,11 @@ pub(crate) fn invalid(message: &str) -> io::Error {
 }
 pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|v| format!("{v:02x}")).collect()
+}
+pub(crate) fn encoded_size(value: &impl serde::Serialize, limit: usize) -> io::Result<usize> {
+    let mut writer = LimitedWriter::new(io::sink(), limit);
+    serde_json::to_writer(&mut writer, value).map_err(io::Error::other)?;
+    Ok(limit - writer.remaining)
 }
 pub(crate) fn check_record(
     record: &schema::ExtractionRecord,

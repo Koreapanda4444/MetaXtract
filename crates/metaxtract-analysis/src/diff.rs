@@ -65,7 +65,7 @@ fn compact_raw(value: &RawValue) -> Value {
         _ => serde_json::to_value(value).expect("raw scalar serialization is infallible"),
     }
 }
-fn view(record: &ExtractionRecord) -> Value {
+pub(crate) fn view(record: &ExtractionRecord) -> Value {
     json!({"source":record.source,"digests":record.digests,"containers":record.containers,"status":record.status,"diagnostics":record.diagnostics,"conflicts":record.conflicts,"observations":record.observations.iter().map(|o|json!({"id":o.id,"tag":o.tag,"raw_value":compact_raw(&o.raw_value),"interpreted_value":o.interpreted_value.as_ref().map(compact_raw),"unit":o.unit,"provenance":o.provenance})).collect::<Vec<_>>()})
 }
 fn walk(

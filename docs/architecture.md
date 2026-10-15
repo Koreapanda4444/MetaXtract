@@ -40,7 +40,7 @@ libraries are hidden behind adapters and their objects never cross the language 
 
 This is the intended end-to-end flow. The schema, bridge, bounded input, and parser dispatcher
 are implemented, together with the native adapters listed in the extraction guide. The Rust
-scanner now orchestrates this flow; GUI, CLI and full case-management workflows remain pending.
+scanner now orchestrates this flow; GUI and CLI integration remains pending.
 
 1. Rust resolves the scan target and opens a bounded read-only source.
 2. Rust records file identity and hashes content according to evidence policy.
@@ -95,7 +95,7 @@ requeues unfinished tasks and rejects a different root or engine/backend fingerp
 records survive a crash. Pending evidence that changed is recorded as unstable rather than mixed
 with earlier content. An invocation generation rejects stale writers when a scan is resumed.
 Incomplete discovery is walked again; complete discovery only replays its durable pending tasks.
-This is a scan-store foundation, not an importer for Python case files or the final case UI.
+This scan store is separate from the single-file case workspace; Python case import is provided by `metaxtract-storage`, and the final Rust case UI remains pending.
 
 Cache keys include content hashes, filename hints, schema/API, compiled parser/library source
 fingerprints and scan options. Checksums catch damaged payloads; partial results are not cached.

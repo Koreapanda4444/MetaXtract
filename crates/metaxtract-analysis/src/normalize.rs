@@ -1,5 +1,8 @@
 use crate::{AnalysisLimits, check_record, invalid, schema::*, timestamp};
-use std::{collections::BTreeMap, io};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io,
+};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct NormalizationIssue {
@@ -163,12 +166,38 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
         .unwrap_or(0)
         .checked_add(1)
         .ok_or_else(|| invalid("claim ID exhausted"))?;
-    let mut gps: BTreeMap<(String, Option<String>), Vec<&MetadataObservation>> = BTreeMap::new();
+    type Group = (String, Option<String>, String);
+    let mut gps: BTreeMap<Group, Vec<&MetadataObservation>> = BTreeMap::new();
+    let mut offsets: BTreeMap<(String, Option<String>, String, String), Vec<&MetadataObservation>> =
+        BTreeMap::new();
+    for o in &record.observations {
+        let name = field(o);
+        if matches!(
+            name.as_str(),
+            "offset_time" | "offset_time_original" | "offset_time_digitized"
+        ) {
+            offsets
+                .entry((
+                    o.tag.namespace.clone(),
+                    o.provenance.stream_id.clone(),
+                    o.provenance.parser.id.clone(),
+                    name,
+                ))
+                .or_default()
+                .push(o);
+        }
+    }
+    let signature = |c: &NormalizedClaim| {
+        serde_json::to_vec(&(&c.key, &c.value, &c.supporting_observations))
+            .map_err(io::Error::other)
+    };
+    let mut existing = BTreeSet::new();
+    for c in &record.claims {
+        existing.insert(signature(c)?);
+    }
     let mut work = 0usize;
     for o in &record.observations {
-        work = work
-            .saturating_add(record.observations.len())
-            .saturating_add(record.claims.len());
+        work = work.saturating_add(1);
         if work > limits.max_comparisons {
             return Err(invalid("normalization comparison budget exceeded"));
         }
@@ -193,9 +222,13 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
             || name.contains("altitude")
             || o.tag.namespace.ends_with(".gps")
         {
-            gps.entry((o.tag.namespace.clone(), o.provenance.stream_id.clone()))
-                .or_default()
-                .push(o);
+            gps.entry((
+                o.tag.namespace.clone(),
+                o.provenance.stream_id.clone(),
+                o.provenance.parser.id.clone(),
+            ))
+            .or_default()
+            .push(o);
         }
         let role = match name.as_str() {
             "created" | "creationdate" | "creation_date" | "creation_time" | "created_filetime" => {
@@ -223,20 +256,15 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
                 } else {
                     "offset_time"
                 };
-                let offsets: Vec<_> = record
-                    .observations
-                    .iter()
-                    .filter(|p| {
-                        p.tag.namespace == o.tag.namespace
-                            && p.provenance.stream_id == o.provenance.stream_id
-                            && field(p) == offset_name
-                    })
-                    .collect();
-                let zone = if offsets.len() == 1 {
-                    raw_text(raw(offsets[0]))
-                } else {
-                    None
-                };
+                let companions = offsets.get(&(
+                    o.tag.namespace.clone(),
+                    o.provenance.stream_id.clone(),
+                    o.provenance.parser.id.clone(),
+                    offset_name.into(),
+                ));
+                let zone = companions
+                    .filter(|v| v.len() == 1)
+                    .and_then(|v| raw_text(raw(v[0])));
                 raw_text(raw(o)).and_then(|v| timestamp::parse_timestamp(v, zone))
             };
             if value.is_none() {
@@ -301,11 +329,7 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
         };
         if let Some((key, value)) = candidate {
             let new = claim(next, key, value, vec![o])?;
-            if !record.claims.iter().any(|c| {
-                c.key == new.key
-                    && c.value == new.value
-                    && c.supporting_observations == new.supporting_observations
-            }) {
+            if existing.insert(signature(&new)?) {
                 out.claims.push(new);
                 next = next
                     .checked_add(1)
@@ -315,10 +339,16 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
     }
     for observations in gps.values() {
         let find = |names: &[&str]| {
-            observations
+            let mut matches = observations
                 .iter()
                 .copied()
-                .find(|o| names.contains(&field(o).as_str()))
+                .filter(|o| names.contains(&field(o).as_str()));
+            let first = matches.next()?;
+            if matches.next().is_some() {
+                None
+            } else {
+                Some(first)
+            }
         };
         let lat = find(&["gps_latitude", "latitude"]);
         let lon = find(&["gps_longitude", "longitude"]);
@@ -383,11 +413,7 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
                     NormalizedValue::GeoPoint(point),
                     support,
                 )?;
-                if !record.claims.iter().any(|c| {
-                    c.key == new.key
-                        && c.value == new.value
-                        && c.supporting_observations == new.supporting_observations
-                }) {
+                if existing.insert(signature(&new)?) {
                     out.claims.push(new);
                     next = next
                         .checked_add(1)

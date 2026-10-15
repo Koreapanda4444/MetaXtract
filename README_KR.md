@@ -36,6 +36,11 @@ Rust [케이스 저장 라이브러리](docs/cases_KR.md)는 단일 파일 케�
 번들 가져오기, 해시 체인 감사, 암호화 서명 키와 검증 가능한 이동식 스냅샷을
 제공합니다. 네이티브 파서를 불러오지 않고 케이스를 열 수 있습니다.
 
+Rust [분석 라이브러리](docs/analysis_KR.md)는 정규화, 필드 출처·타임라인, 해석 교차 검증,
+발견 사항, 동일·내용·시각 유사도, 오프라인 위치 분석, 스캔·필드 비교, 구조화 검색,
+비식별화 미리보기, 선택 CSV·JSONL·증거 내보내기, 서명 영수증을 지원하는 HTML·JSON
+조사 보고서를 제공합니다. 현재 라이브러리 API이며 이후 앱 단계에서 GUI·CLI에 연결합니다.
+
 Rust GUI·CLI와 전체 사용 흐름의 동등성 확보는 이후 작업입니다.
 지원 필드와 한계는 [추출 지원 범위](docs/extraction_KR.md)를 참고합니다.
 
@@ -100,7 +105,7 @@ README는 처음 실행하는 방법을 안내합니다. `docs/`는 추출 엔�
 | 라이브러리와 의존성 정책 | [Dependencies](docs/dependencies.md) | [의존성 정책](docs/dependencies_KR.md) |
 | 파서 자원 제한과 한계 | [Resource limits](docs/resource-limits.md) | [파서 자원 제한](docs/resource-limits_KR.md) |
 | 네이티브 추출 지원 범위 | [Extraction](docs/extraction.md) | [추출 지원 범위](docs/extraction_KR.md) |
+| 케이스 작업 공간 | [Cases](docs/cases.md) | [케이스](docs/cases_KR.md) |
+| 분석·검색·보고서 | [Analysis](docs/analysis.md) | [분석·검색·보고서](docs/analysis_KR.md) |
 | 언어 전환 검증 | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
 | 현재 GUI·CLI 사용법 | [Python application](legacy/python/README.md) | [Python 앱 사용법](legacy/python/README_KR.md) |
-
-Rust [분석 라이브러리](docs/analysis_KR.md)는 원본을 보존하며 날짜·위치·식별 정보·단위·인코딩 상태를 정규화합니다.

@@ -1,5 +1,16 @@
 use crate::schema::{TimestampPrecision, TimestampValue};
 
+pub fn valid_timestamp(value: &TimestampValue) -> bool {
+    value.nanosecond.is_none_or(|n| n < 1_000_000_000)
+        && value
+            .utc_offset_minutes
+            .is_none_or(|v| (-1439..=1439).contains(&v))
+        && (!matches!(
+            value.precision,
+            TimestampPrecision::Year | TimestampPrecision::Month | TimestampPrecision::Day
+        ) || (value.unix_seconds.is_none() && value.nanosecond.is_none()))
+}
+
 fn digits(s: &str) -> Option<u32> {
     if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
         return None;

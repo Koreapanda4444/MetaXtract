@@ -10,14 +10,38 @@ pub struct GeoSample {
     pub timestamp: Option<TimestampValue>,
     pub ambiguous_time: bool,
 }
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct GeoIssue {
+    pub path: EvidencePath,
+    pub claim: ClaimId,
+    pub reason: String,
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct GeographicAnalysis {
+    pub samples: Vec<GeoSample>,
+    pub issues: Vec<GeoIssue>,
+}
 pub fn locations(
     records: &[ExtractionRecord],
     limits: AnalysisLimits,
 ) -> io::Result<Vec<GeoSample>> {
+    let result = location_analysis(records, limits)?;
+    if !result.issues.is_empty() {
+        return Err(invalid(
+            "invalid location claims; inspect location_analysis issues",
+        ));
+    }
+    Ok(result.samples)
+}
+pub fn location_analysis(
+    records: &[ExtractionRecord],
+    limits: AnalysisLimits,
+) -> io::Result<GeographicAnalysis> {
     if records.len() > limits.max_records {
         return Err(invalid("location record budget exceeded"));
     }
     let mut out = Vec::new();
+    let mut issues = Vec::new();
     let mut comparisons = 0usize;
     for record in records {
         check_record(record, limits)?;
@@ -27,7 +51,13 @@ pub fn locations(
             }
             if let NormalizedValue::GeoPoint(point) = claim.value {
                 if !point.is_valid() {
-                    return Err(invalid("invalid geographic coordinate"));
+                    issues.push(GeoIssue {
+                        path: record.source.path.clone(),
+                        claim: claim.id,
+                        reason: "invalid geographic coordinate; excluded from spatial calculations"
+                            .into(),
+                    });
+                    continue;
                 }
                 comparisons = comparisons.saturating_add(record.claims.len());
                 if comparisons > limits.max_comparisons {
@@ -71,7 +101,13 @@ pub fn locations(
         }
     }
     out.sort_by_key(|p| (p.path.to_string(), p.claim));
-    Ok(out)
+    if out.len().saturating_add(issues.len()) > limits.max_results {
+        return Err(invalid("geographic result budget exceeded"));
+    }
+    Ok(GeographicAnalysis {
+        samples: out,
+        issues,
+    })
 }
 pub fn distance_meters(a: GeoPoint, b: GeoPoint) -> io::Result<f64> {
     if !a.is_valid() || !b.is_valid() {

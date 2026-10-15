@@ -120,3 +120,42 @@ JSON·진단 수를 포함하며 텍스트 셀을 인용하고 스프레드시�
 제한과 출력 SHA-256 영수증을 사용합니다. 중간에 케이스가 바뀌면 실패합니다. 같은 디렉터리의
 임시 파일로 생성 후 게시하고 기존 파일을 덮어쓰지 않으며 실패한 부분 파일을 남기지 않습니다.
 감사 체인의 일관성 확인만으로 케이스 작성자까지 독립 인증하는 것은 아닙니다.
+
+## 조사 보고서
+
+`reporting::build_report`는 케이스 상태를 검증하고 스캔 이력·감사 기준점을 기록한 다음
+정규화·교차 검증·필드 출처·발견 사항·타임라인·중복·위치·군집·이동 구간·선택적 기준 스캔
+비교를 수행합니다. 선택/전체 개수, 추출 상태, 디코더 가용성을 명시합니다. 잘못된 좌표도
+발견 사항에 남기며 공간 계산에서 제외한 이유를 표시합니다. 원본 관측값·저장된 해석과 새
+분석을 구분하고 바이너리는 길이·SHA-256으로 표시하며 원본은 케이스에 보존합니다.
+
+검증된 내용 지문을 전달하면 내용 유사도도 비교합니다. 지문 또는 네이티브 미리보기가
+없거나 일부만 있으면 분석 범위의 한계로 표시합니다. 보고서의 시각 분석은 제공된 미리보기
+방향을 사용하며 다른 방향 비교는 별도 API로 지정할 수 있습니다. 보고서에 원본 파일
+바이트를 넣지 않습니다. 재현 가능한 생성을 위해 생성 시각은 호출자가 전달합니다.
+
+`write_report`는 독립 HTML·JSON을 원자적으로 저장합니다. HTML의 증거 문자열은 모두
+이스케이프하고 제한적인 CSP를 적용하며 외부 리소스를 불러오지 않습니다. 절 제목은 영어·
+한국어·병기를 지원하고 원본 증거와 규칙 설명의 언어는 유지합니다. 반환 영수증에는 출력
+길이·SHA-256과 선택적으로 `signed_manifest`의 Ed25519 서명이 들어 있습니다. 독립적으로
+신뢰한 공개키와 `verify_manifest`로 검증하고 인증이 필요하면 영수증을 보고서와 함께
+보존해야 합니다. 보고서 안의 해시만으로 독립 서명을 대신하지 않습니다. 신뢰한 케이스
+기준점을 전달하면 해당 체인의 접두 이력도 확인합니다.
+
+비식별화 보고서는 원래 검색식과 스캔 원본 경로를 제외하고 분석 전에 프로필을 적용하며
+파생본 표시를 유지합니다. 제목·분석자·트랙 그룹 이름·선택하지 않은 자유 텍스트는 호출자가
+입력한 내용이므로 검토해야 합니다. Rust CLI·GUI는 다음 단계에서 이 API에 연결합니다.
+
+```rust,ignore
+let query = metaxtract_analysis::search::parse(&scan_id, "mime=image/jpeg size>=1024")?;
+let options = metaxtract_analysis::reporting::ReportOptions::new(
+    "Metadata investigation / 메타데이터 조사", "분석자", generated_unix_seconds,
+);
+let report = metaxtract_analysis::reporting::build_report(
+    &case, &query, &options, None, None, Default::default(),
+)?;
+let receipt = metaxtract_analysis::reporting::write_report(
+    &report, "report.html", metaxtract_analysis::reporting::ReportFormat::Html,
+    None, Default::default(),
+)?;
+```

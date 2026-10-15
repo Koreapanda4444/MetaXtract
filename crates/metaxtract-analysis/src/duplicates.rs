@@ -81,6 +81,19 @@ pub struct ContentFingerprint {
     size_bytes: u64,
     chunks: BTreeSet<[u8; 32]>,
 }
+impl ContentFingerprint {
+    pub fn path(&self) -> &EvidencePath {
+        &self.path
+    }
+    pub(crate) fn matches_record(&self, record: &ExtractionRecord) -> bool {
+        self.path == record.source.path
+            && self.size_bytes == record.source.identity.size_bytes
+            && record
+                .digests
+                .iter()
+                .any(|d| d.algorithm == DigestAlgorithm::Sha256 && d.bytes == self.sha256)
+    }
+}
 /// Rust hashes caller-opened evidence; it does not decode or invoke an external program.
 pub fn fingerprint_content(
     mut source: impl Read,

@@ -30,6 +30,7 @@ pub struct TimelineEvent {
     pub path: EvidencePath,
     pub event: String,
     pub timestamp: TimestampValue,
+    pub valid: bool,
     pub origin: TimelineOrigin,
 }
 pub fn field_lineage(
@@ -40,7 +41,21 @@ pub fn field_lineage(
     let observations: BTreeMap<_, _> = record.observations.iter().map(|o| (o.id, o)).collect();
     let claims: BTreeMap<_, _> = record.claims.iter().map(|c| (c.id, c)).collect();
     let mut conflicts: BTreeMap<_, Vec<ClaimConflict>> = BTreeMap::new();
+    let mut conflict_bytes = 0usize;
+    let mut conflict_links = 0usize;
     for conflict in &record.conflicts {
+        let size = crate::encoded_size(conflict, limits.max_bytes)?;
+        conflict_bytes =
+            conflict_bytes.saturating_add(size.saturating_mul(conflict.alternatives.len()));
+        conflict_links = conflict_links.saturating_add(
+            conflict
+                .alternatives
+                .len()
+                .saturating_mul(conflict.alternatives.len()),
+        );
+        if conflict_bytes > limits.max_bytes || conflict_links > limits.max_results {
+            return Err(invalid("expanded conflict lineage exceeds its budget"));
+        }
         for id in &conflict.alternatives {
             if claims.get(id).is_none_or(|c| c.key != conflict.key) {
                 return Err(invalid("conflict references a missing or different field"));
@@ -50,7 +65,16 @@ pub fn field_lineage(
     }
     let mut out = Vec::new();
     let mut links = 0usize;
+    let path_bytes = crate::encoded_size(&record.source.path, limits.max_bytes)?;
+    let mut bytes = conflict_bytes;
     for c in &record.claims {
+        bytes = bytes
+            .saturating_add(path_bytes)
+            .saturating_add(crate::encoded_size(c, limits.max_bytes)?)
+            .saturating_add(512);
+        if bytes > limits.max_bytes {
+            return Err(invalid("lineage byte budget exceeded"));
+        }
         let mut evidence = Vec::new();
         for (ids, contradicts) in [
             (&c.supporting_observations, false),
@@ -64,6 +88,15 @@ pub fn field_lineage(
                 let o = observations
                     .get(id)
                     .ok_or_else(|| invalid("missing lineage observation"))?;
+                bytes = bytes
+                    .saturating_add(crate::encoded_size(
+                        &(&o.tag, &o.provenance),
+                        limits.max_bytes,
+                    )?)
+                    .saturating_add(64);
+                if bytes > limits.max_bytes {
+                    return Err(invalid("lineage byte budget exceeded"));
+                }
                 evidence.push(ObservationLink {
                     observation: *id,
                     tag: o.tag.clone(),
@@ -100,10 +133,16 @@ pub fn timeline(
     for record in records {
         for lineage in field_lineage(record, limits)? {
             if let NormalizedValue::Timestamp(time) = &lineage.value {
+                let valid = timestamp::valid_timestamp(time);
+                let mut display_time = time.clone();
+                if !valid {
+                    display_time.unix_seconds = None;
+                }
                 out.push(TimelineEvent {
                     path: record.source.path.clone(),
                     event: lineage.key.to_string(),
-                    timestamp: time.clone(),
+                    timestamp: display_time,
+                    valid,
                     origin: TimelineOrigin::Claim(Box::new(lineage)),
                 });
             }
@@ -119,6 +158,7 @@ pub fn timeline(
                     path: record.source.path.clone(),
                     event: field.into(),
                     timestamp: time,
+                    valid: true,
                     origin: TimelineOrigin::FileSystem {
                         field: field.into(),
                     },

@@ -38,7 +38,11 @@ see [native extraction coverage](docs/extraction.md) for supported fields and li
 The Python source remains frozen as a comparison baseline. It will be removed after the new
 application passes workflow, data compatibility, and extraction conformance checks.
 
-The Rust [analysis library](docs/analysis.md) now normalizes dates, locations, identities, units and encoding status while retaining raw evidence.
+The Rust [analysis library](docs/analysis.md) provides normalization, field lineage and timelines,
+claim validation, findings, exact/content/visual similarity, offline geographic analysis, scan/field
+comparison, structured case search, redaction previews, selected CSV/JSONL/evidence exports, and
+HTML/JSON investigation reports with optional signing receipts. These are library APIs; desktop
+and command-line integration follows in the application stages.
 
 ## Run the current application
 
@@ -99,5 +103,7 @@ counterparts; update both when behavior or design changes.
 | Libraries and dependency policy | [Dependencies](docs/dependencies.md) | [의존성 정책](docs/dependencies_KR.md) |
 | Parser budgets and limitations | [Resource limits](docs/resource-limits.md) | [파서 자원 제한](docs/resource-limits_KR.md) |
 | Native extraction coverage | [Extraction](docs/extraction.md) | [추출 지원 범위](docs/extraction_KR.md) |
+| Case workspaces | [Cases](docs/cases.md) | [케이스](docs/cases_KR.md) |
+| Analysis, search and reports | [Analysis](docs/analysis.md) | [분석·검색·보고서](docs/analysis_KR.md) |
 | Migration verification | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
 | Current GUI and CLI | [Python application](legacy/python/README.md) | [Python 앱 사용법](legacy/python/README_KR.md) |
