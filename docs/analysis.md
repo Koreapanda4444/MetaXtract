@@ -67,3 +67,13 @@ time gaps, and flags excessive speed or simultaneous different positions. Ungrou
 separate; missing/ambiguous UTC times remain unresolved. Track indices reference the input sample
 list. GeoJSON uses longitude/latitude order; KML escapes source text. No online tiles or geocoding
 are requested. GPS altitude references below sea level are preserved.
+
+## Scan and field comparison
+
+`diff::compare_records` distinguishes missing values from explicit null, uses typed key/index path
+segments, and reports original-observation changes separately from canonical claim alternatives.
+Claim comparisons identify equivalent values even when provenance or IDs changed; unknown time
+zones remain indeterminate. Large binary fields are represented by byte length and SHA-256 in
+the diff, with originals retained in the case. `compare_scans` rejects duplicate evidence paths,
+reports additions/removals, and identifies relocation candidates only for unique matching SHA-256
+and size pairs. A matching hash does not establish who moved a file or why.
