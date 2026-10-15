@@ -68,3 +68,27 @@ cargo run -p metaxtract-cli -- bundle open snapshot.zip reopened.mxcase
 페이지 탐색을 처음부터 다시 시작해야 합니다. `--pause-after N`은 최소 N개 파일 완료 후
 협력적으로 정지하므로 이미 처리 중이던 파일은 추가로 완료될 수 있습니다. 저널을 보관하고
 반환된 run·scan ID로 재개하세요. 운영체제에서 강제 중단되어도 저널로 복구할 수 있습니다.
+
+## Rust 데스크톱
+
+```bash
+cargo build -p metaxtract-worker --locked
+cargo run -p metaxtract-gui --locked
+cargo run -p metaxtract-gui --locked -- investigation.mxcase
+```
+
+네이티브 데스크톱에서 케이스 생성·열기, 최근 케이스, 읽기 전용 열기, 스캔 기록, 제목·노트를
+사용합니다. 수정은 로컬 케이스에 저장됩니다. 복사 저장은 일관된 휴대용 스냅샷을 만들고
+검증한 뒤 복사본을 열며 원래 케이스를 보존합니다. 제한된 경로 선택기는 다른 프로그램을
+실행하지 않고 직접 입력과 운영체제 원래 경로 표현의 항목 선택을 지원합니다. 최근 경로는
+운영체제 MetaXtract 설정 디렉터리에 저장합니다.
+
+한국어 표시는 Windows의 맑은 고딕, macOS의 Apple SD Gothic Neo, Linux의 Noto Sans CJK·
+나눔고딕을 사용합니다. 필요하면 설치된 TrueType/OpenType 폰트 경로를 `METAXTRACT_FONT_PATH`로
+지정하세요. Linux는 데스크톱 디스플레이와 OpenGL이 필요합니다. `--smoke`는 실제 창을 띄워
+여러 프레임을 렌더링한 후 종료하는 설치 확인용 옵션입니다. 케이스 작업은 백그라운드에서
+수행해 화면 응답을 유지하며 기존 앱 아이콘을 보존합니다.
+
+개발 시 `cargo run`은 네이티브 라이브러리 검색 경로를 자동 설정합니다. 독립 실행 파일을
+배포할 때는 `metaxtract-worker`와 [의존성 안내](dependencies_KR.md)의 공유 라이브러리·고지를
+함께 구성해야 합니다.

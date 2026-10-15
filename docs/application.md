@@ -12,8 +12,8 @@ cargo run -p metaxtract-cli --locked -- case history investigation.mxcase
 cargo run -p metaxtract-cli --locked -- verify investigation.mxcase
 ```
 
-Use `.exe` on Windows. Keep `metaxtract-worker` and the reviewed native libraries next to the
-application as built by Cargo. `inspect FILE` creates an isolated temporary case. `compare CASE
+Use `.exe` on Windows. Cargo launches configure native library search paths automatically. Standalone binaries require
+`metaxtract-worker` plus the shared libraries and notices described in [dependencies](dependencies.md). `inspect FILE` creates an isolated temporary case. `compare CASE
 OLD_SCAN NEW_SCAN` compares persisted scans. Case commands create/open information, history and
 notes. Output is JSON; scan progress goes to stderr. Input paths retain native OS path units.
 
@@ -68,3 +68,23 @@ A closed output pipe exits cleanly. `case history` and `search` return `items` p
 restart pagination after a case revision change. `--pause-after N` pauses cooperatively after at
 least N completed files (already running work may finish); retain the journal and resume with the
 returned run/scan IDs. Abrupt OS interruption leaves the journal available for recovery.
+
+## Rust desktop
+
+```bash
+cargo build -p metaxtract-worker --locked
+cargo run -p metaxtract-gui --locked
+cargo run -p metaxtract-gui --locked -- investigation.mxcase
+```
+
+The native desktop starts with New/Open, recent cases, read-only opening, scan history, title and
+notes. Writes persist in the local case; Save copy creates and verifies a consistent portable
+snapshot before reopening the copy. The original case is retained. A bounded path picker accepts
+typed paths and native directory entries without launching another program. Recent paths are
+stored in the operating system's MetaXtract configuration directory.
+
+Korean text uses Malgun Gothic on Windows, Apple SD Gothic Neo on macOS, or installed Noto Sans
+CJK/Nanum Gothic on Linux. Set `METAXTRACT_FONT_PATH` to an installed TrueType/OpenType font if
+needed. Linux requires a desktop display and OpenGL; `--smoke` opens the actual window and exits
+after several rendered frames for installation checks. Case operations execute in background jobs
+so the interface remains responsive. Original application artwork is preserved.

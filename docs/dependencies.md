@@ -78,3 +78,11 @@ their pinned source and modifications remain identified. Original source files r
 This software is based in part on the work of the Independent JPEG Group.
 
 The archive adapter additionally bundles libarchive 3.8.9, liblzma from XZ 5.8.4 (0BSD), and libbzip2 1.0.8 (bzip2-1.0.6 license). These are source-pinned library-only builds; command-line tools, scripts, upstream tests and implicit host-library discovery are disabled. This software includes libbzip2 by Julian R. Seward and XZ Utils by its authors and contributors. Allocation interception is a MetaXtract build modification, while the reviewed upstream source cache remains unchanged.
+
+The Rust desktop pins eframe/egui 0.32.3 with native Glow, X11 and Wayland support; web backends
+and bundled file-dialog executables are disabled. The reviewed `libloading` ISC license permits
+redistribution with its notice. Egui's original Ubuntu, Noto Emoji, Hack and emoji-icon fonts retain
+the Ubuntu Font License 1.0, SIL OFL 1.1 and MIT/Bitstream notices in
+`crates/metaxtract-gui/assets/third-party-notices.txt`. These allow embedding and redistribution
+with their notices; original names and unmodified font data are preserved. Korean glyphs are
+loaded from an installed system font (or `METAXTRACT_FONT_PATH`), which is not redistributed.

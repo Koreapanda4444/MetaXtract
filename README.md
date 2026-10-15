@@ -33,7 +33,8 @@ case/JSONL/signed-bundle imports, hash-chained auditing, encrypted signing keys,
 and verified portable case snapshots. It can open cases independently of native parsers.
 
 The Rust CLI now provides scan, inspect, comparison, verification and case workflows.
-Desktop integration and full workflow parity remain pending;
+The Rust desktop now provides case creation, opening, notes, recent cases and consistent copies;
+remaining desktop workflows are being connected.
 see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 
 The Python source remains frozen as a comparison baseline. It will be removed after the new
@@ -45,7 +46,7 @@ comparison, structured case search, redaction previews, selected CSV/JSONL/evide
 HTML/JSON investigation reports with optional signing receipts. These are library APIs; desktop
 and command-line integration follows in the application stages.
 
-See the [Rust application guide](docs/application.md) for the new CLI.
+See the [Rust application guide](docs/application.md) for the new CLI and Rust desktop.
 
 ## Run the current application
 

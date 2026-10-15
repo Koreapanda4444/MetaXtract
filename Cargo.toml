@@ -8,6 +8,7 @@ members = [
   "crates/metaxtract-analysis",
   "crates/metaxtract-app",
   "crates/metaxtract-cli",
+  "crates/metaxtract-gui",
 ]
 resolver = "3"
 
@@ -40,6 +41,7 @@ metaxtract-core = { path = "crates/metaxtract-core" }
 metaxtract-storage = { path = "crates/metaxtract-storage" }
 metaxtract-analysis = { path = "crates/metaxtract-analysis" }
 metaxtract-app = { path = "crates/metaxtract-app" }
+eframe = { version = "=0.32.3", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 
 [profile.release]
 codegen-units = 1

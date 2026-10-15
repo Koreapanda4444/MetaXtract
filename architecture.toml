@@ -51,6 +51,11 @@ path = "crates/metaxtract-cli"
 language = "rust"
 allows = ["app"]
 
+[components.gui]
+path = "crates/metaxtract-gui"
+language = "rust"
+allows = ["app"]
+
 [rules]
 product_owner = "rust"
 raw_extraction_owner = "cpp"

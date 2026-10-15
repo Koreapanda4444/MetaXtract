@@ -48,7 +48,7 @@ Rust CLI에서 스캔·검사·비교·검증·케이스 작업을 사용할 수
 Python 소스는 결과 비교를 위한 기준판으로 동결합니다. 새 앱이 기존 사용 흐름, 데이터 호환성,
 추출 결과 검증을 통과한 뒤 제거할 예정입니다.
 
-새 CLI 사용법은 [Rust 앱 안내](docs/application_KR.md)를 참고합니다.
+새 CLI·Rust 데스크톱 사용법은 [Rust 앱 안내](docs/application_KR.md)를 참고합니다.
 
 ## 현재 앱 실행
 

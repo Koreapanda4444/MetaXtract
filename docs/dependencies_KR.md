@@ -81,3 +81,11 @@ IJG 원본 배포 요구 사항입니다.
 This software is based in part on the work of the Independent JPEG Group.
 
 아카이브 어댑터는 libarchive 3.8.9, XZ 5.8.4의 liblzma(0BSD), libbzip2 1.0.8(bzip2-1.0.6 라이선스)을 포함합니다. 소스를 고정한 라이브러리 빌드이며 CLI·스크립트·상류 테스트·암묵적인 시스템 라이브러리 탐색을 끕니다. Julian R. Seward의 libbzip2와 XZ Utils 저자·기여자의 코드를 포함합니다. 할당 가로채기는 MetaXtract 빌드에서 적용한 변경이며 검토한 상류 소스 캐시는 수정하지 않습니다.
+
+Rust 데스크톱은 eframe/egui 0.32.3의 네이티브 Glow·X11·Wayland 백엔드를 고정 사용합니다.
+웹 백엔드와 파일 선택용 외부 실행 프로그램은 사용하지 않습니다. 검토한 `libloading`의
+ISC 라이선스는 고지 보존 조건으로 재배포를 허용합니다. Egui의 원본 Ubuntu·Noto Emoji·Hack·
+emoji-icon 폰트는 Ubuntu Font License 1.0, SIL OFL 1.1, MIT·Bitstream 고지를
+`crates/metaxtract-gui/assets/third-party-notices.txt`에 보존합니다. 해당 조건에 따라 임베딩과
+재배포가 가능하며 원래 이름과 수정하지 않은 폰트 데이터를 유지합니다. 한국어 글리프는
+설치된 시스템 폰트 또는 `METAXTRACT_FONT_PATH`에서 읽으며 해당 폰트를 재배포하지 않습니다.

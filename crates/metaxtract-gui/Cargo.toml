@@ -1,0 +1,12 @@
+[package]
+name = "metaxtract-gui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+metaxtract-app.workspace = true
+eframe.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
