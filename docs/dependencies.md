@@ -1,5 +1,10 @@
 # Dependency policy
 
+Rust case transport uses exact-pinned `zip` and `ed25519-dalek` releases with
+checksummed transitive packages in `Cargo.lock`. The transitive `fiat-crypto`
+MIT/Apache-2.0/BSD-1-Clause license files were reviewed; BSD-1-Clause permits
+redistribution and requires retaining its source copyright and disclaimer.
+
 [English](dependencies.md) | [한국어](dependencies_KR.md) | [Project README](../README.md)
 
 [`third-party.lock.toml`](../third-party.lock.toml) is the reviewed source-of-truth for native and bridge dependencies. Every

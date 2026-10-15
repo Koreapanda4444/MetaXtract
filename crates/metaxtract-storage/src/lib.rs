@@ -2,6 +2,11 @@
 
 mod codec;
 mod history;
+mod import;
+mod signature;
+mod transport;
+pub use import::{ImportLimits, ImportReceipt, ImportSummary};
+pub use signature::{ManifestSignature, verify_manifest};
 mod query;
 pub use history::{
     Annotation, CaseNote, FilterQuery, NoteHeader, SavedFilter, ScanCursor, ScanHistoryPage,
@@ -22,7 +27,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub const SCHEMA_REVISION: u32 = 4;
+pub const SCHEMA_REVISION: u32 = 5;
 pub const APPLICATION_ID: i32 = 0x4d584353;
 pub(crate) type Result<T> = io::Result<T>;
 
@@ -175,6 +180,11 @@ fn connection(path: &Path, access: AccessMode) -> Result<Connection> {
     } | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     let conn = Connection::open_with_flags(path, flags).map_err(db)?;
     conn.busy_timeout(Duration::from_secs(15)).map_err(db)?;
+    conn.set_limit(
+        rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH,
+        (codec::MAX_RECORD_BYTES + 16 * 1024 * 1024) as i32,
+    )
+    .map_err(db)?;
     conn.execute_batch(
         "PRAGMA foreign_keys=ON; PRAGMA trusted_schema=OFF; PRAGMA cache_size=-16384;",
     )

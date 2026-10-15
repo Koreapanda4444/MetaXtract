@@ -1,5 +1,10 @@
 # 의존성 정책
 
+Rust 케이스 전송은 버전을 고정한 `zip`과 `ed25519-dalek`을 사용하며 하위
+패키지의 체크섬을 `Cargo.lock`으로 고정합니다. 하위 `fiat-crypto`의
+MIT/Apache-2.0/BSD-1-Clause 라이선스 파일을 검토했습니다. BSD-1-Clause는
+재배포를 허용하며 소스의 저작권 고지와 면책 문구를 유지하도록 요구합니다.
+
 [English](dependencies.md) | [한국어](dependencies_KR.md) | [프로젝트 README](../README_KR.md)
 
 [`third-party.lock.toml`](../third-party.lock.toml)은 검토한 네이티브 라이브러리와 언어 연결부

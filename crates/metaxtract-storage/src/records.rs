@@ -69,14 +69,14 @@ impl CaseWorkspace {
         let conn = self.lock()?;
         let row: Option<(Vec<u8>, Vec<u8>)> = conn
             .query_row(
-                "SELECT data,digest FROM records WHERE id=?1 AND length(data)<=?2",
-                params![id, codec::MAX_RECORD_BYTES as i64],
+                "SELECT data,digest FROM records WHERE id=?1",
+                params![id],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()
             .map_err(db)?;
         row.map(|(data, digest)| {
-            if Sha256::digest(&data).as_slice() != digest {
+            if data.len() > codec::MAX_RECORD_BYTES || Sha256::digest(&data).as_slice() != digest {
                 return Err(invalid("case record checksum mismatch"));
             }
             let record = codec::decode(&data, codec::MAX_RECORD_BYTES)?;

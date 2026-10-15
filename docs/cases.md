@@ -37,3 +37,24 @@ case scans resume explicitly; opening a case never marks another live scanner as
 failed. Case notes, individual authored notes, record annotations with bounded
 tags, and named filters are transactional. Structured filters retain `RecordQuery`;
 imported Python filters retain their original query text and status separately.
+
+## Imports
+
+`import_jsonl` accepts Python scan rows and typed Rust extraction records.
+`import_python_case` reads schema 1–3 Python cases through a consistent SQLite
+backup without migrating or editing the source. Runs, notes, annotations, and
+saved filters are retained. Original imported rows and case details remain
+available in import receipts; the importer labels legacy observations rather
+than inventing native provenance or normalized claims.
+
+`import_python_bundle` checks all member paths, CRCs, expansion limits, inventory
+sizes and SHA-256 hashes, scan counts, and the hash list. A signed bundle requires
+an explicitly trusted Ed25519 public PEM key; supplying a key also rejects an
+unsigned bundle. Embedded original evidence is verified, while this metadata
+import keeps the original files in the source bundle. The exact manifest,
+signature, and trusted-key receipt remain in the case.
+
+`ImportLimits` bounds input size, member size/count, expanded bytes, record size/
+count, and controls. Imports are atomic and fail without partial records.
+`append_records_with_receipt` can also attach a scanner's serialized native path,
+file identity, hashes, and failure context atomically to its extraction records.

@@ -41,6 +41,12 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         CREATE TABLE annotations(record_id INTEGER PRIMARY KEY REFERENCES records(id) ON DELETE CASCADE,note TEXT NOT NULL,tags BLOB NOT NULL,updated_ms INTEGER NOT NULL);
         CREATE TABLE saved_filters(name TEXT PRIMARY KEY COLLATE NOCASE,query BLOB NOT NULL,updated_ms INTEGER NOT NULL);").map_err(db)?;
     }
+    if current < 5 {
+        tx.execute_batch("CREATE TABLE imports(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,source TEXT NOT NULL,snapshot_sha256 TEXT NOT NULL,imported_ms INTEGER NOT NULL,details BLOB NOT NULL);
+        CREATE TABLE import_artifacts(import_id INTEGER NOT NULL REFERENCES imports(id),path TEXT NOT NULL,data BLOB NOT NULL,digest BLOB NOT NULL,PRIMARY KEY(import_id,path));
+        CREATE TABLE legacy_records(record_id INTEGER PRIMARY KEY REFERENCES records(id) ON DELETE CASCADE,original BLOB NOT NULL,digest BLOB NOT NULL);
+        CREATE TABLE scan_receipts(scan_id TEXT NOT NULL REFERENCES scans(id),key TEXT NOT NULL,data BLOB NOT NULL,digest BLOB NOT NULL,PRIMARY KEY(scan_id,key));").map_err(db)?;
+    }
     tx.pragma_update(None, "user_version", SCHEMA_REVISION)
         .map_err(db)?;
     tx.commit().map_err(db)
