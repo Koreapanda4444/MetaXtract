@@ -679,6 +679,22 @@ impl CaseWorkspace {
                 }
             }
         }
+        let trigger_names: std::collections::BTreeSet<_> = TABLES
+            .iter()
+            .flat_map(triggers)
+            .map(|sql| sql.split_whitespace().nth(5).unwrap_or_default().to_owned())
+            .collect();
+        let mut all_triggers = tx
+            .prepare("SELECT name FROM sqlite_master WHERE type='trigger'")
+            .map_err(db)?;
+        for name in all_triggers
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(db)?
+        {
+            if !trigger_names.contains(&name.map_err(db)?) {
+                return Err(invalid("case contains an unrecognized trigger"));
+            }
+        }
         let allowed = TABLES
             .iter()
             .map(|t| t.name)

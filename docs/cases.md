@@ -1,5 +1,7 @@
 # Case storage
 
+[English](cases.md) | [한국어](cases_KR.md) | [Project README](../README.md)
+
 `metaxtract-storage` owns the Rust single-file SQLite case workspace. It is separate
 from the scanner's resumable task journal and does not load native parsers merely
 to open a case. New cases are published atomically without replacing an existing
@@ -87,3 +89,22 @@ Key decryption checks the encoded KDF parameters before doing expensive work.
 scrypt work, and 5,000,000 PBKDF2 iterations. Named case identities contain only
 public PEM keys and SHA-256 fingerprints; registering a different key under an
 existing name is rejected and identity changes join the audit trail.
+
+## Portable snapshots
+
+`export_snapshot` takes a consistent SQLite backup, verifies its audit and payloads,
+and streams the complete case into a ZIP containing `case.sqlite`, `manifest.json`,
+and an optional Ed25519 `signature.json`. It includes scans, typed metadata,
+history, notes, annotations, filters, import proofs, public identities, and audit
+history. Private key files and source evidence outside the case are not embedded.
+Export works on read-only cases and does not change their revision or audit head.
+
+`verify_snapshot` checks the exact member inventory, sizes, hashes, signature trust,
+case identity, schema, record count, and audit chain. `open_snapshot` publishes a
+verified case at a new path without replacing an existing file. Supported older
+Rust schemas migrate only in the temporary copy; the original bundle is unchanged.
+The result reports the original schema and the resulting integrity anchor. Cases
+that predate auditing receive a new explicit baseline, not a fabricated history.
+
+All APIs are library APIs for the Rust application under development. The working
+desktop interface remains the frozen Python reference until the GUI migration.

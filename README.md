@@ -27,6 +27,11 @@ scanning, content-addressed caching, incremental SQLite persistence, durable pau
 bundled parser-process isolation. IO buffers are reused, work is scheduled within a bounded cost
 window, and completed records are committed in short batches.
 
+The Rust [case storage library](docs/cases.md) provides a single-file workspace,
+lossless metadata persistence, indexed paging, history and annotations, Python
+case/JSONL/signed-bundle imports, hash-chained auditing, encrypted signing keys,
+and verified portable case snapshots. It can open cases independently of native parsers.
+
 The Rust GUI/CLI and full workflow parity remain pending;
 see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 

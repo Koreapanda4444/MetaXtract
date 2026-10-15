@@ -185,6 +185,23 @@ pub(crate) fn inventory(
     max_member: u64,
     max_total: u64,
 ) -> Result<BTreeMap<String, (String, u64)>> {
+    inventory_impl(archive, max_member, max_total, None)
+}
+pub(crate) fn inventory_copy(
+    archive: &mut ZipArchive<File>,
+    max_member: u64,
+    max_total: u64,
+    name: &str,
+    writer: &mut impl Write,
+) -> Result<BTreeMap<String, (String, u64)>> {
+    inventory_impl(archive, max_member, max_total, Some((name, writer)))
+}
+fn inventory_impl(
+    archive: &mut ZipArchive<File>,
+    max_member: u64,
+    max_total: u64,
+    mut sink: Option<(&str, &mut dyn Write)>,
+) -> Result<BTreeMap<String, (String, u64)>> {
     let mut out = BTreeMap::new();
     let mut total = 0u64;
     for index in 0..archive.len() {
@@ -220,6 +237,11 @@ pub(crate) fn inventory(
                 return Err(invalid("case member exceeds declared size"));
             }
             hash.update(&buffer[..n]);
+            if let Some((expected, writer)) = sink.as_mut() {
+                if name == *expected {
+                    writer.write_all(&buffer[..n])?;
+                }
+            }
         }
         if size != member.size() {
             return Err(invalid("case member size differs"));

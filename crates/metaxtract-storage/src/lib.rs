@@ -3,10 +3,12 @@
 mod audit;
 mod codec;
 pub use audit::{AuditAnchor, AuditEvent, IntegrityReport};
+mod bundle;
 mod history;
 mod import;
 mod signature;
 mod signing;
+pub use bundle::{SnapshotManifest, SnapshotSigner, SnapshotVerification, verify_snapshot};
 pub use signing::{KeyDerivationLimits, NamedIdentity, SigningIdentity};
 mod transport;
 pub use import::{ImportLimits, ImportReceipt, ImportSummary};
