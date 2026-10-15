@@ -20,3 +20,12 @@ unknown tags, exact floating-point bits, provenance, and 128-bit times retain th
 schema representation. Evidence paths are case-sensitive and preserve nested
 container identity. A record has a 256 MiB serialization limit; exceeding it fails
 the transaction without truncating metadata.
+
+## Paged queries
+
+`RecordQuery` filters a scan by status, MIME, a case-sensitive path prefix, a
+canonical claim/value, conflicts, and an unsigned 64-bit size range. Pages contain
+headers, not metadata blobs, and use keyset cursors for insertion, path, or size
+ordering. Each page is limited to 256 rows and 16 MiB. A cursor is bound to the
+case, its revision, and the query; restart after any case mutation. Retrieve a
+complete record explicitly with `record(id)`.

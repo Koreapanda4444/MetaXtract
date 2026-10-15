@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
 mod codec;
+mod query;
 mod records;
+pub use query::{Page, PageCursor, RecordHeader, RecordOrder, RecordQuery};
 mod schema;
 pub use records::{MetadataCounts, ScanStatus};
 
@@ -15,7 +17,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub const SCHEMA_REVISION: u32 = 2;
+pub const SCHEMA_REVISION: u32 = 3;
 pub const APPLICATION_ID: i32 = 0x4d584353;
 pub(crate) type Result<T> = io::Result<T>;
 

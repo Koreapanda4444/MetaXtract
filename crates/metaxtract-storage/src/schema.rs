@@ -22,6 +22,18 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         CREATE TABLE conflicts(record_id INTEGER NOT NULL REFERENCES records(id) ON DELETE CASCADE,ordinal INTEGER NOT NULL,key TEXT NOT NULL,data BLOB NOT NULL,digest BLOB NOT NULL,PRIMARY KEY(record_id,ordinal));
         CREATE TABLE diagnostics(record_id INTEGER NOT NULL REFERENCES records(id) ON DELETE CASCADE,ordinal INTEGER NOT NULL,code TEXT NOT NULL,severity TEXT NOT NULL,data BLOB NOT NULL,digest BLOB NOT NULL,PRIMARY KEY(record_id,ordinal));").map_err(db)?;
     }
+    if current < 3 {
+        tx.execute_batch(
+            "CREATE INDEX records_path_page ON records(scan_id,path,id);
+        CREATE INDEX records_size_page ON records(scan_id,size_key,id);
+        CREATE INDEX records_status_page ON records(scan_id,status,ordinal);
+        CREATE INDEX records_mime_page ON records(scan_id,mime,ordinal);
+        CREATE INDEX claims_lookup ON normalized_claims(key,value_text,record_id);
+        CREATE INDEX raw_lookup ON raw_fields(namespace,tag,record_id);
+        CREATE INDEX diagnostics_lookup ON diagnostics(code,severity,record_id);",
+        )
+        .map_err(db)?;
+    }
     tx.pragma_update(None, "user_version", SCHEMA_REVISION)
         .map_err(db)?;
     tx.commit().map_err(db)
