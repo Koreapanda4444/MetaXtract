@@ -50,6 +50,17 @@ struct Table {
 }
 const TABLES: &[Table] = &[
     Table {
+        name: "identities",
+        keys: &["name"],
+        columns: &[
+            "name",
+            "fingerprint",
+            "public_pem",
+            "created_ms",
+            "updated_ms",
+        ],
+    },
+    Table {
         name: "case_info",
         keys: &["singleton"],
         columns: &[
@@ -248,6 +259,34 @@ fn triggers(table: &Table) -> Vec<String> {
     out.push(format!("CREATE TRIGGER IF NOT EXISTS mx_audit_{name}_au AFTER UPDATE ON {name} BEGIN INSERT OR IGNORE INTO audit_dirty VALUES('{name}',{old}); INSERT OR IGNORE INTO audit_dirty VALUES('{name}',{new}); END"));
     out.push(format!("CREATE TRIGGER IF NOT EXISTS mx_audit_{name}_ad AFTER DELETE ON {name} BEGIN INSERT OR IGNORE INTO audit_dirty VALUES('{name}',{old}); END"));
     out
+}
+pub(crate) fn migrated(tx: &Transaction<'_>, from: u32, to: u32) -> Result<()> {
+    for table in TABLES {
+        for sql in triggers(table) {
+            tx.execute_batch(&sql).map_err(db)?;
+        }
+    }
+    let initialized: bool = tx
+        .query_row(
+            "SELECT initialized FROM audit_config WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(db)?;
+    if initialized {
+        tx.execute(
+            "UPDATE case_info SET revision=revision+1,updated_ms=?1 WHERE singleton=1",
+            [now_ms()?],
+        )
+        .map_err(db)?;
+        append(
+            tx,
+            "system",
+            "schema.migrate",
+            &serde_json::json!({"from":from,"to":to}),
+        )?;
+    }
+    Ok(())
 }
 pub(crate) fn ensure_anchor(conn: &mut Connection) -> Result<()> {
     let tx = conn

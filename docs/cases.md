@@ -73,3 +73,17 @@ to detect replacement of an entire case with an older copy. A self-contained
 hash chain alone cannot prove authenticity against someone who can rewrite the
 whole database. Migrated pre-audit data receives an explicit baseline anchor;
 it is not represented as having a historical audit trail.
+
+## Signing identities
+
+`SigningIdentity` generates Ed25519 keys from the operating system RNG, exports
+password-encrypted PKCS#8 PEM keys (PBES2, scrypt, AES-256-CBC), and signs exact
+manifest bytes. Existing unencrypted Python PKCS#8 keys have an explicit import
+method. Private key buffers are zeroized and key objects do not implement debug
+printing. New key files are created privately and never replace an existing file.
+
+Key decryption checks the encoded KDF parameters before doing expensive work.
+`KeyDerivationLimits` defaults to 128 MiB of scrypt core memory, 8 Mi units of
+scrypt work, and 5,000,000 PBKDF2 iterations. Named case identities contain only
+public PEM keys and SHA-256 fingerprints; registering a different key under an
+existing name is rejected and identity changes join the audit trail.

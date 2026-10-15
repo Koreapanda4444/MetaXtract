@@ -6,6 +6,8 @@ pub use audit::{AuditAnchor, AuditEvent, IntegrityReport};
 mod history;
 mod import;
 mod signature;
+mod signing;
+pub use signing::{KeyDerivationLimits, NamedIdentity, SigningIdentity};
 mod transport;
 pub use import::{ImportLimits, ImportReceipt, ImportSummary};
 pub use signature::{ManifestSignature, verify_manifest};
@@ -29,7 +31,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub const SCHEMA_REVISION: u32 = 6;
+pub const SCHEMA_REVISION: u32 = 7;
 pub const APPLICATION_ID: i32 = 0x4d584353;
 pub(crate) type Result<T> = io::Result<T>;
 

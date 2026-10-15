@@ -54,6 +54,12 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         CREATE TABLE audit_config(singleton INTEGER PRIMARY KEY CHECK(singleton=1),initialized INTEGER NOT NULL);
         INSERT INTO audit_config VALUES(1,0);").map_err(db)?;
     }
+    if current < 7 {
+        tx.execute_batch("CREATE TABLE identities(name TEXT PRIMARY KEY COLLATE NOCASE,fingerprint TEXT NOT NULL,public_pem TEXT NOT NULL,created_ms INTEGER NOT NULL,updated_ms INTEGER NOT NULL); CREATE INDEX identities_fingerprint ON identities(fingerprint);").map_err(db)?;
+    }
+    if (6..SCHEMA_REVISION).contains(&current) {
+        crate::audit::migrated(&tx, current, SCHEMA_REVISION)?;
+    }
     tx.pragma_update(None, "user_version", SCHEMA_REVISION)
         .map_err(db)?;
     tx.commit().map_err(db)
