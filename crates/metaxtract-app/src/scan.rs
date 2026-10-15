@@ -115,6 +115,7 @@ pub fn run(
     let store = ScanStore::open(&request.journal_path)?;
     let journal = NativePath::from_path(&request.journal_path.canonicalize()?);
     let backend: Arc<dyn ExtractionBackend> = BundledWorker::adjacent()?;
+    let mut progress = ScanSummary::default();
     let (scan, resuming) = if let Some((run, id)) = &request.resume {
         let receipt = case
             .scan_receipt(id, "application.session")?
@@ -143,9 +144,14 @@ pub fn run(
             }
             for row in page {
                 after = row.task.id;
+                progress.discovered += 1;
                 if row.state == TaskState::Done {
                     if let Some(file) = store.read_result(*run, after)? {
                         ingest(&case, id, &file)?;
+                        progress.completed += 1;
+                        progress.failed += u64::from(file.failed());
+                        progress.unstable += u64::from(file.unstable);
+                        progress.bytes_hashed += file.hashes.as_ref().map_or(0, |h| h.bytes_read);
                     }
                 }
             }
@@ -169,7 +175,6 @@ pub fn run(
         }
     }
     let mut saved = resuming;
-    let mut progress = ScanSummary::default();
     let mut forward = |run, event: ScanEvent| -> io::Result<()> {
         if !saved {
             case.append_records_with_receipt(
@@ -191,6 +196,7 @@ pub fn run(
                 ingest(&case, &scan, file)?;
                 progress.completed += 1;
                 progress.failed += u64::from(file.failed());
+                progress.unstable += u64::from(file.unstable);
                 progress.bytes_hashed += file.hashes.as_ref().map_or(0, |h| h.bytes_read);
                 ("completed", Some(file.task.evidence_path.to_string()))
             }

@@ -88,3 +88,14 @@ CJK/Nanum Gothic on Linux. Set `METAXTRACT_FONT_PATH` to an installed TrueType/O
 needed. Linux requires a desktop display and OpenGL; `--smoke` opens the actual window and exits
 after several rendered frames for installation checks. Case operations execute in background jobs
 so the interface remains responsive. Original application artwork is preserved.
+
+### Streaming scan queue
+
+Open a writable case, choose **Scan queue**, browse to a file/directory and add it to the queue.
+Up to 64 sources are queued with 1–32 workers per scan. Progress and counts update while each
+completed file is persisted. **Pause** preserves a resumable checkpoint and holds the remaining
+queue; **Cancel scan** marks the current scan cancelled. Queue removal affects waiting sources
+only. Reopen the case and use **Resume checkpoint** for paused/interrupted scans; the receipt
+selects the original source and journal with native paths and verifies their session binding.
+Closing the window first pauses active work and waits for its checkpoint to finish. The waiting
+queue is session-local; durable scan checkpoints remain in the separate journal.

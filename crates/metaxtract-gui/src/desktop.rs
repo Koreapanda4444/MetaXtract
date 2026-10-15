@@ -13,7 +13,14 @@ use std::{
     sync::{Arc, mpsc},
 };
 type Callback = Box<dyn FnOnce(&mut Desktop) + Send>;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Tab {
+    Case,
+    Scan,
+}
 pub struct Desktop {
+    pub tab: Tab,
+    pub scan: crate::scan::ScanUi,
     pub case: Option<Arc<CaseWorkspace>>,
     pub info: Option<CaseInfo>,
     pub scans: Vec<ScanInfo>,
@@ -45,6 +52,8 @@ impl Desktop {
         cc.egui_ctx.set_style(style);
         let (sender, receiver) = mpsc::sync_channel(4);
         let mut app = Self {
+            tab: Tab::Case,
+            scan: Default::default(),
             case: None,
             info: None,
             scans: vec![],
@@ -113,6 +122,9 @@ impl Desktop {
         info: CaseInfo,
         history: storage::ScanHistoryPage,
     ) {
+        let closing = self.scan.close_when_idle;
+        self.scan = Default::default();
+        self.scan.close_when_idle = closing;
         if let Err(e) = self.settings.remember(case.path()) {
             self.status = format!("Case opened; recent list was not saved: {e}");
         }
@@ -146,6 +158,10 @@ impl Desktop {
     }
     fn chosen(&mut self, ctx: &egui::Context, purpose: Purpose, path: PathBuf) {
         match purpose {
+            Purpose::Source => {
+                self.scan.source = path.to_string_lossy().into_owned();
+                self.scan.source_path = Some(path);
+            }
             Purpose::Open => self.open(ctx, path, false),
             Purpose::New => self.open(ctx, path, true),
             Purpose::Copy => {
@@ -294,10 +310,17 @@ impl Desktop {
 }
 impl eframe::App for Desktop {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if ctx.input(|i| i.viewport().close_requested()) && (self.busy || self.scan.running()) {
+            self.scan.pause();
+            self.scan.close_when_idle = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.status = "Saving checkpoint before closing / 체크포인트 저장 후 종료".into();
+        }
         while let Ok(callback) = self.receiver.try_recv() {
             self.busy = false;
             callback(self);
         }
+        self.poll_scan(ctx);
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading(
@@ -312,6 +335,7 @@ impl eframe::App for Desktop {
                     if ui
                         .add_enabled(
                             !self.busy
+                                && !self.scan.running()
                                 && !self.info.as_ref().is_some_and(|i| {
                                     i.notes != self.notes || i.title != self.title
                                 })
@@ -339,7 +363,24 @@ impl eframe::App for Desktop {
                 }
             });
         });
-        egui::CentralPanel::default().show(ctx, |ui| self.case_view(ui));
+        egui::SidePanel::left("navigation")
+            .default_width(180.0)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.add_space(12.0);
+                ui.label("WORKSPACE / 작업 공간");
+                ui.selectable_value(&mut self.tab, Tab::Case, "Case / 케이스");
+                ui.selectable_value(&mut self.tab, Tab::Scan, "Scan queue / 스캔 대기열");
+                if let Some(scan) = &self.active_scan {
+                    ui.separator();
+                    ui.label("Selected scan / 선택 스캔");
+                    ui.label(scan);
+                }
+            });
+        egui::CentralPanel::default().show(ctx, |ui| match self.tab {
+            Tab::Case => self.case_view(ui),
+            Tab::Scan => self.scan_view(ui),
+        });
         if let Some(picker) = &mut self.picker {
             let purpose = picker.purpose;
             let (open, path) = picker.show(ctx);
@@ -352,7 +393,7 @@ impl eframe::App for Desktop {
         }
         if self.smoke {
             self.frames += 1;
-            if self.frames >= 4 && !self.busy {
+            if self.frames >= 4 && !self.busy && !self.scan.running() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             } else {
                 ctx.request_repaint();

@@ -6,6 +6,7 @@ pub enum Purpose {
     Open,
     New,
     Copy,
+    Source,
 }
 pub struct Picker {
     pub purpose: Purpose,
@@ -108,6 +109,13 @@ impl Picker {
                     self.selected = None;
                 }
                 ui.colored_label(egui::Color32::LIGHT_RED, &self.error);
+                if matches!(self.purpose, Purpose::Source)
+                    && ui
+                        .button("Select this directory / 현재 폴더 선택")
+                        .clicked()
+                {
+                    chosen = Some(self.current.clone());
+                }
                 if ui.button("Choose / 선택").clicked() {
                     let path = self
                         .selected
