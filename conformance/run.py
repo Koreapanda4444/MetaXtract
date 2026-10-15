@@ -265,6 +265,52 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
         return [], len(wanted)
 
 
+def _compare_cli(release: bool) -> list[str]:
+    """Exercise installed command contracts, including checkpoint replay and non-clobber."""
+    build = ["cargo", "build", "--locked", "--quiet", "-p", "metaxtract-cli", "-p", "metaxtract-worker"]
+    command = ["cargo", "run", "--locked", "--quiet", "-p", "metaxtract-cli"]
+    if release:
+        build.append("--release")
+        command.append("--release")
+    try:
+        subprocess.run(build, cwd=ROOT, check=True, capture_output=True, timeout=1800)
+
+        def invoke(*args: object, code: int = 0) -> dict[str, Any]:
+            p = subprocess.run(command + ["--", *map(str, args)], cwd=ROOT, text=True,
+                               capture_output=True, timeout=120)
+            if p.returncode != code:
+                raise ValueError(f"CLI {args[0]} exit {p.returncode}: {p.stderr[-2000:]}")
+            envelope = json.loads(p.stdout if code in (0, 5, 6) else p.stderr.splitlines()[-1])
+            if envelope["ok"] != (code in (0, 5, 6)):
+                raise ValueError("CLI success/error envelope differs")
+            return envelope.get("result", envelope)
+
+        with tempfile.TemporaryDirectory(prefix="metaxtract-cli-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "evidence"
+            source.mkdir()
+            (source / "one.txt").write_text("Evidence one / 근거 하나", encoding="utf-8")
+            (source / "two.txt").write_text("Evidence two", encoding="utf-8")
+            case = source / "case.mxcase"
+            paused = invoke("scan", source, "--case", case, "--workers", 1, "--pause-after", 1, code=6)
+            invoke("scan", source, "--case", case, "--resume", paused["run"], "--scan", paused["scan_id"])
+            checked = invoke("verify", case)
+            if checked["records"] != 2:
+                raise ValueError("checkpoint replay duplicated or lost records")
+            page = invoke("search", case, paused["scan_id"], "--limit", 1)
+            if len(page["items"]) != 1 or page["next"] is None:
+                raise ValueError("CLI pagination omitted its cursor")
+            invoke("search", case, paused["scan_id"], "--limit", 1, "--cursor", json.dumps(page["next"]))
+            output = root / "records.jsonl"
+            invoke("export", case, paused["scan_id"], output)
+            invoke("export", case, paused["scan_id"], output, code=3)
+            invoke("scan", source, "--case", case, "--typo", "x", code=2)
+            invoke("verify", root / "absent.mxcase", code=3)
+        return []
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
+        return [f"CLI workflow contract failed: {exc}"]
+
+
 def run(*, python_only: bool = False, release: bool = False) -> dict[str, Any]:
     sys.path.insert(0, str(PYTHON_SOURCE))
     corpus = _read_json(ROOT / "conformance" / "corpus" / "files.json")
@@ -278,6 +324,7 @@ def run(*, python_only: bool = False, release: bool = False) -> dict[str, Any]:
     if not python_only:
         native_failures, native_cases = _compare_native(corpus, expected, release)
         failures.extend(native_failures)
+        failures.extend(_compare_cli(release))
     return {
         "ok": not failures,
         "cases": len(corpus.get("cases", [])),
@@ -294,8 +341,13 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="emit a compact JSON result")
     parser.add_argument("--python-only", action="store_true", help="check only the frozen Python baseline")
     parser.add_argument("--release", action="store_true", help="check the release Rust/C++ build")
+    parser.add_argument("--cli-only", action="store_true", help="check application command contracts")
     args = parser.parse_args()
 
+    if args.cli_only:
+        failures = _compare_cli(args.release)
+        print(json.dumps({"ok": not failures, "failures": failures}, ensure_ascii=False))
+        return int(bool(failures))
     result = run(python_only=args.python_only, release=args.release)
     if args.json:
         print(json.dumps(result, separators=(",", ":"), sort_keys=True))

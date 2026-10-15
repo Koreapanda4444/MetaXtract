@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 mod args;
+mod output;
 mod workflows;
 use args::Args;
 use metaxtract_app::{self as app, analysis, core::scan::ScanControl, storage};
@@ -31,11 +32,30 @@ fn run(a: &Args) -> io::Result<Value> {
                     })?,
                 ));
             }
-            let result = app::scan::run(&request, ScanControl::new(), |event| {
+            let control = ScanControl::new();
+            let pause_after = a
+                .flag("pause-after")
+                .map(|s| {
+                    s.parse::<u64>().map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "invalid pause count")
+                    })
+                })
+                .transpose()?;
+            if pause_after == Some(0) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "pause count must be positive",
+                ));
+            }
+            let result = app::scan::run(&request, control.clone(), |event| {
+                if pause_after.is_some_and(|n| event.summary.completed >= n) {
+                    control.pause();
+                }
                 if a.flags.contains_key("progress") {
                     eprintln!(
                         "{}",
-                        serde_json::to_string(&event).map_err(io::Error::other)?
+                        serde_json::to_string(&json!({"event":"scan","data":event}))
+                            .map_err(io::Error::other)?
                     );
                 }
                 Ok(())
@@ -80,12 +100,26 @@ fn run(a: &Args) -> io::Result<Value> {
             .map_err(io::Error::other),
             "info" => serde_json::to_value(app::open_case(&a.path(2)?, false)?.info()?)
                 .map_err(io::Error::other),
-            "history" => serde_json::to_value(
-                app::open_case(&a.path(2)?, false)?
-                    .scan_history(None, 256)?
-                    .items,
-            )
-            .map_err(io::Error::other),
+            "history" => {
+                let cursor = a
+                    .flag("cursor")
+                    .map(|c| {
+                        serde_json::from_str::<storage::ScanCursor>(&c).map_err(io::Error::other)
+                    })
+                    .transpose()?;
+                let limit = a
+                    .flag("limit")
+                    .map(|c| {
+                        c.parse::<usize>().map_err(|_| {
+                            io::Error::new(io::ErrorKind::InvalidInput, "invalid page limit")
+                        })
+                    })
+                    .transpose()?
+                    .unwrap_or(128);
+                let page =
+                    app::open_case(&a.path(2)?, false)?.scan_history(cursor.as_ref(), limit)?;
+                Ok(json!({"items":page.items,"next":page.next}))
+            }
             "notes" => {
                 let case = app::open_case(&a.path(2)?, true)?;
                 case.set_notes(&a.word(3)?)?;
@@ -100,20 +134,32 @@ fn run(a: &Args) -> io::Result<Value> {
     }
 }
 fn main() {
+    let mut command = None;
     let result = Args::parse(std::env::args_os().skip(1)).and_then(|a| {
         if a.flags.contains_key("help") || a.words.is_empty() {
             println!("{HELP}");
-            return Ok(());
+            return Ok(0);
         }
+        command = Some(a.word(0)?);
+        a.validate()?;
         let value = run(&a)?;
-        println!(
-            "{}",
-            serde_json::to_string(&value).map_err(io::Error::other)?
-        );
-        Ok(())
+        let code = output::result_code(&value);
+        output::write(
+            &json!({"ok":true,"command":command,"result":value}),
+            a.flags.contains_key("pretty"),
+        )?;
+        Ok(code)
     });
-    if let Err(error) = result {
-        eprintln!("{error}");
-        std::process::exit(2);
+    match result {
+        Ok(code) => std::process::exit(code),
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => {}
+        Err(error) => {
+            let code = output::error_code(&error);
+            eprintln!(
+                "{}",
+                json!({"ok":false,"command":command,"error":{"kind":output::error_kind(&error),"message":error.to_string(),"exit_code":code}})
+            );
+            std::process::exit(code);
+        }
     }
 }

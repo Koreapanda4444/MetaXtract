@@ -51,3 +51,20 @@ PUBLIC` verifies them. Bundle export and reports accept the same key options. Si
 require `--receipt FILE` so their digest manifest and signature survive independently of console
 output. Existing output files are never overwritten. Bundle verification distinguishes internal
 integrity from independently trusted signatures; supply `--public-key PUBLIC` to authenticate.
+
+## Command output contract
+
+Successful commands write one JSON object to stdout: `{"ok":true,"command":"search","result":...}`.
+`--pretty` changes whitespace only. Help is human-readable. Errors write one JSON object to stderr
+with `ok:false`, `error.kind`, `error.message` and `error.exit_code`; stdout stays empty.
+`--progress` emits newline-delimited `{"event":"scan","data":...}` events to stderr.
+Unknown options, duplicate flags and excess positional arguments are rejected before case mutation.
+Native paths are accepted for filesystem arguments; search text must be UTF-8.
+
+Exit codes: **0** completed; **2** invalid arguments; **3** I/O or application failure; **4** invalid
+data/integrity; **5** completed scan with failed/unstable files; **6** durably paused; **130** cancelled.
+A partial or paused scan still emits its successful result envelope, counts and checkpoint IDs.
+A closed output pipe exits cleanly. `case history` and `search` return `items` plus `next`;
+restart pagination after a case revision change. `--pause-after N` pauses cooperatively after at
+least N completed files (already running work may finish); retain the journal and resume with the
+returned run/scan IDs. Abrupt OS interruption leaves the journal available for recovery.
