@@ -107,9 +107,23 @@ impl Desktop {
                         .record(id)?
                         .ok_or_else(|| io::Error::other("record disappeared"))?;
                     let annotation = case.annotation(id)?;
-                    Ok((r, annotation))
+                    let mut analyzed = r.clone();
+                    let analysis_error = match app::scan::analyze_record(&mut analyzed) {
+                        Ok(()) => None,
+                        Err(e) => Some(e.to_string()),
+                    };
+                    if analysis_error.is_none() {
+                        Ok((analyzed, annotation, analysis_error))
+                    } else {
+                        Ok((r, annotation, analysis_error))
+                    }
                 },
-                move |app, (record, annotation)| {
+                move |app, (record, annotation, analysis_error)| {
+                    if let Some(error) = analysis_error {
+                        app.status = format!(
+                            "Analysis incomplete; original fields remain available: {error}"
+                        );
+                    }
                     app.records.focused = Some((id, record));
                     app.records.note = annotation
                         .as_ref()
@@ -332,7 +346,7 @@ impl Desktop {
                 record.claims.len(),
                 record.diagnostics.len()
             ));
-            self.preview_view(ui);
+            self.inspector_view(ui);
         }
     }
 }

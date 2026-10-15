@@ -24,6 +24,7 @@ pub struct Desktop {
     pub scan: crate::scan::ScanUi,
     pub records: crate::records::RecordsUi,
     pub preview: crate::preview::PreviewUi,
+    pub inspect: crate::inspectors::InspectUi,
     pub case: Option<Arc<CaseWorkspace>>,
     pub info: Option<CaseInfo>,
     pub scans: Vec<ScanInfo>,
@@ -58,6 +59,7 @@ impl Desktop {
             tab: Tab::Case,
             records: Default::default(),
             preview: Default::default(),
+            inspect: Default::default(),
             scan: Default::default(),
             case: None,
             info: None,
@@ -131,6 +133,7 @@ impl Desktop {
         self.scan = Default::default();
         self.records = Default::default();
         self.preview = Default::default();
+        self.inspect = Default::default();
         self.scan.close_when_idle = closing;
         if let Err(e) = self.settings.remember(case.path()) {
             self.status = format!("Case opened; recent list was not saved: {e}");

@@ -132,3 +132,14 @@ Scan results retain the first 64 file-error summaries in `result.errors`; total 
 `summary.failed`, and the complete per-file receipts stay in the case. Progress events also carry
 `data.error`. A bundled-worker fingerprint mismatch explains that the application and worker
 must be rebuilt together.
+
+### Record inspection
+
+A focused record has **Raw**, **Normalized**, **Provenance**, **Conflicts** and **Diagnostics** tabs
+alongside Preview. Raw observations retain original values/encoded bytes, parser identity, packet,
+stream and source ranges; interpretation is shown separately. Normalized claims show confidence,
+resolution and supporting/contradicting observation IDs. Imported records are analyzed on a
+read-only in-memory copy; failures leave the original available. Field lineage resolves exact
+links, and conflict alternatives navigate to their claims. Large lists render only visible rows.
+Detail JSON is capped at 16 KiB per view and binary previews at 128 bytes; complete data stays in
+the case and exports.
