@@ -32,6 +32,7 @@ pub struct SearchPredicate {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SearchField {
+    RecordId,
     Path,
     Mime,
     Status,
@@ -152,6 +153,17 @@ fn compile(expression: &SearchExpression, sql: &mut String, values: &mut Vec<Val
                     Ok(())
                 };
             match &p.field {
+                SearchField::RecordId => {
+                    let id = p
+                        .value
+                        .parse::<i64>()
+                        .map_err(|_| invalid("record id requires a positive integer"))?;
+                    if id <= 0 {
+                        return Err(invalid("record id requires a positive integer"));
+                    }
+                    sql.push_str(&format!("r.id {} ?", p.operator.sql()?));
+                    values.push(Value::Integer(id));
+                }
                 SearchField::Path => string_predicate("r.path", sql, values)?,
                 SearchField::Mime => string_predicate("r.mime", sql, values)?,
                 SearchField::Status => string_predicate("r.status", sql, values)?,

@@ -64,3 +64,30 @@ pub fn report_options(
 pub fn identity(path: &Path, name: &str, password: &str) -> io::Result<storage::SigningIdentity> {
     storage::SigningIdentity::load_encrypted(name, path, password, &Default::default())
 }
+pub fn selected_query(
+    scan: &str,
+    ids: &std::collections::BTreeSet<i64>,
+) -> io::Result<storage::SearchQuery> {
+    if ids.is_empty() || ids.len() > 64 || ids.iter().any(|id| *id <= 0) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "select 1..64 records",
+        ));
+    }
+    let query = storage::SearchQuery::new(
+        scan,
+        storage::SearchExpression::Any(
+            ids.iter()
+                .map(|id| {
+                    storage::SearchExpression::Predicate(storage::SearchPredicate {
+                        field: storage::SearchField::RecordId,
+                        operator: storage::SearchOperator::Equal,
+                        value: id.to_string(),
+                    })
+                })
+                .collect(),
+        ),
+    );
+    query.validate()?;
+    Ok(query)
+}

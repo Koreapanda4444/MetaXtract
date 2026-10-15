@@ -17,10 +17,12 @@ type Callback = Box<dyn FnOnce(&mut Desktop) + Send>;
 pub enum Tab {
     Case,
     Scan,
+    Records,
 }
 pub struct Desktop {
     pub tab: Tab,
     pub scan: crate::scan::ScanUi,
+    pub records: crate::records::RecordsUi,
     pub case: Option<Arc<CaseWorkspace>>,
     pub info: Option<CaseInfo>,
     pub scans: Vec<ScanInfo>,
@@ -53,6 +55,7 @@ impl Desktop {
         let (sender, receiver) = mpsc::sync_channel(4);
         let mut app = Self {
             tab: Tab::Case,
+            records: Default::default(),
             scan: Default::default(),
             case: None,
             info: None,
@@ -124,6 +127,7 @@ impl Desktop {
     ) {
         let closing = self.scan.close_when_idle;
         self.scan = Default::default();
+        self.records = Default::default();
         self.scan.close_when_idle = closing;
         if let Err(e) = self.settings.remember(case.path()) {
             self.status = format!("Case opened; recent list was not saved: {e}");
@@ -158,6 +162,8 @@ impl Desktop {
     }
     fn chosen(&mut self, ctx: &egui::Context, purpose: Purpose, path: PathBuf) {
         match purpose {
+            Purpose::Csv => self.export_selection(ctx, path, true),
+            Purpose::Jsonl => self.export_selection(ctx, path, false),
             Purpose::Source => {
                 self.scan.source = path.to_string_lossy().into_owned();
                 self.scan.source_path = Some(path);
@@ -321,6 +327,7 @@ impl eframe::App for Desktop {
             callback(self);
         }
         self.poll_scan(ctx);
+        self.poll_records(ctx);
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading(
@@ -371,6 +378,7 @@ impl eframe::App for Desktop {
                 ui.label("WORKSPACE / 작업 공간");
                 ui.selectable_value(&mut self.tab, Tab::Case, "Case / 케이스");
                 ui.selectable_value(&mut self.tab, Tab::Scan, "Scan queue / 스캔 대기열");
+                ui.selectable_value(&mut self.tab, Tab::Records, "Records / 레코드");
                 if let Some(scan) = &self.active_scan {
                     ui.separator();
                     ui.label("Selected scan / 선택 스캔");
@@ -380,6 +388,7 @@ impl eframe::App for Desktop {
         egui::CentralPanel::default().show(ctx, |ui| match self.tab {
             Tab::Case => self.case_view(ui),
             Tab::Scan => self.scan_view(ui),
+            Tab::Records => self.records_view(ui),
         });
         if let Some(picker) = &mut self.picker {
             let purpose = picker.purpose;

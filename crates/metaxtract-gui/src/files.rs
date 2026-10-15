@@ -7,6 +7,8 @@ pub enum Purpose {
     New,
     Copy,
     Source,
+    Csv,
+    Jsonl,
 }
 pub struct Picker {
     pub purpose: Purpose,

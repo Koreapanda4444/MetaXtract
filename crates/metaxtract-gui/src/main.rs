@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 mod desktop;
 mod files;
+mod records;
 mod scan;
 mod settings;
 use eframe::egui;

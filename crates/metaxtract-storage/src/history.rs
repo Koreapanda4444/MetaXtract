@@ -232,6 +232,25 @@ impl CaseWorkspace {
         let data = codec::encode(&tags, 64 * 1024)?;
         self.write_named("annotate",|tx|{tx.execute("INSERT INTO annotations VALUES(?1,?2,?3,?4) ON CONFLICT(record_id) DO UPDATE SET note=excluded.note,tags=excluded.tags,updated_ms=excluded.updated_ms",params![id,note,data,now_ms()?]).map_err(db)?;Ok(())})
     }
+    /// Replace annotations for a bounded selection in one audited transaction.
+    pub fn annotate_many(&self, ids: &[i64], note: &str, tags: &[String]) -> Result<usize> {
+        validate_annotation(note, tags)?;
+        let unique: BTreeSet<_> = ids.iter().copied().collect();
+        if unique.is_empty()
+            || unique.len() > 64
+            || unique.len() != ids.len()
+            || unique.iter().any(|id| *id <= 0)
+        {
+            return Err(invalid("select 1..64 distinct record IDs"));
+        }
+        let data = codec::encode(&tags, 64 * 1024)?;
+        self.write_named("annotate_many",|tx|{
+            for id in &unique {
+                tx.execute("INSERT INTO annotations VALUES(?1,?2,?3,?4) ON CONFLICT(record_id) DO UPDATE SET note=excluded.note,tags=excluded.tags,updated_ms=excluded.updated_ms",params![id,note,data,now_ms()?]).map_err(db)?;
+            }
+            Ok(unique.len())
+        })
+    }
     pub fn annotation(&self, id: i64) -> Result<Option<Annotation>> {
         let row: Option<(String, Vec<u8>, i64)> = self
             .lock()?

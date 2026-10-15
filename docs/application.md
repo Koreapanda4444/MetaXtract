@@ -99,3 +99,14 @@ only. Reopen the case and use **Resume checkpoint** for paused/interrupted scans
 selects the original source and journal with native paths and verifies their session binding.
 Closing the window first pauses active work and waits for its checkpoint to finish. The waiting
 queue is session-local; durable scan checkpoints remain in the separate journal.
+
+### Paged results and selections
+
+**Records** loads 64 lightweight headers per page, with path/size/discovery ordering and previous/next
+controls. A changing case invalidates old cursors and restarts paging explicitly. The first page
+refreshes during a scan. Opening one row loads only that full record. Checkboxes or Ctrl/Cmd-click
+select up to 64 record IDs across pages; the count stays visible. Selected CSV/JSONL exports use
+those exact IDs within the selected scan, including when several records share a path.
+**Replace selected annotations** writes the entered note/tags for the entire selection in one
+audited transaction. Existing annotations are replaced. Clear the selection before a different
+batch. The structured CLI also accepts `id=NUMBER` for an exact record selection.

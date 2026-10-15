@@ -81,6 +81,7 @@ pub fn parse(scan_id: &str, input: &str) -> io::Result<SearchQuery> {
                     .get(at + n..)
                     .ok_or_else(|| invalid("invalid query value"))?;
                 let field = match name {
+                    "id" | "record_id" => SearchField::RecordId,
                     "path" => SearchField::Path,
                     "mime" => SearchField::Mime,
                     "status" => SearchField::Status,
