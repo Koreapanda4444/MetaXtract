@@ -6,6 +6,8 @@ members = [
   "crates/metaxtract-worker",
   "crates/metaxtract-storage",
   "crates/metaxtract-analysis",
+  "crates/metaxtract-app",
+  "crates/metaxtract-cli",
 ]
 resolver = "3"
 
@@ -37,6 +39,7 @@ metaxtract-native = { path = "crates/metaxtract-native" }
 metaxtract-core = { path = "crates/metaxtract-core" }
 metaxtract-storage = { path = "crates/metaxtract-storage" }
 metaxtract-analysis = { path = "crates/metaxtract-analysis" }
+metaxtract-app = { path = "crates/metaxtract-app" }
 
 [profile.release]
 codegen-units = 1

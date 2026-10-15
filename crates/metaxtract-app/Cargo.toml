@@ -1,0 +1,15 @@
+[package]
+name = "metaxtract-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+metaxtract-core.workspace = true
+metaxtract-schema.workspace = true
+metaxtract-storage.workspace = true
+metaxtract-analysis.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+sha2.workspace = true

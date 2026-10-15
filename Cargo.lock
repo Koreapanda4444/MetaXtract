@@ -666,6 +666,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "metaxtract-app"
+version = "0.1.0"
+dependencies = [
+ "metaxtract-analysis",
+ "metaxtract-core",
+ "metaxtract-schema",
+ "metaxtract-storage",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "metaxtract-cli"
+version = "0.1.0"
+dependencies = [
+ "metaxtract-app",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "metaxtract-core"
 version = "0.1.0"
 dependencies = [

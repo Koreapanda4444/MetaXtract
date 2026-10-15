@@ -41,6 +41,16 @@ path = "crates/metaxtract-analysis"
 language = "rust"
 allows = ["schema", "storage"]
 
+[components.app]
+path = "crates/metaxtract-app"
+language = "rust"
+allows = ["core", "schema", "storage", "analysis"]
+
+[components.cli]
+path = "crates/metaxtract-cli"
+language = "rust"
+allows = ["app"]
+
 [rules]
 product_owner = "rust"
 raw_extraction_owner = "cpp"

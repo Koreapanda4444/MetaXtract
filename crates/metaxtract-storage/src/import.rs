@@ -77,6 +77,26 @@ pub struct ImportReceipt {
 }
 
 impl CaseWorkspace {
+    pub fn scan_receipt(&self, scan: &str, key: &str) -> Result<Option<Value>> {
+        crate::text(scan, 1024, false)?;
+        crate::text(key, 1024, false)?;
+        let row: Option<(Vec<u8>, Vec<u8>)> = self
+            .lock()?
+            .query_row(
+                "SELECT data,digest FROM scan_receipts WHERE scan_id=?1 AND key=?2",
+                params![scan, key],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(db)?;
+        row.map(|(data, digest)| {
+            if Sha256::digest(&data).as_slice() != digest {
+                return Err(invalid("scan receipt checksum mismatch"));
+            }
+            codec::decode(&data, 16 * 1024 * 1024)
+        })
+        .transpose()
+    }
     pub fn import_receipt(&self, id: i64) -> Result<Option<ImportReceipt>> {
         let conn = self.lock()?;
         let row: Option<(String, String, String, i64, Vec<u8>)> = conn

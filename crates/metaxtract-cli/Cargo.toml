@@ -1,0 +1,15 @@
+[package]
+name = "metaxtract-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "metaxtract"
+path = "src/main.rs"
+
+[dependencies]
+metaxtract-app.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
