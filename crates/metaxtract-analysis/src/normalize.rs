@@ -355,17 +355,28 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
             let lat_ref = find(&["gps_latitude_ref", "latitude_ref"]);
             let lon_ref = find(&["gps_longitude_ref", "longitude_ref"]);
             let altitude = find(&["gps_altitude", "altitude"]);
+            let altitude_ref = find(&["gps_altitude_ref", "altitude_ref"]);
             let point = coordinate(lat, lat_ref).zip(coordinate(lon, lon_ref)).map(
                 |(latitude, longitude)| GeoPoint {
                     latitude,
                     longitude,
-                    altitude_meters: altitude.and_then(|o| number(raw(o))),
+                    altitude_meters: altitude.and_then(|o| number(raw(o))).map(|v| {
+                        if altitude_ref.and_then(|o| number(raw(o))) == Some(1.0) {
+                            -v.abs()
+                        } else {
+                            v
+                        }
+                    }),
                     horizontal_accuracy_meters: None,
                 },
             );
             if let Some(point) = point.filter(|p| p.is_valid()) {
                 let mut support = vec![lat, lon];
-                support.extend([lat_ref, lon_ref, altitude].into_iter().flatten());
+                support.extend(
+                    [lat_ref, lon_ref, altitude, altitude_ref]
+                        .into_iter()
+                        .flatten(),
+                );
                 let new = claim(
                     next,
                     format!("{}location.gps", scope(lat)),

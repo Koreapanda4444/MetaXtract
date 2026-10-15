@@ -2,6 +2,7 @@
 
 pub mod duplicates;
 pub mod findings;
+pub mod geo;
 pub mod normalize;
 pub mod provenance;
 pub mod timestamp;

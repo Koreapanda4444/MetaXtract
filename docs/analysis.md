@@ -56,3 +56,14 @@ computes an explicitly oriented 64-bit dHash. `visually_similar` applies a Hammi
 No image decoder or external executable is added to Rust. Missing native previews yield no
 visual fingerprint; callers must report that coverage gap. Different algorithm scores are not
 interchangeable, and similarity never authorizes automatic evidence deletion.
+
+## Offline geographic analysis
+
+`geo::locations` preserves claim/observation references and associates only unambiguous capture
+times in the same scope. `clusters` computes radius-connected components with a spherical
+centroid that handles the antimeridian; it is single-link clustering, not DBSCAN. Distances use a
+spherical Earth approximation. `tracks` accepts explicit path-to-group assignments, splits long
+time gaps, and flags excessive speed or simultaneous different positions. Ungrouped paths stay
+separate; missing/ambiguous UTC times remain unresolved. Track indices reference the input sample
+list. GeoJSON uses longitude/latitude order; KML escapes source text. No online tiles or geocoding
+are requested. GPS altitude references below sea level are preserved.
