@@ -38,6 +38,8 @@ see [native extraction coverage](docs/extraction.md) for supported fields and li
 The Python source remains frozen as a comparison baseline. It will be removed after the new
 application passes workflow, data compatibility, and extraction conformance checks.
 
+The Rust [analysis library](docs/analysis.md) now normalizes dates, locations, identities, units and encoding status while retaining raw evidence.
+
 ## Run the current application
 
 From the repository root, with Python 3.11 or newer:

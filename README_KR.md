@@ -102,3 +102,5 @@ README는 처음 실행하는 방법을 안내합니다. `docs/`는 추출 엔�
 | 네이티브 추출 지원 범위 | [Extraction](docs/extraction.md) | [추출 지원 범위](docs/extraction_KR.md) |
 | 언어 전환 검증 | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
 | 현재 GUI·CLI 사용법 | [Python application](legacy/python/README.md) | [Python 앱 사용법](legacy/python/README_KR.md) |
+
+Rust [분석 라이브러리](docs/analysis_KR.md)는 원본을 보존하며 날짜·위치·식별 정보·단위·인코딩 상태를 정규화합니다.

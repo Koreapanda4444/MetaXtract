@@ -36,6 +36,11 @@ language = "python"
 allows = []
 production = false
 
+[components.analysis]
+path = "crates/metaxtract-analysis"
+language = "rust"
+allows = ["schema", "storage"]
+
 [rules]
 product_owner = "rust"
 raw_extraction_owner = "cpp"
