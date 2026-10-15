@@ -18,3 +18,12 @@ Identity display values are preserved; `identity_comparison_key` only collapses 
 lowercases text, and does not assert two people are the same or perform Unicode normalization.
 Encoding labels are canonicalized without re-decoding bytes; decoding belongs to C++.
 Unknown fields remain in the original record. Unsupported date syntaxes produce explicit issues.
+
+## Field lineage and timelines
+
+`provenance::field_lineage` resolves supporting and dissenting observation IDs to original tags,
+parser/library identities, virtual paths, streams, extraction methods and byte ranges. Invalid links
+are rejected. `timeline` retains each conflicting claim and its resolution/confidence, plus separately
+labelled filesystem events. Known instants sort chronologically; unresolved local/partial dates form
+a separate trailing group and retain their original spelling and precision. This ordering does not
+resolve their timezone or imply second-level accuracy for minute-precision dates.

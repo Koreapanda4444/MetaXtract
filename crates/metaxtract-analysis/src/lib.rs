@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod normalize;
+pub mod provenance;
 pub mod timestamp;
 
 pub use metaxtract_schema as schema;
