@@ -1,7 +1,12 @@
 #![forbid(unsafe_code)]
 
 mod codec;
+mod history;
 mod query;
+pub use history::{
+    Annotation, CaseNote, FilterQuery, NoteHeader, SavedFilter, ScanCursor, ScanHistoryPage,
+    ScanInfo,
+};
 mod records;
 pub use query::{Page, PageCursor, RecordHeader, RecordOrder, RecordQuery};
 mod schema;
@@ -17,7 +22,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub const SCHEMA_REVISION: u32 = 3;
+pub const SCHEMA_REVISION: u32 = 4;
 pub const APPLICATION_ID: i32 = 0x4d584353;
 pub(crate) type Result<T> = io::Result<T>;
 

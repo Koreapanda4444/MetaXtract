@@ -29,3 +29,11 @@ headers, not metadata blobs, and use keyset cursors for insertion, path, or size
 ordering. Each page is limited to 256 rows and 16 MiB. A cursor is bound to the
 case, its revision, and the query; restart after any case mutation. Retrieve a
 complete record explicitly with `record(id)`.
+
+## History and case work
+
+`scan_history` pages scan origins, statuses, times, and diagnostic counts. Paused
+case scans resume explicitly; opening a case never marks another live scanner as
+failed. Case notes, individual authored notes, record annotations with bounded
+tags, and named filters are transactional. Structured filters retain `RecordQuery`;
+imported Python filters retain their original query text and status separately.

@@ -34,6 +34,13 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         )
         .map_err(db)?;
     }
+    if current < 4 {
+        tx.execute_batch("ALTER TABLE scans ADD COLUMN imported_from TEXT;
+        CREATE INDEX scans_history ON scans(started_ms DESC,id DESC);
+        CREATE TABLE case_notes(id INTEGER PRIMARY KEY,author TEXT NOT NULL,body TEXT NOT NULL,created_ms INTEGER NOT NULL,updated_ms INTEGER NOT NULL);
+        CREATE TABLE annotations(record_id INTEGER PRIMARY KEY REFERENCES records(id) ON DELETE CASCADE,note TEXT NOT NULL,tags BLOB NOT NULL,updated_ms INTEGER NOT NULL);
+        CREATE TABLE saved_filters(name TEXT PRIMARY KEY COLLATE NOCASE,query BLOB NOT NULL,updated_ms INTEGER NOT NULL);").map_err(db)?;
+    }
     tx.pragma_update(None, "user_version", SCHEMA_REVISION)
         .map_err(db)?;
     tx.commit().map_err(db)
