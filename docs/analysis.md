@@ -110,3 +110,21 @@ paths, digests and filesystem dates each have explicit options; path hiding requ
 supplied safe alias. The preview reports unselected fields for review. This is field-aware metadata
 redaction, not a sanitizer for original file content, and unselected free text may retain sensitive
 information. Export the derivative record, not the preview's original-value comparison.
+
+## Selected exports
+
+`export::export_records` streams filtered case pages into JSONL or CSV. JSONL preserves the typed
+record; CSV contains path, MIME, full-range size, status, SHA-256, all claims as JSON, and diagnostic
+count. CSV text cells are quoted and spreadsheet formula prefixes are neutralized. An optional
+redaction profile exports only its derivative, with generated aliases when paths are hidden.
+
+`export_original_evidence` creates a selected-evidence ZIP with per-record metadata, original bytes
+and a manifest. The caller supplies safely resolved opened sources, including virtual members.
+Every original must match its recorded size/SHA-256. This format is a selected evidence package,
+not a complete portable case snapshot; original embedded metadata is retained. It intentionally
+does not accept a redaction profile. A separate byte sanitizer would be needed to sanitize originals.
+
+Both workflows verify the case chain/state, bind a revision and audit head, enforce selection/byte
+budgets, and return an output SHA-256 receipt. They fail if the case changes. Output publication
+uses a same-directory temporary file and does not overwrite existing files; errors leave no partial
+destination. Audit consistency alone is not independent authentication of the case's author.
