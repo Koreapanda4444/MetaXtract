@@ -110,3 +110,25 @@ those exact IDs within the selected scan, including when several records share a
 **Replace selected annotations** writes the entered note/tags for the entire selection in one
 audited transaction. Existing annotations are replaced. Clear the selection before a different
 batch. The structured CLI also accepts `id=NUMBER` for an exact record selection.
+
+### Verified previews
+
+Open a record and choose its original file (or an independently extracted nested member). The
+selected regular file must match the record's size and SHA-256 before decoding. Preview reads
+at most 64 MiB, retains at most 64 KiB of hex and 32 KiB of text, and uses a bounded temporary
+snapshot and the bundled parser worker. It does not follow a path from an imported case.
+
+C++ decodes JPEG/PNG/BMP/GIF/TIFF/WebP and available media codecs to their first RGB frame
+(longest side 256 pixels); audio shows first-frame decode information. Unsupported codecs and
+embedded display transforms are identified. OOXML/ODF previews show bounded body text. PDF
+previews show the first three pages' Standard-14 Latin-font ASCII strings in content order.
+Custom fonts/non-ASCII strings are explicitly omitted and page layout is not rendered. Full raw
+metadata stays in the case; these display limits do not change it. Encrypted/unsupported input
+still offers verified hex and diagnostics. `preview CASE RECORD_ID FILE` exposes the same
+operation in the CLI. Existing checkpoints from another engine fingerprint are not resumed
+under a changed parser build; start a new scan when the extraction engine changes.
+
+Scan results retain the first 64 file-error summaries in `result.errors`; total failures remain in
+`summary.failed`, and the complete per-file receipts stay in the case. Progress events also carry
+`data.error`. A bundled-worker fingerprint mismatch explains that the application and worker
+must be rebuilt together.

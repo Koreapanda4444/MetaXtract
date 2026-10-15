@@ -269,7 +269,7 @@ class MediaLibraryParser final : public Parser {
 public:
     explicit MediaLibraryParser(bool preview) : decode_(preview) {}
     const ParserCapability& capability() const noexcept override {
-        static const ParserCapability inspect{"media.inspect", "In-process FFmpeg media inspection", "9.0.2", Probe | Extract, {"mp4","mov","matroska","webm","avi","mpeg","mpeg_ts","mp3","flac","ogg","opus","wav","aiff","ape","wavpack","asf","mxf","jpeg","png"}};
+        static const ParserCapability inspect{"media.inspect", "In-process FFmpeg media inspection", "9.0.2", Probe | Extract, {"mp4","mov","matroska","webm","avi","mpeg","mpeg_ts","mp3","flac","ogg","opus","wav","aiff","ape","wavpack","asf","mxf","jpeg","png","bmp","gif","tiff","webp","ico"}};
         static const ParserCapability preview{"media.decode", "Bounded in-process FFmpeg preview decoding", "9.0.2", Extract | DecodePreview, inspect.formats};
         return decode_ ? preview : inspect;
     }

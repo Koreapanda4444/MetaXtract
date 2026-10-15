@@ -112,7 +112,7 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
 
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
-    wanted = ["INFO\t1\t1\t20", "SCHEMA\tOK"]
+    wanted = ["INFO\t1\t1\t22", "SCHEMA\tOK"]
     request_labels = ["build info", "schema invariants"]
     extraction_cases = _read_json(ROOT / "conformance" / "corpus" / "images.json")["cases"]
     for corpus_path in sorted((ROOT / "conformance" / "corpus").glob("native-*.json")):
@@ -279,7 +279,7 @@ def _compare_cli(release: bool) -> list[str]:
             p = subprocess.run(command + ["--", *map(str, args)], cwd=ROOT, text=True,
                                capture_output=True, timeout=120)
             if p.returncode != code:
-                raise ValueError(f"CLI {args[0]} exit {p.returncode}: {p.stderr[-2000:]}")
+                raise ValueError(f"CLI {args[0]} exit {p.returncode}: {p.stderr[-2000:]} {p.stdout[:2000]}")
             envelope = json.loads(p.stdout if code in (0, 5, 6) else p.stderr.splitlines()[-1])
             if envelope["ok"] != (code in (0, 5, 6)):
                 raise ValueError("CLI success/error envelope differs")
@@ -306,6 +306,20 @@ def _compare_cli(release: bool) -> list[str]:
             invoke("export", case, paused["scan_id"], output, code=3)
             invoke("scan", source, "--case", case, "--typo", "x", code=2)
             invoke("verify", root / "absent.mxcase", code=3)
+            # A real decoded frame catches preview policy/worker regressions that a
+            # successful hex-only fallback would otherwise conceal.
+            import zlib
+            def png_chunk(kind: bytes, data: bytes) -> bytes:
+                return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
+            image = root / "image.png"
+            image.write_bytes(b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+                              + png_chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00")) + png_chunk(b"IEND", b""))
+            image_scan = invoke("scan", image, "--case", case)
+            image_id = invoke("search", case, image_scan["scan_id"])["items"][0]["id"]
+            preview = invoke("preview", case, image_id, image)
+            if preview["rgb"] != [255, 0, 0] or not preview["verified"]:
+                raise ValueError(f"native PNG preview unavailable: {preview['notices']}")
+            invoke("preview", case, image_id, source / "one.txt", code=4)
         return []
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         return [f"CLI workflow contract failed: {exc}"]

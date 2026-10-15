@@ -2,6 +2,7 @@
 #include "pdf_budget.hpp"
 #include <qpdf/InputSource.hh>
 #include <qpdf/QPDFExc.hh>
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
@@ -155,11 +156,62 @@ struct Inherited {
     QPDFObjectHandle media = QPDFObjectHandle::newNull();
     QPDFObjectHandle crop = QPDFObjectHandle::newNull();
     QPDFObjectHandle rotate = QPDFObjectHandle::newNull();
+    QPDFObjectHandle resources = QPDFObjectHandle::newNull();
+};
+// Text preview deliberately accepts only unmodified Standard-14 Latin font encodings.
+// Custom glyph mappings are reported unavailable rather than guessed as Unicode.
+class PreviewText final : public QPDFObjectHandle::ParserCallbacks {
+    Reader& r_; QPDFObjectHandle fonts_; std::vector<QPDFObjectHandle> operands_;
+    std::vector<bool> saved_; bool known_ = false, inside_ = false, omitted_ = false;
+    std::string text_;
+    bool latin_font(QPDFObjectHandle name) {
+        if (!name.isName() || !fonts_.isDictionary()) { return false; }
+        auto font = fonts_.getKey(name.getName());
+        if (!font.isDictionary()) { return false; }
+        auto type = font.getKey("/Subtype"), base = font.getKey("/BaseFont"), encoding = font.getKey("/Encoding");
+        if (!type.isName() || type.getName() != "/Type1" || !base.isName()) { return false; }
+        static const std::set<std::string> names{"/Helvetica","/Helvetica-Bold","/Helvetica-Oblique","/Helvetica-BoldOblique","/Times-Roman","/Times-Bold","/Times-Italic","/Times-BoldItalic","/Courier","/Courier-Bold","/Courier-Oblique","/Courier-BoldOblique"};
+        if (!names.contains(base.getName()) || (!encoding.isNull() && (!encoding.isName() || (encoding.getName() != "/WinAnsiEncoding" && encoding.getName() != "/MacRomanEncoding" && encoding.getName() != "/StandardEncoding")))) { return false; }
+        auto descriptor=font.getKey("/FontDescriptor");
+        return !descriptor.isDictionary() || (descriptor.getKey("/FontFile").isNull() && descriptor.getKey("/FontFile2").isNull() && descriptor.getKey("/FontFile3").isNull());
+    }
+    void append(QPDFObjectHandle object) {
+        if (!object.isString()) { return; }
+        const auto bytes=object.getStringValue();
+        if (!known_ || std::any_of(bytes.begin(),bytes.end(),[](unsigned char c){return c>=128 || (c<32 && c!='\t' && c!='\n' && c!='\r');})) { omitted_=true; return; }
+        if (text_.size()+bytes.size()>32768) { omitted_=true; return; }
+        if (!r_.context.budget().reserve_allocation(bytes.size()+1)) { throw Failure{ParseStatus::Internal,"PDF preview text allowance exceeded",0}; }
+        text_+=bytes;
+    }
+public:
+    PreviewText(Reader& reader,QPDFObjectHandle resources):r_(reader),fonts_(resources.isDictionary()?resources.getKey("/Font"):QPDFObjectHandle::newNull()){}
+    void handleObject(QPDFObjectHandle object) override {
+        r_.entry();r_.checkpoint();
+        if (!object.isOperator()) { if (operands_.size()>=64) { throw Failure{ParseStatus::Malformed,"PDF preview operand limit exceeded",0}; }operands_.push_back(object);return; }
+        const auto op=object.getOperatorValue();
+        if (op=="BT") { inside_=true; } else if (op=="ET") { inside_=false; }
+        else if (op=="Tf") { known_=operands_.size()==2 && latin_font(operands_[0]); }
+        else if (op=="q") { if (saved_.size()>=64) { throw Failure{ParseStatus::Malformed,"PDF graphics stack limit exceeded",0}; }saved_.push_back(known_); }
+        else if (op=="Q" && !saved_.empty()) {known_=saved_.back();saved_.pop_back();}
+        else if (inside_ && (op=="Tj" || op=="'" || op=="\"" || op=="TJ") && !operands_.empty()) {
+            auto value=operands_.back();
+            if (value.isArray()) {for(int i=0;i<value.getArrayNItems();++i){r_.entry();append(value.getArrayItem(i));}}
+            else { append(value); }
+            if (!text_.empty() && text_.size()<32768) {text_+='\n';}
+        }
+        operands_.clear();
+    }
+    void handleEOF() override {}
+    void finish(const std::string& id) {
+        value(r_,"preview_text",ValueKind::Text,text_,id);
+        value(r_,"preview_note",ValueKind::Text,omitted_?"Custom-font, non-ASCII or over-limit strings omitted; layout is not reconstructed":"Standard-14 ASCII text in content order; layout is not reconstructed",id);
+    }
 };
 class Pages final {
     Reader& r_; Attachments& attachments_;
     std::set<QPDFObjGen> visited_;
     unsigned count_ = 0;
+    bool preview_;
     void box(Reader& r, const std::string& key, QPDFObjectHandle data, const std::string& id) {
         if (!data.isArray() || data.getArrayNItems() != 4) { throw Failure{ParseStatus::Malformed, "PDF page box is not a four-number array", 0}; }
         std::string values; double coordinates[4]{};
@@ -174,13 +226,14 @@ class Pages final {
         number(r, key + ".positive_extent", coordinates[2] > coordinates[0] && coordinates[3] > coordinates[1] ? 1 : 0, id);
     }
 public:
-    Pages(Reader& r, Attachments& a) : r_(r), attachments_(a) {}
+    Pages(Reader& r, Attachments& a, bool preview) : r_(r), attachments_(a), preview_(preview) {}
     void walk(QPDFObjectHandle node, Inherited inherited = {}, std::uint32_t level = 0) {
         r_.entry(); depth(r_, level);
         if (!node.isDictionary()) { throw Failure{ParseStatus::Malformed, "PDF page-tree node is not a dictionary", 0}; }
         if (node.isIndirect() && !visited_.insert(node.getObjGen()).second) { throw Failure{ParseStatus::Malformed, "PDF page tree repeats an object", 0}; }
         const auto update = [&](const char* key, QPDFObjectHandle& target) { auto v = node.getKey(key); if (!v.isNull()) { target = v; } };
         update("/MediaBox", inherited.media); update("/CropBox", inherited.crop); update("/Rotate", inherited.rotate);
+        if (preview_) { update("/Resources", inherited.resources); }
         auto type = node.getKey("/Type");
         if (type.isName() && type.getName() == "/Pages") {
             auto kids = node.getKey("/Kids");
@@ -191,6 +244,7 @@ public:
         if (!type.isName() || type.getName() != "/Page") { throw Failure{ParseStatus::Malformed, "PDF page-tree leaf has no Page type", 0}; }
         Reader r(r_.context, 0, 0, "pdf.page" + std::to_string(count_)); const auto id = object_id(node);
         number(r, "page_number", ++count_, id); value(r, "page_object", ValueKind::Text, id, id);
+        if (preview_ && count_<=3) {PreviewText text(r,inherited.resources);auto contents=node.getKey("/Contents");if(!contents.isNull()){QPDFObjectHandle::parseContentStream(contents,&text);}text.finish(id);}
         box(r, "media_box", inherited.media, id);
         const auto crop = inherited.crop.isNull() ? inherited.media : inherited.crop;
         box(r, "crop_box", crop, id);
@@ -214,7 +268,7 @@ public:
 void scalar_tree(Reader& r, QPDFObjectHandle object, const std::string& key, const std::string& stream, std::uint32_t level) {
     std::set<QPDFObjGen> active; tree(r, object, key, stream, level, active);
 }
-ParseStatus inspect(ParserContext& context, SecurityInspector security) {
+ParseStatus inspect(ParserContext& context, SecurityInspector security, bool preview) {
     if (context.source_size() < 8 || context.source_size() > static_cast<std::uint64_t>(INT64_MAX)) { return ParseStatus::Unsupported; }
     Reader r(context, 0, context.source_size(), "pdf.document");
     try {
@@ -265,7 +319,7 @@ ParseStatus inspect(ParserContext& context, SecurityInspector security) {
         Attachments attachments(r); auto names = catalog.getKey("/Names");
         if (names.isDictionary()) { auto files = names.getKey("/EmbeddedFiles"); if (!files.isNull()) { attachments.names(files); } }
         attachments.associated(catalog.getKey("/AF"), "Catalog associated files");
-        Pages pages(r, attachments); pages.walk(catalog.getKey("/Pages")); pages.finish(); attachments.finish();
+        Pages pages(r, attachments, preview); pages.walk(catalog.getKey("/Pages")); pages.finish(); attachments.finish();
         if (security) { security(&document, raw, r, revisions); }
         bool warnings = false;
         for (const auto& warning : document.getWarnings()) {
@@ -283,13 +337,17 @@ ParseStatus inspect(ParserContext& context, SecurityInspector security) {
 namespace metaxtract::native {
 namespace {
 class PdfMetadataParser final : public Parser {
+    bool preview_;
 public:
+    explicit PdfMetadataParser(bool preview=false):preview_(preview){}
     const ParserCapability& capability() const noexcept override {
         static const ParserCapability value{"pdf.metadata", "Read-only PDF metadata pages attachments and revisions", "12.4.2", Probe | Extract, {"pdf"}};
-        return value;
+        static const ParserCapability preview{"pdf.preview","Bounded Standard-14 PDF text preview","12.4.2",Extract | DecodePreview,{"pdf"}};
+        return preview_?preview:value;
     }
-    ParseStatus run(ParserContext& context) const override { return formats::pdf::inspect(context); }
+    ParseStatus run(ParserContext& context) const override { return formats::pdf::inspect(context,nullptr,preview_); }
 };
 }
 std::unique_ptr<Parser> pdf_metadata_parser() { return std::make_unique<PdfMetadataParser>(); }
+std::unique_ptr<Parser> pdf_preview_parser() { return std::make_unique<PdfMetadataParser>(true); }
 }

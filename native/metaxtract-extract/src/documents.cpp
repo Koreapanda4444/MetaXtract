@@ -44,7 +44,7 @@ bool embedded_part(const std::string& name) {
 }
 
 void xml_part(Reader& reader, const std::span<const std::uint8_t> bytes, const std::string& packet,
-              const std::string& part, std::string& main_type) {
+              const std::string& part, std::string& main_type, bool preview) {
     XmlBudgetScope scope(reader.context.budget());
     pugi::xml_document document;
     const auto parsed = document.load_buffer(bytes.data(), bytes.size(),
@@ -84,7 +84,7 @@ void xml_part(Reader& reader, const std::span<const std::uint8_t> bytes, const s
                 }
                 field.decoded(attribute_name, ValueKind::Text, attribute.value(), packet);
             }
-            bool text_selected = !body;
+            bool text_selected = !body || preview;
             for (auto parent = node; body && parent; parent = parent.parent()) {
                 if (revision_node(parent) || comment_node(parent)) { text_selected = true; break; }
             }
@@ -92,7 +92,7 @@ void xml_part(Reader& reader, const std::span<const std::uint8_t> bytes, const s
                 for (const auto child : node.children()) {
                     if (child.type() == pugi::node_pcdata || child.type() == pugi::node_cdata) {
                         if (!valid_xml_string(child.value())) { throw Failure{ParseStatus::Malformed, "Invalid XML text encoding", 0}; }
-                        field.decoded(name, ValueKind::Text, child.value(), packet);
+                        field.decoded(preview && body ? "preview_text" : name, ValueKind::Text, child.value(), packet);
                     }
                 }
             }
@@ -129,7 +129,7 @@ void xml_part(Reader& reader, const std::span<const std::uint8_t> bytes, const s
     reader.derived("relationship_count", relationships);
 }
 
-ParseStatus package(ParserContext& context) {
+ParseStatus package(ParserContext& context, bool preview) {
     Reader reader(context, 0, context.source_size(), "document.package");
     try {
         const auto header = reader.read(0, std::min<std::uint64_t>(reader.size, 4));
@@ -230,7 +230,7 @@ ParseStatus package(ParserContext& context) {
                 part.decoded("part_name", ValueKind::DecodedBytes, entry.name, packet, 3, (entry.flags & 0x800U) ? "UTF-8" : "CP437");
                 part.decoded("part_payload", ValueKind::DecodedBytes, {bytes.begin(), bytes.end()}, packet, 3, "binary");
                 part.derived("crc_verified", 1);
-                if (xml) { xml_part(part, bytes, packet, entry.name, main_type); }
+                if (xml) { xml_part(part, bytes, packet, entry.name, main_type, preview); }
             } catch (const Failure& error) {
                 Reader failure(context, std::span<const std::uint8_t>{}, "diagnostic.document.package.part" + std::to_string(entry.index), packet);
                 failure.diagnostic("part_failure", path_component(entry.name) + ": " + error.message, 0);
@@ -256,13 +256,18 @@ ParseStatus package(ParserContext& context) {
 namespace metaxtract::native {
 namespace {
 class PackageParser final : public Parser {
+    bool preview_;
+public:
+    explicit PackageParser(bool preview=false):preview_(preview){}
     const ParserCapability& capability() const noexcept override {
         static const ParserCapability value{"document.package", "OOXML and ODF package metadata", "1", Extract | EnumerateChildren,
             {"docx", "docm", "dotx", "dotm", "xlsx", "xlsm", "xltx", "xltm", "pptx", "pptm", "potx", "potm", "ppsx", "ppsm", "odt", "ods", "odp", "odg", "odf", "ott", "ots", "otp"}};
-        return value;
+        static const ParserCapability preview{"document.preview","Bounded OOXML and ODF body text preview","1",Extract | DecodePreview,value.formats};
+        return preview_?preview:value;
     }
-    ParseStatus run(ParserContext& context) const override { return formats::package(context); }
+    ParseStatus run(ParserContext& context) const override { return formats::package(context,preview_); }
 };
 }
 std::unique_ptr<Parser> document_package_parser() { return std::make_unique<PackageParser>(); }
+std::unique_ptr<Parser> document_preview_parser() { return std::make_unique<PackageParser>(true); }
 }

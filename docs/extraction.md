@@ -294,3 +294,10 @@ Nested evidence is converted into separate canonical records with `evidence_path
 Raw observations preserve unknown tag IDs, names, source bytes, decoded payload bytes and derived values. The bridge distinguishes already decoded UTF-8 from original Latin-1/UTF-16 bytes, preventing double conversion and keeping lossless text provenance. `independent_backend_claims()` creates a separate unresolved claim for every supported scalar/sequence observation, linked to its parser and observation ID; identical values are not merged or counted as independent agreement. Reversible raw keys retain case, punctuation and unknown names. Lossy text, opaque bytes and exact rationals stay raw until a supported interpretation is available. Claim count, value depth/nodes and text/key memory have separate limits, and exhausted claims retain earlier results and all original observations. Fixed scores describe interpretation provenance, not authenticity or statistical probabilities. OLE streams and nested payloads retain typed virtual source identities.
 
 Non-UTF-8 tag, namespace, encoding and packet identities use reversible `~raw-bytes:` hexadecimal escaping across the bridge. Literal identities starting with that reserved prefix are escaped too. `original_identity_bytes()` recovers the exact identity bytes; invalid names cannot discard an otherwise recoverable extraction run.
+
+Application preview requests opt into `media.decode`, `pdf.preview` and `document.preview`
+through the bundled worker. Normal metadata scans do not decode previews by default. The
+reviewed FFmpeg decoder allowlist additionally enables native BMP/GIF/TIFF/WebP implementations
+without external codec plugins, programs, network protocols, GPL or nonfree components. PDF
+text preview accepts unmodified Standard-14 Latin ASCII encodings and reports other glyph
+mappings unavailable; it does not infer text from unknown font codes.

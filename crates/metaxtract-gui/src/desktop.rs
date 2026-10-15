@@ -23,6 +23,7 @@ pub struct Desktop {
     pub tab: Tab,
     pub scan: crate::scan::ScanUi,
     pub records: crate::records::RecordsUi,
+    pub preview: crate::preview::PreviewUi,
     pub case: Option<Arc<CaseWorkspace>>,
     pub info: Option<CaseInfo>,
     pub scans: Vec<ScanInfo>,
@@ -56,6 +57,7 @@ impl Desktop {
         let mut app = Self {
             tab: Tab::Case,
             records: Default::default(),
+            preview: Default::default(),
             scan: Default::default(),
             case: None,
             info: None,
@@ -128,6 +130,7 @@ impl Desktop {
         let closing = self.scan.close_when_idle;
         self.scan = Default::default();
         self.records = Default::default();
+        self.preview = Default::default();
         self.scan.close_when_idle = closing;
         if let Err(e) = self.settings.remember(case.path()) {
             self.status = format!("Case opened; recent list was not saved: {e}");
@@ -162,6 +165,7 @@ impl Desktop {
     }
     fn chosen(&mut self, ctx: &egui::Context, purpose: Purpose, path: PathBuf) {
         match purpose {
+            Purpose::Preview => self.load_preview(ctx, path),
             Purpose::Csv => self.export_selection(ctx, path, true),
             Purpose::Jsonl => self.export_selection(ctx, path, false),
             Purpose::Source => {
@@ -388,7 +392,11 @@ impl eframe::App for Desktop {
         egui::CentralPanel::default().show(ctx, |ui| match self.tab {
             Tab::Case => self.case_view(ui),
             Tab::Scan => self.scan_view(ui),
-            Tab::Records => self.records_view(ui),
+            Tab::Records => {
+                egui::ScrollArea::vertical()
+                    .id_salt("record-content")
+                    .show(ui, |ui| self.records_view(ui));
+            }
         });
         if let Some(picker) = &mut self.picker {
             let purpose = picker.purpose;

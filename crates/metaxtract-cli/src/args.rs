@@ -23,7 +23,7 @@ impl Args {
                 ],
             ),
             "inspect" | "verify" => (2, 2, &[]),
-            "compare" => (4, 4, &[]),
+            "compare" | "preview" => (4, 4, &[]),
             "case" => match self.word(1)?.as_str() {
                 "create" => (3, 4, &[]),
                 "info" => (3, 3, &[]),

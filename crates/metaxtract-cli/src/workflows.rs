@@ -59,6 +59,17 @@ fn trust(args: &Args) -> io::Result<Option<String>> {
 }
 pub fn run(args: &Args) -> io::Result<Value> {
     match args.word(0)?.as_str() {
+        "preview" => {
+            let case = app::open_case(&args.path(1)?, false)?;
+            let id = args
+                .word(2)?
+                .parse()
+                .map_err(|_| invalid("invalid record id"))?;
+            let record = case
+                .record(id)?
+                .ok_or_else(|| invalid("record not found"))?;
+            value(app::preview::load(&record, &args.path(3)?)?)
+        }
         "search" => {
             let case = app::open_case(&args.path(1)?, args.flags.contains_key("save"))?;
             let q = query(args, &args.word(2)?)?;

@@ -179,8 +179,13 @@ impl ExtractionBackend for BundledWorker {
         drop(child);
         let _ = reader.join();
         let response = result?;
-        if response.engine != engine_fingerprint() || response.task_id != 0 {
-            return Err(invalid("worker protocol engine or task differs"));
+        if response.engine != engine_fingerprint() {
+            return Err(invalid(
+                "bundled parser engine differs; rebuild the application and metaxtract-worker together",
+            ));
+        }
+        if response.task_id != 0 {
+            return Err(invalid("worker protocol task differs"));
         }
         if let Some(error) = response.error {
             return Err(io::Error::other(error));

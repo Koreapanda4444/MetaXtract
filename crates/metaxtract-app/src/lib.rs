@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod preview;
 pub mod scan;
 pub mod workflows;
 pub use metaxtract_analysis as analysis;

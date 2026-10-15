@@ -49,5 +49,5 @@ std::vector<std::uint8_t> stream_bytes(Reader& r, QPDFObjectHandle stream, bool 
 QPDFObjectHandle raw_dictionary(Reader& r, QPDF& raw, std::uint64_t offset, std::uint64_t object, std::uint64_t generation);
 History history(Reader& r, QPDF& raw);
 using SecurityInspector = void (*)(QPDF*, QPDF&, Reader&, const History&);
-ParseStatus inspect(ParserContext& context, SecurityInspector security = nullptr);
+ParseStatus inspect(ParserContext& context, SecurityInspector security = nullptr, bool preview = false);
 }

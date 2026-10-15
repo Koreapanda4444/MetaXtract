@@ -9,6 +9,7 @@ pub enum Purpose {
     Source,
     Csv,
     Jsonl,
+    Preview,
 }
 pub struct Picker {
     pub purpose: Purpose,

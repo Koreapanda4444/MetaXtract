@@ -251,6 +251,9 @@ impl Desktop {
                 s.completed, s.discovered, s.failed, s.bytes_hashed
             ));
             ui.label(event.path.as_deref().unwrap_or(&event.kind));
+            if let Some(error) = &event.error {
+                ui.colored_label(egui::Color32::LIGHT_RED, error);
+            }
         }
         if let Some(active) = &self.scan.active {
             ui.label(format!(

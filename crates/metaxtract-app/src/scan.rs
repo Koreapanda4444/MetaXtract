@@ -40,12 +40,20 @@ pub struct AppScanEvent {
     pub kind: String,
     pub path: Option<String>,
     pub summary: ScanSummary,
+    pub error: Option<String>,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ScanOutcome {
     pub scan_id: String,
     pub run: u64,
     pub summary: ScanSummary,
+    #[serde(default)]
+    pub errors: Vec<ScanFailure>,
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ScanFailure {
+    pub path: String,
+    pub message: String,
 }
 fn invalid(s: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
@@ -175,6 +183,7 @@ pub fn run(
         }
     }
     let mut saved = resuming;
+    let mut failures = Vec::new();
     let mut forward = |run, event: ScanEvent| -> io::Result<()> {
         if !saved {
             case.append_records_with_receipt(
@@ -184,6 +193,26 @@ pub fn run(
                 &serde_json::json!({"run":run,"journal":journal,"root":root.original}),
             )?;
             saved = true;
+        }
+        let error = if let ScanEvent::Completed(file) = &event {
+            file.error.clone().or_else(|| {
+                file.records
+                    .iter()
+                    .filter(|r| r.status == ExtractionStatus::Failed)
+                    .flat_map(|r| &r.diagnostics)
+                    .next()
+                    .map(|d| d.message.clone())
+            })
+        } else {
+            None
+        };
+        if let (Some(error), ScanEvent::Completed(file)) = (&error, &event) {
+            if failures.len() < 64 {
+                failures.push(ScanFailure {
+                    path: file.task.evidence_path.to_string(),
+                    message: error.chars().take(4096).collect(),
+                });
+            }
         }
         let (kind, path) = match &event {
             ScanEvent::Discovered(t) => {
@@ -216,6 +245,7 @@ pub fn run(
             kind: kind.into(),
             path,
             summary: progress.clone(),
+            error,
         })
     };
     let result = if let Some((run, _)) = &request.resume {
@@ -239,6 +269,7 @@ pub fn run(
                 scan_id: scan,
                 run,
                 summary,
+                errors: failures,
             })
         }
         Err(e) => {

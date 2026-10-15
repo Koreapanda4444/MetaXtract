@@ -332,6 +332,7 @@ impl Desktop {
                 record.claims.len(),
                 record.diagnostics.len()
             ));
+            self.preview_view(ui);
         }
     }
 }

@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 mod desktop;
 mod files;
+mod preview;
 mod records;
 mod scan;
 mod settings;

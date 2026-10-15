@@ -12,7 +12,7 @@ import sys
 import time
 
 DECODERS = (
-    "h264,hevc,av1,mpeg4,mpeg1video,mpeg2video,vp8,vp9,mjpeg,png,rawvideo,"
+    "h264,hevc,av1,mpeg4,mpeg1video,mpeg2video,vp8,vp9,mjpeg,png,bmp,gif,tiff,webp,rawvideo,"
     "mp3,mp3float,aac,ac3,eac3,flac,vorbis,opus,alac,ape,wavpack,"
     "pcm_s16le,pcm_s16be,pcm_u8,pcm_s24le,pcm_s24be,pcm_s32le,pcm_s32be,"
     "pcm_f32le,pcm_f32be,pcm_f64le,pcm_f64be"

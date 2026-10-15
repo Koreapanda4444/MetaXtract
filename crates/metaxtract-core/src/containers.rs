@@ -12,6 +12,8 @@ use metaxtract_schema::{EvidenceKind, RawValue};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug)]
 pub struct RecursiveLimits {
+    #[serde(default)]
+    pub preview: bool,
     pub parser: ParserLimits,
     pub max_depth: u32,
     pub max_nodes: usize,
@@ -23,6 +25,7 @@ pub struct RecursiveLimits {
 impl Default for RecursiveLimits {
     fn default() -> Self {
         Self {
+            preview: false,
             parser: ParserLimits::default(),
             max_depth: 16,
             max_nodes: 4096,
@@ -346,7 +349,20 @@ fn extract_input(
             continue;
         }
         output.input_bytes = output.input_bytes.saturating_add(size);
-        let parsers = selected_parsers(work.input.prefix(), &work.name);
+        let mut parsers = selected_parsers(work.input.prefix(), &work.name);
+        if limits.preview {
+            if parsers.iter().any(|p| {
+                p.starts_with("images.") || p.starts_with("media.") || p.starts_with("audio.")
+            }) {
+                parsers.push("media.decode");
+            }
+            if parsers.contains(&"pdf.metadata") {
+                parsers.push("pdf.preview");
+            }
+            if parsers.contains(&"document.package") {
+                parsers.push("document.preview");
+            }
+        }
         let input_limits = InputLimits {
             max_source_bytes: if file_root {
                 limits.parser.max_source_bytes
