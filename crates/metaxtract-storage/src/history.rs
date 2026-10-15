@@ -54,6 +54,7 @@ pub struct Annotation {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FilterQuery {
     Records(RecordQuery),
+    Structured(crate::SearchQuery),
     Legacy { query: String, status: String },
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -257,6 +258,7 @@ impl CaseWorkspace {
         }
         match query {
             FilterQuery::Records(q) => q.validate()?,
+            FilterQuery::Structured(q) => q.validate()?,
             FilterQuery::Legacy { query, status } => {
                 text(query, 16 * 1024, true)?;
                 if !["All", "OK", "Warning", "Error"].contains(&status.as_str()) {

@@ -77,3 +77,21 @@ zones remain indeterminate. Large binary fields are represented by byte length a
 the diff, with originals retained in the case. `compare_scans` rejects duplicate evidence paths,
 reports additions/removals, and identifies relocation candidates only for unique matching SHA-256
 and size pairs. A matching hash does not establish who moved a file or why.
+
+## Structured search and saved filters
+
+`search::parse(scan_id, text)` accepts AND-separated terms, quoted values and leading `-`
+negation. Examples: `mime=image/jpeg size>=1024 claim.metadata.author="Alice Smith"`,
+`tag=review raw:exif`, and `claim.metadata.created>=unix:1704067200`. `*` checks field existence.
+The typed `SearchExpression` API additionally supports nested OR/AND/NOT groups. Text matching
+is case-sensitive. Numeric claims use their stored type, integer sizes retain the full u64 range,
+and timestamp ranges require explicit UTC epoch seconds. `claim.key!=value` excludes matching
+values, including when other alternatives exist. Free text covers paths, MIME, claims and notes.
+Raw namespaces are searchable; encoded binary payloads are not treated as prose.
+
+`CaseWorkspace::search_records`, `count_search`, and `search_facets` execute bound SQL with
+existing indexes and keyset paging, without loading complete cases. Contains predicates may
+scan matching index candidates. Facets count distinct records and expose pagination truncation.
+Cursors bind the full query, case and revision. Save the typed query as `FilterQuery::Structured`;
+existing legacy and record filters remain readable. These newer filters require this engine when
+opening a case. Writes remain covered by the case audit chain.

@@ -14,9 +14,14 @@ mod transport;
 pub use import::{ImportLimits, ImportReceipt, ImportSummary};
 pub use signature::{ManifestSignature, verify_manifest};
 mod query;
+mod search;
 pub use history::{
     Annotation, CaseNote, FilterQuery, NoteHeader, SavedFilter, ScanCursor, ScanHistoryPage,
     ScanInfo,
+};
+pub use search::{
+    FacetField, FacetPage, FacetValue, SearchExpression, SearchField, SearchOperator,
+    SearchPredicate, SearchQuery,
 };
 mod records;
 pub use query::{Page, PageCursor, RecordHeader, RecordOrder, RecordQuery};
@@ -214,6 +219,7 @@ fn connection(path: &Path, access: AccessMode) -> Result<Connection> {
     } | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     let conn = Connection::open_with_flags(path, flags).map_err(db)?;
     audit::register(&conn)?;
+    search::register(&conn)?;
     conn.busy_timeout(Duration::from_secs(15)).map_err(db)?;
     conn.set_limit(
         rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH,

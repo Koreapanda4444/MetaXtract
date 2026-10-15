@@ -93,11 +93,24 @@ impl CaseWorkspace {
         cursor: Option<&PageCursor>,
         limit: usize,
     ) -> Result<Page<RecordHeader>> {
+        self.query_records_with(query, None, cursor, limit)
+    }
+    pub(crate) fn query_records_with(
+        &self,
+        query: &RecordQuery,
+        search: Option<&crate::SearchQuery>,
+        cursor: Option<&PageCursor>,
+        limit: usize,
+    ) -> Result<Page<RecordHeader>> {
         query.validate()?;
         if !(1..=256).contains(&limit) {
             return Err(invalid("record page must contain 1..256 items"));
         }
-        let fingerprint = hex(&Sha256::digest(codec::encode(query, 4 * 1024 * 1024)?));
+        let encoded = match search {
+            Some(q) => codec::encode(q, 4 * 1024 * 1024)?,
+            None => codec::encode(query, 4 * 1024 * 1024)?,
+        };
+        let fingerprint = hex(&Sha256::digest(encoded));
         let mut conn = self.lock()?;
         let tx = conn.transaction().map_err(db)?;
         let (case_id, revision): (String, u64) = tx
@@ -116,6 +129,9 @@ impl CaseWorkspace {
             }
         }
         let (mut sql, mut values) = selection(query);
+        if let Some(search) = search {
+            crate::search::append_expression(&search.expression, &mut sql, &mut values)?;
+        }
         if let Some(cursor) = cursor {
             match (&cursor.position, query.order) {
                 (Position::Insertion(n), RecordOrder::Insertion) if *n >= 0 => {
@@ -218,7 +234,7 @@ impl CaseWorkspace {
     }
 }
 
-fn selection(query: &RecordQuery) -> (String, Vec<Value>) {
+pub(crate) fn selection(query: &RecordQuery) -> (String, Vec<Value>) {
     let mut sql = String::from(
         "SELECT r.id,r.ordinal,r.path,r.status,r.mime,r.size_bytes,r.sha256,length(CAST(r.path AS BLOB))+length(CAST(r.mime AS BLOB))+coalesce(length(r.sha256),0) FROM records r WHERE r.scan_id=?",
     );
