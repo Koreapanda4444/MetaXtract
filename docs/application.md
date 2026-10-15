@@ -22,3 +22,32 @@ retains active checkpoints; preserve it while a scan is paused. Resume using the
 `--resume RUN --scan CASE_SCAN_ID`, the same case and `--journal PATH` if customized. Completed
 results are replayed with atomic receipts to close interruption gaps without duplicating records.
 The journal must differ from the case and output files are excluded from discovery.
+
+## Analysis and delivery
+
+Use the scan ID returned by `scan` or `case history`:
+
+```bash
+cargo run -p metaxtract-cli -- search investigation.mxcase SCAN_ID --query 'mime:png' --limit 128
+cargo run -p metaxtract-cli -- export investigation.mxcase SCAN_ID selected.csv --format csv
+cargo run -p metaxtract-cli -- redact investigation.mxcase SCAN_ID private.jsonl
+cargo run -p metaxtract-cli -- report investigation.mxcase SCAN_ID report.html --analyst Analyst
+cargo run -p metaxtract-cli -- analyze investigation.mxcase SCAN_ID --view timeline
+cargo run -p metaxtract-cli -- bundle export investigation.mxcase snapshot.zip
+cargo run -p metaxtract-cli -- bundle open snapshot.zip reopened.mxcase
+```
+
+Search supports the structured grammar in [analysis](analysis.md); `--cursor` accepts the previous
+page's `next` JSON and `--save NAME` persists the typed filter. `--order path|size|insertion` is
+shared by search and exports. `redact --preview RECORD_ID` returns changes without writing a file.
+A custom `--profile FILE` uses the existing redaction JSON schema; originals remain untouched.
+`import CASE INPUT --kind jsonl|python|python-bundle` imports earlier scans and reference cases.
+
+`keygen PRIVATE PUBLIC --name NAME --password-stdin` creates an encrypted Ed25519 private key.
+Feed a password via stdin; a password argument is deliberately unavailable. For unattended usage,
+`METAXTRACT_KEY_PASSWORD` is also accepted. Keep the public PEM independently trusted. `sign INPUT
+SIGNATURE --key PRIVATE --password-stdin` signs exact bytes; `verify-signature INPUT SIGNATURE
+PUBLIC` verifies them. Bundle export and reports accept the same key options. Signed reports
+require `--receipt FILE` so their digest manifest and signature survive independently of console
+output. Existing output files are never overwritten. Bundle verification distinguishes internal
+integrity from independently trusted signatures; supply `--public-key PUBLIC` to authenticate.

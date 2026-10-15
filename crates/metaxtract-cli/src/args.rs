@@ -20,7 +20,8 @@ impl Args {
                 if let Some(s) = word.to_str().and_then(|s| s.strip_prefix("--")) {
                     let (name, value) = if let Some((k, v)) = s.split_once('=') {
                         (k.to_owned(), OsString::from(v))
-                    } else if ["help", "json", "progress", "pretty"].contains(&s) {
+                    } else if ["help", "json", "progress", "pretty", "password-stdin"].contains(&s)
+                    {
                         (s.into(), "true".into())
                     } else {
                         (

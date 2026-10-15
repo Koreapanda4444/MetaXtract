@@ -1,10 +1,12 @@
 #![forbid(unsafe_code)]
 
 pub mod scan;
+pub mod workflows;
 pub use metaxtract_analysis as analysis;
 pub use metaxtract_core as core;
 pub use metaxtract_schema as schema;
 pub use metaxtract_storage as storage;
+pub use zeroize::Zeroizing;
 
 use std::{io, path::Path};
 use storage::{AccessMode, CaseWorkspace, SearchQuery};
