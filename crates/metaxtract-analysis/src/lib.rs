@@ -3,6 +3,7 @@
 pub mod normalize;
 pub mod provenance;
 pub mod timestamp;
+pub mod validation;
 
 pub use metaxtract_schema as schema;
 use std::io;

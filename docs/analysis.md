@@ -27,3 +27,12 @@ are rejected. `timeline` retains each conflicting claim and its resolution/confi
 labelled filesystem events. Known instants sort chronologically; unresolved local/partial dates form
 a separate trailing group and retain their original spelling and precision. This ordering does not
 resolve their timezone or imply second-level accuracy for minute-precision dates.
+
+## Claim validation
+
+`validation::reconcile` derives support, dissent, conflicts, confidence and resolution from linked
+observations, never from unverified parser-name lists. Wrappers sharing a library count as one
+family; builtin parser prefixes conservatively identify a shared implementation. Unknown zones
+and overlapping timestamp precision are indeterminate, not contradictions. Different known
+instants or values remain explicit alternatives. Confidence is an evidence classification score,
+not a statistical probability. User selections and rejected alternatives remain identified.
