@@ -1,6 +1,9 @@
 #![forbid(unsafe_code)]
 
+mod codec;
+mod records;
 mod schema;
+pub use records::{MetadataCounts, ScanStatus};
 
 use rusqlite::{Connection, OpenFlags, Transaction, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
@@ -12,7 +15,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub const SCHEMA_REVISION: u32 = 1;
+pub const SCHEMA_REVISION: u32 = 2;
 pub const APPLICATION_ID: i32 = 0x4d584353;
 pub(crate) type Result<T> = io::Result<T>;
 
