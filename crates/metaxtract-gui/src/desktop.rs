@@ -18,6 +18,7 @@ pub enum Tab {
     Case,
     Scan,
     Records,
+    Search,
 }
 pub struct Desktop {
     pub tab: Tab,
@@ -25,6 +26,7 @@ pub struct Desktop {
     pub records: crate::records::RecordsUi,
     pub preview: crate::preview::PreviewUi,
     pub inspect: crate::inspectors::InspectUi,
+    pub search: crate::search::SearchUi,
     pub case: Option<Arc<CaseWorkspace>>,
     pub info: Option<CaseInfo>,
     pub scans: Vec<ScanInfo>,
@@ -60,6 +62,7 @@ impl Desktop {
             records: Default::default(),
             preview: Default::default(),
             inspect: Default::default(),
+            search: Default::default(),
             scan: Default::default(),
             case: None,
             info: None,
@@ -134,6 +137,7 @@ impl Desktop {
         self.records = Default::default();
         self.preview = Default::default();
         self.inspect = Default::default();
+        self.search = Default::default();
         self.scan.close_when_idle = closing;
         if let Err(e) = self.settings.remember(case.path()) {
             self.status = format!("Case opened; recent list was not saved: {e}");
@@ -386,6 +390,7 @@ impl eframe::App for Desktop {
                 ui.selectable_value(&mut self.tab, Tab::Case, "Case / 케이스");
                 ui.selectable_value(&mut self.tab, Tab::Scan, "Scan queue / 스캔 대기열");
                 ui.selectable_value(&mut self.tab, Tab::Records, "Records / 레코드");
+                ui.selectable_value(&mut self.tab, Tab::Search, "Search & compare / 검색·비교");
                 if let Some(scan) = &self.active_scan {
                     ui.separator();
                     ui.label("Selected scan / 선택 스캔");
@@ -395,6 +400,11 @@ impl eframe::App for Desktop {
         egui::CentralPanel::default().show(ctx, |ui| match self.tab {
             Tab::Case => self.case_view(ui),
             Tab::Scan => self.scan_view(ui),
+            Tab::Search => {
+                egui::ScrollArea::vertical()
+                    .id_salt("search-content")
+                    .show(ui, |ui| self.search_view(ui));
+            }
             Tab::Records => {
                 egui::ScrollArea::vertical()
                     .id_salt("record-content")

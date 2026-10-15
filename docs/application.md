@@ -143,3 +143,17 @@ read-only in-memory copy; failures leave the original available. Field lineage r
 links, and conflict alternatives navigate to their claims. Large lists render only visible rows.
 Detail JSON is capped at 16 KiB per view and binary previews at 128 bytes; complete data stays in
 the case and exports.
+
+### Search and comparison
+
+**Search & compare** applies structured queries to the selected scan. Use whitespace AND, quoted
+values and `-` negation, or the optional typed JSON editor for bounded AND/OR/NOT trees. Facet
+summaries show MIME/status/claim/tag counts and explicitly indicate additional groups. Named
+filters persist their full typed criteria; loading rebinds them to the selected scan. Legacy
+criteria stay preserved and unknown status/query syntax requires manual review.
+
+The comparison tab accepts before/after scan IDs and an optional shared restriction. It retains
+the compared IDs, query and case revision, distinguishes added/removed/changed/moved records,
+and opens each changed field's before/after value beside semantic claim changes. Binary changes
+use length and SHA-256 rather than large byte arrays. Pause active scans for a consistent
+comparison; a revision change aborts the operation.

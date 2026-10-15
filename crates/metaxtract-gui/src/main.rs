@@ -5,6 +5,7 @@ mod inspectors;
 mod preview;
 mod records;
 mod scan;
+mod search;
 mod settings;
 use eframe::egui;
 use std::path::PathBuf;
