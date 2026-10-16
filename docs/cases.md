@@ -23,6 +23,27 @@ schema representation. Evidence paths are case-sensitive and preserve nested
 container identity. A record has a 256 MiB serialization limit; exceeding it fails
 the transaction without truncating metadata.
 
+Writes reuse a bounded cache of 32 prepared SQL statements instead of preparing an insert for
+every metadata field. Record reads release the connection before checksum verification, decoding
+and reference validation. Scanner ingestion takes ownership of its already persisted result
+instead of cloning every raw payload; receipts, failure counts and atomic audited writes remain
+part of the same workflow. The durable single-file rollback journal is retained.
+
+A Linux x86-64 / Rust 1.88 release profile on 2026-10-16 used 2,000 generated records, each with
+64 observations containing 128 raw bytes, sixteen records per transaction, and a concurrent
+sixteen-header page reader. Medians of three runs were:
+
+| Measurement | Before | After |
+|---|---:|---:|
+| Records stored per second | 340 | 382 |
+| Write time | 5.88 s | 5.23 s |
+| Page latency, 95th percentile | 55.7 ms | 46.7 ms |
+
+All runs retained 128,000 observations, verified 130,000 payloads and produced the same
+235,724,800-byte case size. A separate debug CLI scan of an 8 MiB stored ZIP reported peak RSS
+of 321.9 MiB before and 305.8 MiB after. This is one process high-water measurement, not total
+worker memory or a performance guarantee. Storage, scheduling and evidence shape affect results.
+
 ## Paged queries
 
 `RecordQuery` filters a scan by status, MIME, a case-sensitive path prefix, a

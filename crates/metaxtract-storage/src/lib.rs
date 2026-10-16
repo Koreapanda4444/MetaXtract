@@ -231,6 +231,7 @@ fn connection(path: &Path, access: AccessMode) -> Result<Connection> {
         AccessMode::ReadWrite => OpenFlags::SQLITE_OPEN_READ_WRITE,
     } | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     let conn = Connection::open_with_flags(path, flags).map_err(db)?;
+    conn.set_prepared_statement_cache_capacity(32);
     audit::register(&conn)?;
     search::register(&conn)?;
     conn.busy_timeout(Duration::from_secs(15)).map_err(db)?;

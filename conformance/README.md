@@ -103,6 +103,15 @@ CI checks debug extraction contracts before production/release validation. Revie
 outputs are cached by platform and source/build-policy hash; runtime libraries still undergo
 configuration and relative-path checks. Standalone MSVC builds use the same CRT as Cargo.
 
+Each native CI job also reuses CMake outputs across its sequential Cargo invocations.
+The directory is private to that workflow job, with separate configurations for debug/release
+profiles, target/ABI flags and sanitizers. Every Cargo build gets its own immutable installed
+snapshot, so changing the fixture setting cannot replace a previously linked production library.
+Unchanged generated archive sources keep their timestamps. This avoids rebuilding
+the same vendored libraries for every Cargo feature graph. It is not a persistent developer cache
+or a directory for concurrent Cargo invocations; ordinary local builds retain Cargo's own layout.
+CI runs are grouped by commit so pushing a later stage does not cancel verification of an earlier one.
+
 The document corpus adds independently generated Office/ODF ZIP packages, Unicode properties, relationship/revision metadata, ambiguous members, compression/CRC/ZIP64/data descriptor cases, and resource limits.
 
 The OLE corpus independently serializes CFB v3/v4, OLEPS, Word FIB, BIFF8, PowerPoint and native embedded data. It exercises Unicode, fragmented/mini streams, orphan records, unknown property types/code pages, corrupted sector and directory links, impossible string lengths, encryption and shared resource budgets.

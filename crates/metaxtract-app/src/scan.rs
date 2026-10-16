@@ -73,12 +73,12 @@ pub fn analyze_record(record: &mut ExtractionRecord) -> io::Result<()> {
     }
     Ok(())
 }
-fn ingest(case: &CaseWorkspace, scan: &str, file: &ScannedFile) -> io::Result<()> {
+fn ingest(case: &CaseWorkspace, scan: &str, file: &mut ScannedFile) -> io::Result<()> {
     let key = format!("application.file.{}", file.task.id);
     if case.scan_receipt(scan, &key)?.is_some() {
         return Ok(());
     }
-    let mut records = file.records.clone();
+    let mut records = std::mem::take(&mut file.records);
     for record in &mut records {
         if let Err(e) = analyze_record(record) {
             record.diagnostics.push(Diagnostic {
@@ -156,10 +156,11 @@ pub fn run(
                 after = row.task.id;
                 progress.discovered += 1;
                 if row.state == TaskState::Done {
-                    if let Some(file) = store.read_result(*run, after)? {
-                        ingest(&case, id, &file)?;
+                    if let Some(mut file) = store.read_result(*run, after)? {
+                        let failed = file.failed();
+                        ingest(&case, id, &mut file)?;
                         progress.completed += 1;
-                        progress.failed += u64::from(file.failed());
+                        progress.failed += u64::from(failed);
                         progress.unstable += u64::from(file.unstable);
                         progress.bytes_hashed += file.hashes.as_ref().map_or(0, |h| h.bytes_read);
                     }
@@ -186,7 +187,7 @@ pub fn run(
     }
     let mut saved = resuming;
     let mut failures = Vec::new();
-    let mut forward = |run, event: ScanEvent| -> io::Result<()> {
+    let mut forward = |run, mut event: ScanEvent| -> io::Result<()> {
         if !saved {
             case.append_records_with_receipt(
                 &scan,
@@ -216,7 +217,7 @@ pub fn run(
                 });
             }
         }
-        let (kind, path) = match &event {
+        let (kind, path) = match &mut event {
             ScanEvent::Discovered(t) => {
                 progress.discovered += 1;
                 ("discovered", Some(t.evidence_path.to_string()))
@@ -224,9 +225,10 @@ pub fn run(
             ScanEvent::Resumed(t) => ("resumed", Some(t.evidence_path.to_string())),
             ScanEvent::Started(t) => ("started", Some(t.evidence_path.to_string())),
             ScanEvent::Completed(file) => {
+                let failed = file.failed();
                 ingest(&case, &scan, file)?;
                 progress.completed += 1;
-                progress.failed += u64::from(file.failed());
+                progress.failed += u64::from(failed);
                 progress.unstable += u64::from(file.unstable);
                 progress.bytes_hashed += file.hashes.as_ref().map_or(0, |h| h.bytes_read);
                 ("completed", Some(file.task.evidence_path.to_string()))

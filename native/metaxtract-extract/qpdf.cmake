@@ -87,7 +87,7 @@ function(metaxtract_qpdf)
   string(REPLACE "    m->data.append("
     "    metaxtract_qpdf_buffer_charge(len);\n    m->data.append(" qpdf_buffer "${qpdf_buffer}")
   set(qpdf_buffer "// MetaXtract modification: parser-local allocation and decoded-byte budget checks.\n// Original QPDF source is covered by the bundled Apache-2.0 LICENSE and NOTICE.\n#include <cstddef>\nextern \"C\" void metaxtract_qpdf_buffer_charge(std::size_t);\n${qpdf_buffer}")
-  file(WRITE "${qpdf_generated}/Pl_Buffer.cc" "${qpdf_buffer}")
+  metaxtract_write_generated("${qpdf_generated}/Pl_Buffer.cc" "${qpdf_buffer}")
   list(REMOVE_ITEM qpdf_sources "${qpdf_SOURCE_DIR}/libqpdf/Pl_Buffer.cc")
   list(APPEND qpdf_sources "${qpdf_generated}/Pl_Buffer.cc")
   foreach(file IN ITEMS Pl_String.cc QPDF.cc)
@@ -104,7 +104,7 @@ function(metaxtract_qpdf)
       message(FATAL_ERROR "Reviewed QPDF budget insertion point missing: ${file}")
     endif()
     string(REPLACE "${anchor}" "${replacement}" modified "${modified}")
-    file(WRITE "${qpdf_generated}/${file}"
+    metaxtract_write_generated("${qpdf_generated}/${file}"
       "// MetaXtract modification: bounded retained strings and warnings.\n// Original QPDF source is covered by the bundled Apache-2.0 LICENSE and NOTICE.\n#include <cstddef>\nextern \"C\" void metaxtract_qpdf_buffer_charge(std::size_t);\nextern \"C\" void metaxtract_qpdf_warning_charge(std::size_t);\n${modified}")
     list(REMOVE_ITEM qpdf_sources "${qpdf_SOURCE_DIR}/libqpdf/${file}")
     list(APPEND qpdf_sources "${qpdf_generated}/${file}")
@@ -117,7 +117,7 @@ function(metaxtract_qpdf)
   endif()
   string(REPLACE "${string_anchor}"
     "                metaxtract_qpdf_buffer_charge(len);\n${string_anchor}" private_pipeline "${private_pipeline}")
-  file(WRITE "${qpdf_generated}/qpdf/Pipeline_private.hh"
+  metaxtract_write_generated("${qpdf_generated}/qpdf/Pipeline_private.hh"
     "// MetaXtract modification: bound decoded object/xref-stream strings.\n// Original QPDF source is covered by the bundled Apache-2.0 LICENSE and NOTICE.\n#include <cstddef>\nextern \"C\" void metaxtract_qpdf_buffer_charge(std::size_t);\n${private_pipeline}")
   add_library(mx_qpdf STATIC ${qpdf_sources})
   add_dependencies(mx_qpdf mx_jpeg_build)

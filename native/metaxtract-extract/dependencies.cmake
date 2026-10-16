@@ -1,5 +1,15 @@
 include(FetchContent)
 
+function(metaxtract_write_generated path content)
+  if(EXISTS "${path}")
+    file(READ "${path}" previous)
+    if("${previous}" STREQUAL "${content}")
+      return()
+    endif()
+  endif()
+  file(WRITE "${path}" "${content}")
+endfunction()
+
 function(metaxtract_verify_source name directory revision)
   find_package(Git REQUIRED QUIET)
   execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${directory}" rev-parse HEAD

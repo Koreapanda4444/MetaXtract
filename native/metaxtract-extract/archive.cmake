@@ -40,7 +40,7 @@ function(metaxtract_archive)
     string(REPLACE "${anchor}" "${anchor}${filter_guard}" archive_reader "${archive_reader}")
   endforeach()
   set(bounded_reader "${CMAKE_CURRENT_BINARY_DIR}/archive_read_bounded.c")
-  file(WRITE "${bounded_reader}" "/* MetaXtract modification: bounded decoded filter output.\n * Original libarchive source is covered by the bundled COPYING license. */\n${archive_reader}")
+  metaxtract_write_generated("${bounded_reader}" "/* MetaXtract modification: bounded decoded filter output.\n * Original libarchive source is covered by the bundled COPYING license. */\n${archive_reader}")
   get_target_property(archive_sources archive_static SOURCES)
   get_target_property(archive_source_root archive_static SOURCE_DIR)
   set(bounded_sources)
@@ -76,7 +76,7 @@ function(metaxtract_archive)
   set_target_properties(liblzma PROPERTIES OUTPUT_NAME mx_lzma)
   set(hook "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/archive_alloc.h")
   # Include the platform configuration before intercepting C allocation calls.
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/archive-budget.h"
+  metaxtract_write_generated("${CMAKE_CURRENT_BINARY_DIR}/archive-budget.h"
     "#include \"archive_platform.h\"\n#include \"${hook}\"\n")
   foreach(target IN ITEMS archive_static liblzma mx_bzip2)
     set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)

@@ -68,13 +68,12 @@ impl CaseWorkspace {
         })
     }
     pub fn record(&self, id: i64) -> Result<Option<ExtractionRecord>> {
-        let conn = self.lock()?;
-        let row: Option<(Vec<u8>, Vec<u8>)> = conn
-            .query_row(
-                "SELECT data,digest FROM records WHERE id=?1",
-                params![id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
+        // Release the connection before checksumming and decoding a large payload.
+        let row: Option<(Vec<u8>, Vec<u8>)> = self
+            .lock()?
+            .prepare_cached("SELECT data,digest FROM records WHERE id=?1")
+            .map_err(db)?
+            .query_row(params![id], |r| Ok((r.get(0)?, r.get(1)?)))
             .optional()
             .map_err(db)?;
         row.map(|(data, digest)| {
@@ -98,40 +97,36 @@ pub(crate) fn insert_record(
     record: &ExtractionRecord,
 ) -> Result<i64> {
     validate(record)?;
-    let state: String = tx
-        .query_row("SELECT status FROM scans WHERE id=?1", [scan], |r| r.get(0))
+    let (state, ordinal): (String, i64) = tx
+        .prepare_cached("SELECT status,record_count FROM scans WHERE id=?1")
+        .map_err(db)?
+        .query_row([scan], |r| Ok((r.get(0)?, r.get(1)?)))
         .map_err(db)?;
     if state != "running" {
         return Err(invalid("records can only be appended to a running scan"));
     }
     let data = codec::encode(record, codec::MAX_RECORD_BYTES)?;
-    let ordinal: i64 = tx
-        .query_row("SELECT record_count FROM scans WHERE id=?1", [scan], |r| {
-            r.get(0)
-        })
-        .map_err(db)?;
     let hash = record
         .digests
         .iter()
         .find(|d| d.algorithm == DigestAlgorithm::Sha256)
         .map(|d| hex(&d.bytes));
-    tx.execute("INSERT INTO records(scan_id,ordinal,path,status,mime,size_bytes,size_key,sha256,data,digest) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",params![scan,ordinal,record.source.path.to_string(),format!("{:?}",record.status),record.source.detected_media_type.as_deref().or(record.source.declared_media_type.as_deref()).unwrap_or("application/octet-stream"),record.source.identity.size_bytes.to_string(),record.source.identity.size_bytes.to_be_bytes().as_slice(),hash,&data,Sha256::digest(&data).to_vec()]).map_err(db)?;
+    tx.prepare_cached("INSERT INTO records(scan_id,ordinal,path,status,mime,size_bytes,size_key,sha256,data,digest) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)").map_err(db)?.execute(params![scan,ordinal,record.source.path.to_string(),format!("{:?}",record.status),record.source.detected_media_type.as_deref().or(record.source.declared_media_type.as_deref()).unwrap_or("application/octet-stream"),record.source.identity.size_bytes.to_string(),record.source.identity.size_bytes.to_be_bytes().as_slice(),hash,&data,Sha256::digest(&data).as_slice()]).map_err(db)?;
     let id = tx.last_insert_rowid();
     for (i, observation) in record.observations.iter().enumerate() {
         let data = codec::encode(observation, codec::MAX_RECORD_BYTES)?;
-        tx.execute(
-            "INSERT INTO raw_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
-            params![
+        tx.prepare_cached("INSERT INTO raw_fields VALUES(?1,?2,?3,?4,?5,?6,?7)")
+            .map_err(db)?
+            .execute(params![
                 id,
                 i as i64,
                 observation.id.get().to_string(),
                 observation.tag.namespace,
                 serde_json::to_string(&observation.tag.code).map_err(std::io::Error::other)?,
                 &data,
-                Sha256::digest(&data).to_vec()
-            ],
-        )
-        .map_err(db)?;
+                Sha256::digest(&data).as_slice()
+            ])
+            .map_err(db)?;
     }
     for (i, claim) in record.claims.iter().enumerate() {
         let data = codec::encode(claim, codec::MAX_RECORD_BYTES)?;
@@ -142,48 +137,45 @@ pub(crate) fn insert_record(
             NormalizedValue::Bool(v) => Some(v.to_string()),
             _ => None,
         };
-        tx.execute(
-            "INSERT INTO normalized_claims VALUES(?1,?2,?3,?4,?5,?6,?7)",
-            params![
+        tx.prepare_cached("INSERT INTO normalized_claims VALUES(?1,?2,?3,?4,?5,?6,?7)")
+            .map_err(db)?
+            .execute(params![
                 id,
                 i as i64,
                 claim.id.get().to_string(),
                 claim.key.as_str(),
                 value,
                 &data,
-                Sha256::digest(&data).to_vec()
-            ],
-        )
-        .map_err(db)?;
+                Sha256::digest(&data).as_slice()
+            ])
+            .map_err(db)?;
     }
     for (i, conflict) in record.conflicts.iter().enumerate() {
         let data = codec::encode(conflict, codec::MAX_RECORD_BYTES)?;
-        tx.execute(
-            "INSERT INTO conflicts VALUES(?1,?2,?3,?4,?5)",
-            params![
+        tx.prepare_cached("INSERT INTO conflicts VALUES(?1,?2,?3,?4,?5)")
+            .map_err(db)?
+            .execute(params![
                 id,
                 i as i64,
                 conflict.key.as_str(),
                 &data,
-                Sha256::digest(&data).to_vec()
-            ],
-        )
-        .map_err(db)?;
+                Sha256::digest(&data).as_slice()
+            ])
+            .map_err(db)?;
     }
     for (i, diagnostic) in record.diagnostics.iter().enumerate() {
         let data = codec::encode(diagnostic, codec::MAX_RECORD_BYTES)?;
-        tx.execute(
-            "INSERT INTO diagnostics VALUES(?1,?2,?3,?4,?5,?6)",
-            params![
+        tx.prepare_cached("INSERT INTO diagnostics VALUES(?1,?2,?3,?4,?5,?6)")
+            .map_err(db)?
+            .execute(params![
                 id,
                 i as i64,
                 diagnostic.code,
                 format!("{:?}", diagnostic.severity),
                 &data,
-                Sha256::digest(&data).to_vec()
-            ],
-        )
-        .map_err(db)?;
+                Sha256::digest(&data).as_slice()
+            ])
+            .map_err(db)?;
     }
     let warnings = record
         .diagnostics
@@ -200,7 +192,7 @@ pub(crate) fn insert_record(
             )
         })
         .count() as i64;
-    tx.execute("UPDATE scans SET record_count=record_count+1,warning_count=warning_count+?2,error_count=error_count+?3 WHERE id=?1",params![scan,warnings,errors]).map_err(db)?;
+    tx.prepare_cached("UPDATE scans SET record_count=record_count+1,warning_count=warning_count+?2,error_count=error_count+?3 WHERE id=?1").map_err(db)?.execute(params![scan,warnings,errors]).map_err(db)?;
     Ok(id)
 }
 

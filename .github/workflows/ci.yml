@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -17,6 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUSTUP_HOME: ${{ github.workspace }}/../metaxtract-rustup-${{ github.run_id }}-native
+      METAXTRACT_NATIVE_BUILD_ROOT: ${{ runner.temp }}/metaxtract-native-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:

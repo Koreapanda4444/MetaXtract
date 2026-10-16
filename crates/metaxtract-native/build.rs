@@ -1,4 +1,58 @@
-use std::{env, path::PathBuf};
+use std::{
+    collections::hash_map::DefaultHasher,
+    env,
+    hash::{Hash, Hasher},
+    path::PathBuf,
+};
+
+fn ci_build_root() -> Option<PathBuf> {
+    // A single native CI job invokes Cargo sequentially with one immutable
+    // checkout/toolchain. Reuse its CMake outputs across Cargo feature graphs.
+    // Profiles and ABI flags stay separate; installed outputs are snapshotted
+    // per Cargo build before another invocation can change the fixture setting.
+    env::var_os("GITHUB_RUN_ID")?;
+    let root = PathBuf::from(env::var_os("METAXTRACT_NATIVE_BUILD_ROOT")?);
+    let mut key = DefaultHasher::new();
+    for name in [
+        "TARGET",
+        "HOST",
+        "PROFILE",
+        "OPT_LEVEL",
+        "DEBUG",
+        "CARGO_CFG_TARGET_FEATURE",
+        "CARGO_ENCODED_RUSTFLAGS",
+        "METAXTRACT_SANITIZERS",
+        "CC",
+        "CXX",
+        "AR",
+        "CFLAGS",
+        "CXXFLAGS",
+        "LDFLAGS",
+        "CMAKE_TOOLCHAIN_FILE",
+        "CMAKE_GENERATOR",
+        "MACOSX_DEPLOYMENT_TARGET",
+        "VCToolsInstallDir",
+        "WindowsSdkDir",
+        "WindowsSDKVersion",
+    ] {
+        name.hash(&mut key);
+        env::var_os(name).hash(&mut key);
+    }
+    Some(root.join(format!("{:016x}", key.finish())))
+}
+
+fn copy_tree(source: &std::path::Path, destination: &std::path::Path) {
+    std::fs::create_dir_all(destination).expect("create native snapshot directory");
+    for entry in std::fs::read_dir(source).expect("read native build outputs") {
+        let entry = entry.expect("native build output");
+        let target = destination.join(entry.file_name());
+        if entry.file_type().expect("native output type").is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).expect("snapshot native build output");
+        }
+    }
+}
 
 fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -24,6 +78,12 @@ fn main() {
     }
 
     let mut config = cmake::Config::new(&root);
+    println!("cargo:rerun-if-env-changed=METAXTRACT_NATIVE_BUILD_ROOT");
+    println!("cargo:rerun-if-env-changed=GITHUB_RUN_ID");
+    let shared = ci_build_root();
+    if let Some(shared) = &shared {
+        config.out_dir(shared);
+    }
     if msvc {
         config
             .static_crt(static_crt)
@@ -41,7 +101,7 @@ fn main() {
             if static_crt { "ON" } else { "OFF" },
         );
     }
-    let built = config
+    let mut built = config
         .define("BUILD_TESTING", "OFF")
         .define("METAXTRACT_WARNINGS_AS_ERRORS", "ON")
         .define("METAXTRACT_SANITIZERS", &sanitizers)
@@ -54,6 +114,17 @@ fn main() {
             },
         )
         .build();
+    if shared.is_some() {
+        let snapshot =
+            PathBuf::from(env::var_os("OUT_DIR").expect("Cargo output")).join("native-snapshot");
+        if snapshot.exists() {
+            std::fs::remove_dir_all(&snapshot).expect("replace native snapshot");
+        }
+        for directory in ["lib", "share"] {
+            copy_tree(&built.join(directory), &snapshot.join(directory));
+        }
+        built = snapshot;
+    }
 
     let mut bridge = cxx_build::bridge("src/ffi.rs");
     bridge
