@@ -85,7 +85,8 @@ cargo run -p metaxtract-gui --locked -- investigation.mxcase
 
 한국어 표시는 Windows의 맑은 고딕, macOS의 Apple SD Gothic Neo, Linux의 Noto Sans CJK·
 나눔고딕을 사용합니다. 필요하면 설치된 TrueType/OpenType 폰트 경로를 `METAXTRACT_FONT_PATH`로
-지정하세요. Linux는 데스크톱 디스플레이와 OpenGL이 필요합니다. `--smoke`는 실제 창을 띄워
+지정하세요. Linux는 데스크톱 디스플레이, OpenGL과 libxkbcommon의 X11 실행 라이브러리
+(Ubuntu/Debian의 `libxkbcommon-x11-0`)가 필요합니다. `--smoke`는 실제 창을 띄워
 여러 프레임을 렌더링한 후 종료하는 설치 확인용 옵션입니다. 케이스 작업은 백그라운드에서
 수행해 화면 응답을 유지하며 기존 앱 아이콘을 보존합니다.
 

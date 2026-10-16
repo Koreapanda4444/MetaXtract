@@ -85,7 +85,8 @@ stored in the operating system's MetaXtract configuration directory.
 
 Korean text uses Malgun Gothic on Windows, Apple SD Gothic Neo on macOS, or installed Noto Sans
 CJK/Nanum Gothic on Linux. Set `METAXTRACT_FONT_PATH` to an installed TrueType/OpenType font if
-needed. Linux requires a desktop display and OpenGL; `--smoke` opens the actual window and exits
+needed. Linux requires a desktop display, OpenGL and libxkbcommon's X11 runtime
+(`libxkbcommon-x11-0` on Ubuntu/Debian); `--smoke` opens the actual window and exits
 after several rendered frames for installation checks. Case operations execute in background jobs
 so the interface remains responsive. Original application artwork is preserved.
 

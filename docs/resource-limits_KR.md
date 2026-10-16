@@ -61,9 +61,17 @@ macOS에서는 약 10ms마다 확인하므로 잠깐 한도를 초과할 수 있
 테라바이트의 가상 섀도를 예약하므로 `hard_rss_limit_mb`로 런타임의 물리 메모리 감시를
 설정합니다. 일반 Linux 빌드는 주소 공간의 강제 제한을 유지합니다.
 [AddressSanitizer 메모리 설명](https://clang.llvm.org/docs/AddressSanitizer.html#limitations)을 참고하세요.
+`METAXTRACT_SANITIZERS=address,undefined` 빌드에서는 worker 실행 파일의 링크 의존성에
+ASan과 UBSan을 직접 선언합니다. 네이티브 라이브러리 빌드 스크립트의
+[Cargo 링크 인자](https://doc.rust-lang.org/cargo/reference/build-scripts.html#rustc-link-arg)는
+의존 실행 파일에 전달되지 않습니다. ASan을 libc보다 먼저 연결해야 worker가 검사 기능을
+활성화한 상태로 시작할 수 있습니다.
 
 전용 프로세스에는 원본을 읽은 해시와 일치하는 사본을 전달하며 원본 쓰기 핸들은 전달하지
-않습니다. 본체는 시간 초과·취소·충돌·잘못된 출력을 처리하고 불완전한 결과를 완료된 캐시에
+않습니다. 요청은 별도의 전용 제어 파일로 전달하고 stderr는 실행 중 오류 출력에 사용합니다.
+부모 프로세스는 stderr를 계속 읽되 실패한 작업에 첨부할 진단은 최대 16 KiB만 보관하므로
+오류 출력이 메모리에 끝없이 쌓이지 않습니다.
+본체는 시간 초과·취소·충돌·잘못된 출력을 처리하고 불완전한 결과를 완료된 캐시에
 넣지 않습니다. 충돌과 자원 격리이며 운영체제의 보안 샌드박스는 아닙니다. 사본 작성과 검증을
 위한 추가 디스크 입출력은 정확성을 위해 유지합니다.
 

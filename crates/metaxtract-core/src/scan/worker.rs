@@ -21,6 +21,7 @@ use std::{
 use tempfile::{NamedTempFile, TempDir};
 const MAGIC: &[u8; 8] = b"MXWR1\0\0\0";
 const REQUEST_LIMIT: usize = 2 * 1024 * 1024;
+const DIAGNOSTIC_LIMIT: usize = 16 * 1024;
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Request {
     engine: String,
@@ -132,13 +133,13 @@ impl ExtractionBackend for BundledWorker {
             .as_file_mut()
             .write_all(&codec::encode(&request, REQUEST_LIMIT)?)?;
         control.as_file_mut().flush()?;
-        let request_input = File::open(control.path())?;
         let mut command = Command::new(&self.path);
         command
             .arg("--protocol=1")
+            .arg(control.path())
             .current_dir(self.snapshots.path())
             .stdin(Stdio::from(input))
-            .stderr(Stdio::from(request_input))
+            .stderr(Stdio::piped())
             .stdout(Stdio::piped());
         library_environment(&mut command, &self.path)?;
         // Ignored by ordinary builds; ASan cannot combine its shadow mapping with RLIMIT_AS.
@@ -155,6 +156,12 @@ impl ExtractionBackend for BundledWorker {
             .stdout
             .take()
             .ok_or_else(|| io::Error::other("worker stdout is missing"))?;
+        let stderr = child
+            .0
+            .stderr
+            .take()
+            .ok_or_else(|| io::Error::other("worker stderr is missing"))?;
+        let diagnostic_reader = thread::spawn(move || read_diagnostics(stderr));
         let max =
             (options.max_result_bytes.saturating_mul(4)).min(codec::MAX_BLOB_BYTES as u64) as usize;
         let (tx, rx) = mpsc::sync_channel(1);
@@ -166,7 +173,10 @@ impl ExtractionBackend for BundledWorker {
             loop {
                 context.checkpoint()?;
                 match rx.try_recv() {
-                    Ok(value) => response = Some(value?),
+                    Ok(Err(error)) if error.kind() != io::ErrorKind::UnexpectedEof => {
+                        return Err(error);
+                    }
+                    Ok(value) => response = Some(value),
                     Err(mpsc::TryRecvError::Empty) => {}
                     Err(mpsc::TryRecvError::Disconnected) if response.is_none() => {
                         return Err(io::Error::other("worker response was lost"));
@@ -178,7 +188,7 @@ impl ExtractionBackend for BundledWorker {
                         return Err(io::Error::other(format!("native worker exited: {status}")));
                     }
                     if let Some(response) = response {
-                        return Ok(response);
+                        return response;
                     }
                 } else if let Err(error) =
                     check_worker_memory(child.0.id(), options.max_memory_bytes)
@@ -193,7 +203,17 @@ impl ExtractionBackend for BundledWorker {
         })();
         drop(child);
         let _ = reader.join();
-        let response = result?;
+        let diagnostics = diagnostic_reader.join().unwrap_or_default();
+        let response = result.map_err(|error| {
+            if diagnostics.is_empty() {
+                error
+            } else {
+                io::Error::new(
+                    error.kind(),
+                    format!("{error}; worker diagnostics: {diagnostics}"),
+                )
+            }
+        })?;
         if response.engine != engine_fingerprint() {
             return Err(invalid(
                 "bundled parser engine differs; rebuild the application and metaxtract-worker together",
@@ -212,6 +232,22 @@ impl ExtractionBackend for BundledWorker {
             cache_hit: false,
         })
     }
+}
+fn read_diagnostics(mut input: impl Read) -> String {
+    let mut retained = Vec::new();
+    let mut buffer = [0_u8; 4096];
+    loop {
+        match input.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(size) => {
+                let keep = size.min(DIAGNOSTIC_LIMIT - retained.len());
+                retained.extend_from_slice(&buffer[..keep]);
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(_) => break,
+        }
+    }
+    String::from_utf8_lossy(&retained).trim().to_owned()
 }
 fn check_worker_memory(pid: u32, limit: u64) -> io::Result<()> {
     #[cfg(target_os = "macos")]
@@ -281,8 +317,8 @@ fn write_frame(mut output: impl Write, response: &Response, max: usize) -> io::R
     output.write_all(&data)?;
     output.flush()
 }
-pub fn run_bundled_worker_stdio() -> io::Result<()> {
-    let mut request_file = stdio_file(true)?;
+pub fn run_bundled_worker_stdio(request_path: &Path) -> io::Result<()> {
+    let mut request_file = File::open(request_path)?;
     let mut request_bytes = Vec::new();
     Read::by_ref(&mut request_file)
         .take((REQUEST_LIMIT + 1) as u64)
@@ -307,28 +343,18 @@ pub fn run_bundled_worker_stdio() -> io::Result<()> {
     };
     write_frame(std::io::stdout().lock(), &response, max)
 }
-fn stdio_file(request: bool) -> io::Result<File> {
+fn stdin_file() -> io::Result<File> {
     #[cfg(unix)]
     {
         use std::os::fd::AsFd;
-        if request {
-            Ok(File::from(std::io::stderr().as_fd().try_clone_to_owned()?))
-        } else {
-            Ok(File::from(std::io::stdin().as_fd().try_clone_to_owned()?))
-        }
+        Ok(File::from(std::io::stdin().as_fd().try_clone_to_owned()?))
     }
     #[cfg(windows)]
     {
         use std::os::windows::io::AsHandle;
-        if request {
-            Ok(File::from(
-                std::io::stderr().as_handle().try_clone_to_owned()?,
-            ))
-        } else {
-            Ok(File::from(
-                std::io::stdin().as_handle().try_clone_to_owned()?,
-            ))
-        }
+        Ok(File::from(
+            std::io::stdin().as_handle().try_clone_to_owned()?,
+        ))
     }
 }
 fn extract_request(request: &Request) -> io::Result<Vec<ExtractionRecord>> {
@@ -339,7 +365,7 @@ fn extract_request(request: &Request) -> io::Result<Vec<ExtractionRecord>> {
     if !metaxtract_native::configure_worker_memory_limit(request.options.max_memory_bytes) {
         return Err(io::Error::other("could not apply worker memory limit"));
     }
-    let file = stdio_file(false)?;
+    let file = stdin_file()?;
     let stamp = FileStamp::read(&file)?;
     if stamp != request.snapshot {
         return Err(invalid("worker input identity differs"));

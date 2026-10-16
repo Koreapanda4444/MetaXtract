@@ -69,8 +69,11 @@ cargo run -p metaxtract-cli --locked -- --help
 추출 결과를 검사하고, **분석**에서 파생 결과를, **내보내기·도구**에서 보고서·번들 등을 만듭니다.
 `metaxtract-worker`와 네이티브 라이브러리는 앱과 같은 빌드를 사용해야 합니다. Cargo로 실행하면
 라이브러리 경로를 자동 설정합니다. 독립 배포에는 [의존성 안내](docs/dependencies_KR.md)의
-라이브러리·라이선스 고지가 필요합니다. Linux는 X11·Wayland, OpenGL, libxkbcommon이 필요하며
-한글 표시에는 Noto Sans CJK를 설치하거나 `METAXTRACT_FONT_PATH`로 글꼴을 지정합니다.
+라이브러리·라이선스 고지가 필요합니다. Linux는 X11·Wayland, OpenGL과 X11용 라이브러리를
+포함한 libxkbcommon이 필요합니다. Ubuntu/Debian에서는
+`sudo apt-get install libxkbcommon-x11-0 libegl1 libgl1-mesa-dri fonts-noto-cjk`로 GUI 실행
+의존성을 설치합니다. 한글 표시에는 Noto Sans CJK를 설치하거나 `METAXTRACT_FONT_PATH`로
+글꼴을 지정합니다.
 
 동결된 Python 비교 앱은 `python -m pip install -e ./legacy/python`으로 별도 설치할 수 있습니다.
 사용법은 [기준 앱 안내](legacy/python/README_KR.md)에 있으며 Rust 앱 실행에는 필요하지 않습니다.

@@ -56,9 +56,16 @@ native OS API, approximately every 10 ms, with possible brief overshoot. Sanitiz
 set ASan's `hard_rss_limit_mb` because ASan reserves a multi-terabyte virtual shadow; its runtime
 polls physical memory. Normal Linux builds retain the hard address-space limit.
 See the [AddressSanitizer mapping note](https://clang.llvm.org/docs/AddressSanitizer.html#limitations).
+For `METAXTRACT_SANITIZERS=address,undefined` builds, the worker explicitly declares ASan and
+UBSan as executable link dependencies. The [Cargo link argument](https://doc.rust-lang.org/cargo/reference/build-scripts.html#rustc-link-arg)
+from the native library's build script does not apply to dependent executables. ASan must be
+linked before libc so the worker can start with its interceptors active.
 
 Each worker receives a private captured file whose hashes match the evidence read. It never
-receives the original writable evidence handle. Timeout, cancellation, crash and malformed output
+receives the original writable evidence handle. The request uses a separate private control file;
+stderr remains available for runtime diagnostics. The parent drains stderr while retaining at most
+16 KiB for a failed task, so a crash includes its diagnostic without unbounded output buffering.
+Timeout, cancellation, crash and malformed output
 are caught by the parent; incomplete work is not cached as complete. This is crash/resource
 isolation, not an OS security sandbox. Capture and verification add disk IO deliberately.
 

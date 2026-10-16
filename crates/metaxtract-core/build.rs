@@ -29,6 +29,7 @@ fn main() {
         "crates/metaxtract-native/build.rs",
         "crates/metaxtract-native/Cargo.toml",
         "crates/metaxtract-worker/src",
+        "crates/metaxtract-worker/build.rs",
         "crates/metaxtract-worker/Cargo.toml",
         "native/metaxtract-extract",
         "CMakeLists.txt",

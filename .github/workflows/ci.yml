@@ -89,9 +89,11 @@ jobs:
         run: cargo build --workspace --release --locked
       - name: Smoke-test Rust desktop
         if: runner.os == 'Linux'
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb fonts-noto-cjk
+          sudo apt-get install -y xvfb fonts-noto-cjk libxkbcommon-x11-0 libegl1 libgl1-mesa-dri
           xvfb-run -a cargo run -p metaxtract-gui --release --locked -- --smoke
       - name: Configure native core
         run: cmake --preset dev

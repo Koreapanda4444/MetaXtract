@@ -67,7 +67,9 @@ Create/open a case, select **Scan queue**, choose a file or folder and start sca
 Keep the adjacent `metaxtract-worker` and native libraries from the same build. Cargo configures
 library paths when launching. Standalone distribution must include the libraries and license
 notices in [dependencies](docs/dependencies.md). Linux needs an X11/Wayland desktop, OpenGL and
-libxkbcommon; install Noto Sans CJK or set `METAXTRACT_FONT_PATH` for Korean labels.
+libxkbcommon, including its X11 library. On Ubuntu/Debian, install the GUI runtime with
+`sudo apt-get install libxkbcommon-x11-0 libegl1 libgl1-mesa-dri fonts-noto-cjk`.
+Install Noto Sans CJK or set `METAXTRACT_FONT_PATH` for Korean labels.
 
 The frozen Python comparison app can be installed separately with
 `python -m pip install -e ./legacy/python`. Its usage is in the
