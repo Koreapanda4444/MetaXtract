@@ -15,9 +15,14 @@ use std::{error::Error, fmt, fs::File};
 pub const NATIVE_API_REVISION: u32 = 1;
 pub const NATIVE_SCHEMA_REVISION: u32 = 1;
 
-/// Apply a hard OS resource limit inside the bundled child, never in the GUI.
+/// Configure child limits; macOS uses parent monitoring and ASan its runtime RSS limit.
 pub fn configure_worker_memory_limit(bytes: u64) -> bool {
     ffi::bridge::ffi_worker_memory_limit(bytes)
+}
+
+/// Physical footprint on macOS; u64::MAX indicates a failed query.
+pub fn worker_memory_usage(pid: u32) -> u64 {
+    ffi::bridge::ffi_worker_memory_usage(pid)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

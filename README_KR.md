@@ -11,7 +11,7 @@ C++는 바이너리 파싱·디코딩·원본 메타데이터 추출을 맡고, 
 
 ## 현재 상태
 
-전환 중에도 Python 기준판의 GUI와 CLI를 사용할 수 있습니다. Rust/C++ 엔진은 제한된 입력과
+현재 앱 기능은 Rust 데스크톱과 CLI로 제공합니다. Rust/C++ 엔진은 제한된 입력과
 스키마·언어 연결부, 파일 식별, 심층 이미지·RAW·오디오 메타데이터, 영상 컨테이너·트랙 상세
 분석과 내부 검사·디코딩을 구현했습니다. PDF 문서 정보·XMP·페이지 크기·첨부·개정 이력,
 암호화 설정·서명 범위·동작 구조도 추출합니다. Rust는 이미지 관측값을 교차 검증합니다.
@@ -39,10 +39,12 @@ Rust [케이스 저장 라이브러리](docs/cases_KR.md)는 단일 파일 케�
 Rust [분석 라이브러리](docs/analysis_KR.md)는 정규화, 필드 출처·타임라인, 해석 교차 검증,
 발견 사항, 동일·내용·시각 유사도, 오프라인 위치 분석, 스캔·필드 비교, 구조화 검색,
 비식별화 미리보기, 선택 CSV·JSONL·증거 내보내기, 서명 영수증을 지원하는 HTML·JSON
-조사 보고서를 제공합니다. 현재 라이브러리 API이며 이후 앱 단계에서 GUI·CLI에 연결합니다.
+조사 보고서를 제공합니다. GUI·CLI가 공통 앱 처리 코드를 사용합니다. 제공하는 명령과 한계는 앱 안내에 있습니다.
 
-Rust CLI에서 스캔·검사·비교·검증·케이스 작업을 사용할 수 있습니다.
-데스크톱 연결과 전체 사용 흐름의 동등성 확보는 이후 작업입니다.
+Rust GUI·CLI에서 스캔·일시정지·재개, 페이지별 레코드, 원본·근거 검사, 구조화 검색,
+비교, 타임라인, 오프라인 위치, 중복과 발견 사항을 사용할 수 있습니다. 데스크톱은
+비식별화 미리보기, CSV·JSONL, HTML·JSON 보고서, 암호화 키·서명, 번들, 가져오기,
+감사 검증과 파서 진단도 제공합니다.
 지원 필드와 한계는 [추출 지원 범위](docs/extraction_KR.md)를 참고합니다.
 
 Python 소스는 결과 비교를 위한 기준판으로 동결합니다. 새 앱이 기존 사용 흐름, 데이터 호환성,
@@ -52,15 +54,26 @@ Python 소스는 결과 비교를 위한 기준판으로 동결합니다. 새 �
 
 ## 현재 앱 실행
 
-Python 3.11 이상을 설치하고 저장소 루트에서 실행합니다.
+아래 빌드 도구를 준비하고 저장소 루트에서 실행합니다.
 
 ```bash
-python -m pip install -e ./legacy/python
-metaxtract gui
+cargo build --workspace --locked
+cargo run -p metaxtract-gui --locked
+# 케이스를 바로 열기
+cargo run -p metaxtract-gui --locked -- investigation.mxcase
+# CLI 도움말
+cargo run -p metaxtract-cli --locked -- --help
 ```
 
-GUI에는 Python의 Tk 지원이 필요합니다. CLI 도움말은 `metaxtract --help`로 확인합니다.
-설치, 지원 형식, 명령과 제한 사항은 [Python 앱 사용법](legacy/python/README_KR.md)에 있습니다.
+케이스를 만들거나 연 뒤 **스캔 대기열**에서 파일·폴더를 선택하고 시작합니다. **레코드**에서
+추출 결과를 검사하고, **분석**에서 파생 결과를, **내보내기·도구**에서 보고서·번들 등을 만듭니다.
+`metaxtract-worker`와 네이티브 라이브러리는 앱과 같은 빌드를 사용해야 합니다. Cargo로 실행하면
+라이브러리 경로를 자동 설정합니다. 독립 배포에는 [의존성 안내](docs/dependencies_KR.md)의
+라이브러리·라이선스 고지가 필요합니다. Linux는 X11·Wayland, OpenGL, libxkbcommon이 필요하며
+한글 표시에는 Noto Sans CJK를 설치하거나 `METAXTRACT_FONT_PATH`로 글꼴을 지정합니다.
+
+동결된 Python 비교 앱은 `python -m pip install -e ./legacy/python`으로 별도 설치할 수 있습니다.
+사용법은 [기준 앱 안내](legacy/python/README_KR.md)에 있으며 Rust 앱 실행에는 필요하지 않습니다.
 
 새 Rust/C++ 제품은 ExifTool이나 ffprobe 같은 외부 메타데이터 실행 프로그램에 의존하지 않습니다.
 허용된 네이티브 라이브러리는 연결하거나 앱과 함께 배포합니다. 동결된 Python 기준판에는
@@ -81,8 +94,8 @@ cargo build --workspace --locked
 python conformance/run.py
 ```
 
-이 명령은 언어 전환 기반을 빌드하고 검증합니다. Rust 데스크톱 앱을 실행하거나 아직 구현하지
-않은 형식 어댑터의 메타데이터 추출 동등성을 확인하는 명령은 아닙니다.
+검증은 명시된 계약과 기록된 기준 사례를 확인합니다. 모든 형식의 추출·사용 흐름이 완전히
+동등하다는 의미는 아니므로 동결된 Python 기준판은 유지합니다.
 
 ## 저장소 구조
 
@@ -111,4 +124,4 @@ README는 처음 실행하는 방법을 안내합니다. `docs/`는 추출 엔�
 | 케이스 작업 공간 | [Cases](docs/cases.md) | [케이스](docs/cases_KR.md) |
 | 분석·검색·보고서 | [Analysis](docs/analysis.md) | [분석·검색·보고서](docs/analysis_KR.md) |
 | 언어 전환 검증 | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
-| 현재 GUI·CLI 사용법 | [Python application](legacy/python/README.md) | [Python 앱 사용법](legacy/python/README_KR.md) |
+| 현재 GUI·CLI 사용법 | [Rust application](docs/application.md) | [Rust 앱 사용법](docs/application_KR.md) |

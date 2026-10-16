@@ -12,7 +12,7 @@ the results.
 
 ## Current status
 
-The Python reference provides the working GUI and CLI during migration. The Rust/C++ engine
+The Rust desktop and CLI provide the current application workflows. The Rust/C++ engine
 includes bounded input, schema/bridge contracts, content detection, deep image/RAW and audio
 metadata, media inspection/decoding, PDF structure/security, Office documents and EML/MIME.
 
@@ -32,10 +32,11 @@ lossless metadata persistence, indexed paging, history and annotations, Python
 case/JSONL/signed-bundle imports, hash-chained auditing, encrypted signing keys,
 and verified portable case snapshots. It can open cases independently of native parsers.
 
-The Rust CLI now provides scan, inspect, comparison, verification and case workflows.
-The Rust desktop now provides case creation, opening, notes, recent cases and consistent copies;
-remaining desktop workflows are being connected.
-see [native extraction coverage](docs/extraction.md) for supported fields and limitations.
+The Rust desktop and CLI provide scanning, durable pause/resume, paged records, raw/provenance
+inspection, structured search, comparison, timeline, offline locations, duplicates and findings.
+The desktop also provides redaction previews, CSV/JSONL exports, HTML/JSON reports, encrypted
+keys/signatures, case bundles, imports, audit verification and parser diagnostics.
+See [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 
 The Python source remains frozen as a comparison baseline. It will be removed after the new
 application passes workflow, data compatibility, and extraction conformance checks.
@@ -43,23 +44,34 @@ application passes workflow, data compatibility, and extraction conformance chec
 The Rust [analysis library](docs/analysis.md) provides normalization, field lineage and timelines,
 claim validation, findings, exact/content/visual similarity, offline geographic analysis, scan/field
 comparison, structured case search, redaction previews, selected CSV/JSONL/evidence exports, and
-HTML/JSON investigation reports with optional signing receipts. These are library APIs; desktop
-and command-line integration follows in the application stages.
+HTML/JSON investigation reports with optional signing receipts. GUI and CLI use the shared
+application operations; see the application guide for available commands and analysis limits.
 
 See the [Rust application guide](docs/application.md) for the new CLI and Rust desktop.
 
 ## Run the current application
 
-From the repository root, with Python 3.11 or newer:
+Build with the prerequisites below, then launch from the repository root:
 
 ```bash
-python -m pip install -e ./legacy/python
-metaxtract gui
+cargo build --workspace --locked
+cargo run -p metaxtract-gui --locked
+# Optional: open a case directly
+cargo run -p metaxtract-gui --locked -- investigation.mxcase
+# CLI
+cargo run -p metaxtract-cli --locked -- --help
 ```
 
-The GUI requires Python's Tk support. For CLI usage, run `metaxtract --help`. See the
-[Python application guide](legacy/python/README.md) for installation, supported formats,
-commands, and limitations.
+Create/open a case, select **Scan queue**, choose a file or folder and start scanning. Use
+**Records** to inspect results, **Analysis** for derived views and **Export & tools** for delivery.
+Keep the adjacent `metaxtract-worker` and native libraries from the same build. Cargo configures
+library paths when launching. Standalone distribution must include the libraries and license
+notices in [dependencies](docs/dependencies.md). Linux needs an X11/Wayland desktop, OpenGL and
+libxkbcommon; install Noto Sans CJK or set `METAXTRACT_FONT_PATH` for Korean labels.
+
+The frozen Python comparison app can be installed separately with
+`python -m pip install -e ./legacy/python`. Its usage is in the
+[reference application guide](legacy/python/README.md). It is not needed at Rust application runtime.
 
 The new Rust/C++ product must not depend on external metadata executables such as ExifTool or
 ffprobe. Approved native libraries will be linked or bundled. The frozen Python reference still
@@ -73,15 +85,15 @@ using Visual Studio 2026 require CMake 4.2 or newer; CI uses CMake 4.2.3.
 Native builds also require Python 3.11+, GNU make and a shell. Windows needs MSVC and MSYS2
 bash/make; set METAXTRACT_MSYS_ROOT if MSYS2 is outside C:/msys64.
 
-Install the Python reference as above before running conformance checks. From the repository root:
+Install the Python reference before running compatibility checks. From the repository root:
 
 ```bash
 cargo build --workspace --locked
 python conformance/run.py
 ```
 
-This builds and verifies the migration foundation. It does not launch a Rust desktop application
-or establish metadata parity for format adapters that have not been implemented.
+Conformance verifies defined contracts and captured reference cases. Passing it does not establish
+complete extraction or workflow parity for every format; the frozen Python baseline is retained.
 
 ## Repository layout
 
@@ -110,4 +122,4 @@ counterparts; update both when behavior or design changes.
 | Case workspaces | [Cases](docs/cases.md) | [케이스](docs/cases_KR.md) |
 | Analysis, search and reports | [Analysis](docs/analysis.md) | [분석·검색·보고서](docs/analysis_KR.md) |
 | Migration verification | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
-| Current GUI and CLI | [Python application](legacy/python/README.md) | [Python 앱 사용법](legacy/python/README_KR.md) |
+| Current GUI and CLI | [Rust application](docs/application.md) | [Rust 앱 사용법](docs/application_KR.md) |

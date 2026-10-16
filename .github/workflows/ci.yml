@@ -87,6 +87,12 @@ jobs:
           key: ${{ steps.native-media-cache.outputs.cache-primary-key }}
       - name: Build production workspace
         run: cargo build --workspace --release --locked
+      - name: Smoke-test Rust desktop
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb fonts-noto-cjk
+          xvfb-run -a cargo run -p metaxtract-gui --release --locked -- --smoke
       - name: Configure native core
         run: cmake --preset dev
       - name: Build native core

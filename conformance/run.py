@@ -275,9 +275,9 @@ def _compare_cli(release: bool) -> list[str]:
     try:
         subprocess.run(build, cwd=ROOT, check=True, capture_output=True, timeout=1800)
 
-        def invoke(*args: object, code: int = 0) -> dict[str, Any]:
-            p = subprocess.run(command + ["--", *map(str, args)], cwd=ROOT, text=True,
-                               capture_output=True, timeout=120)
+        def invoke(*args: object, code: int = 0, stdin: str | None = None) -> dict[str, Any]:
+            p = subprocess.run(command + ["--", *map(str, args)], cwd=ROOT, text=True, encoding="utf-8",
+                               capture_output=True, input=stdin, timeout=120)
             if p.returncode != code:
                 raise ValueError(f"CLI {args[0]} exit {p.returncode}: {p.stderr[-2000:]} {p.stdout[:2000]}")
             envelope = json.loads(p.stdout if code in (0, 5, 6) else p.stderr.splitlines()[-1])
@@ -320,6 +320,17 @@ def _compare_cli(release: bool) -> list[str]:
             if preview["rgb"] != [255, 0, 0] or not preview["verified"]:
                 raise ValueError(f"native PNG preview unavailable: {preview['notices']}")
             invoke("preview", case, image_id, source / "one.txt", code=4)
+            # Keep a signed report verifiable after reopening its detached receipt.
+            key, public = root / "key.pem", root / "public.pem"
+            report, receipt = root / "signed.html", root / "receipt.json"
+            password = "contract-only-password\n"
+            invoke("keygen", key, public, "--name", "contract", "--password-stdin", stdin=password)
+            invoke("report", case, paused["scan_id"], report, "--key", key,
+                   "--receipt", receipt, "--password-stdin", stdin=password)
+            invoke("verify-report", report, receipt, public)
+            report.write_bytes(report.read_bytes() + b"changed")
+            invoke("verify-report", report, receipt, public, code=4)
+
         return []
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         return [f"CLI workflow contract failed: {exc}"]

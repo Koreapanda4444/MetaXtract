@@ -430,6 +430,45 @@ pub struct ReportOutput {
     pub signed_manifest: Value,
     pub signature: Option<ManifestSignature>,
 }
+/// Authenticate a report's exact bytes using its retained receipt and an independent public key.
+pub fn verify_report(
+    mut input: impl std::io::Read,
+    receipt: &ReportOutput,
+    public_pem: &str,
+    limits: AnalysisLimits,
+) -> io::Result<String> {
+    let signature = receipt
+        .signature
+        .as_ref()
+        .ok_or_else(|| invalid("report receipt is unsigned"))?;
+    let manifest = &receipt.signed_manifest;
+    if manifest.get("format").and_then(Value::as_str) != Some("metaxtract-report-digest-v1")
+        || manifest.get("bytes").and_then(Value::as_u64) != Some(receipt.bytes)
+        || manifest.get("sha256").and_then(Value::as_str) != Some(receipt.sha256.as_str())
+        || receipt.bytes > limits.max_bytes as u64
+    {
+        return Err(invalid("invalid report receipt"));
+    }
+    let mut digest = Sha256::new();
+    let mut bytes = 0u64;
+    let mut buffer = [0u8; 65536];
+    loop {
+        let count = input.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        bytes = bytes.saturating_add(count as u64);
+        if bytes > receipt.bytes {
+            return Err(invalid("report bytes differ from signed receipt"));
+        }
+        digest.update(&buffer[..count]);
+    }
+    if bytes != receipt.bytes || hex(&digest.finalize()) != receipt.sha256 {
+        return Err(invalid("report bytes differ from signed receipt"));
+    }
+    let encoded = serde_json::to_vec(manifest).map_err(io::Error::other)?;
+    metaxtract_storage::verify_manifest(&encoded, signature, public_pem)
+}
 pub fn write_report(
     report: &InvestigationReport,
     destination: impl AsRef<Path>,

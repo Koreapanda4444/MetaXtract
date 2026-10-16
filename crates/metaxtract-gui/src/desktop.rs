@@ -20,6 +20,7 @@ pub enum Tab {
     Records,
     Search,
     Analysis,
+    Workflows,
 }
 pub struct Desktop {
     pub tab: Tab,
@@ -29,6 +30,7 @@ pub struct Desktop {
     pub inspect: crate::inspectors::InspectUi,
     pub search: crate::search::SearchUi,
     pub analysis: crate::analysis::AnalysisUi,
+    pub workflows: crate::workflows::WorkflowsUi,
     pub case: Option<Arc<CaseWorkspace>>,
     pub info: Option<CaseInfo>,
     pub scans: Vec<ScanInfo>,
@@ -66,6 +68,7 @@ impl Desktop {
             inspect: Default::default(),
             search: Default::default(),
             analysis: Default::default(),
+            workflows: Default::default(),
             scan: Default::default(),
             case: None,
             info: None,
@@ -142,6 +145,7 @@ impl Desktop {
         self.inspect = Default::default();
         self.search = Default::default();
         self.analysis = Default::default();
+        self.workflows = Default::default();
         self.scan.close_when_idle = closing;
         if let Err(e) = self.settings.remember(case.path()) {
             self.status = format!("Case opened; recent list was not saved: {e}");
@@ -176,6 +180,7 @@ impl Desktop {
     }
     fn chosen(&mut self, ctx: &egui::Context, purpose: Purpose, path: PathBuf) {
         match purpose {
+            Purpose::Workflow(field) => self.workflow_path(field, path),
             Purpose::GeoJson => self.export_geo(ctx, path, false),
             Purpose::Kml => self.export_geo(ctx, path, true),
             Purpose::Preview => self.load_preview(ctx, path),
@@ -399,6 +404,11 @@ impl eframe::App for Desktop {
                 ui.selectable_value(&mut self.tab, Tab::Records, "Records / 레코드");
                 ui.selectable_value(&mut self.tab, Tab::Search, "Search & compare / 검색·비교");
                 ui.selectable_value(&mut self.tab, Tab::Analysis, "Analysis / 분석");
+                ui.selectable_value(
+                    &mut self.tab,
+                    Tab::Workflows,
+                    "Export & tools / 내보내기·도구",
+                );
                 if let Some(scan) = &self.active_scan {
                     ui.separator();
                     ui.label("Selected scan / 선택 스캔");
@@ -408,6 +418,11 @@ impl eframe::App for Desktop {
         egui::CentralPanel::default().show(ctx, |ui| match self.tab {
             Tab::Case => self.case_view(ui),
             Tab::Scan => self.scan_view(ui),
+            Tab::Workflows => {
+                egui::ScrollArea::vertical()
+                    .id_salt("workflows-content")
+                    .show(ui, |ui| self.workflows_view(ui));
+            }
             Tab::Analysis => {
                 egui::ScrollArea::vertical()
                     .id_salt("analysis-content")

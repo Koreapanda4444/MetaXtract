@@ -15,10 +15,15 @@ Rust는 사용자에게 보이는 앱 기능을 담당합니다. GUI·CLI, 파�
 | `metaxtract-worker` | 읽기 전용 사본을 입력받고 검증 가능한 프레임으로 결과를 반환하는 전용 파서 프로세스 |
 | `metaxtract-analysis` | 정규화·출처·검증·발견 사항·중복·위치·비교·검색·비식별화·내보내기·보고서 |
 | `metaxtract-storage` | 단일 파일 케이스, 타입 보존 저장, 페이지 조회, 이력, 가져오기, 감사, 서명 ID와 이동식 스냅샷 |
+| `metaxtract-app` | 공통 앱 작업과 제한된 미리보기·스캔 처리 |
+| `metaxtract-cli` | 구조화 JSON 명령·진행률·고정 종료 코드 |
+| `metaxtract-gui` | 네이티브 데스크톱·페이지 검사·분석·내보내기 |
 
-스캔·케이스 저장·분석은 Rust 라이브러리 API로 제공합니다. Rust GUI·CLI 연결은 이후 작업입니다.
+스캔·케이스 저장·분석은 Rust GUI·CLI가 공통으로 사용합니다.
 전용 파서 프로세스는 코어가 실행하는 내부 실행 파일이며 사용자용 CLI가 아닙니다.
 저장소 루트에서 `cargo build --workspace --locked`로 빌드합니다.
 
 [케이스 저장](../docs/cases_KR.md), [아키텍처](../docs/architecture_KR.md), [언어 경계](../docs/ffi_KR.md),
 [전환 검증](../conformance/README_KR.md)도 참고합니다.
+
+GUI에는 스캔·페이지 검사·검색·비교·분석 화면과 내보내기·보고서·서명·번들 도구가 연결돼 있습니다. [앱 안내](../docs/application_KR.md)를 참고하세요.

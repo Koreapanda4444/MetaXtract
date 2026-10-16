@@ -8,6 +8,7 @@ mod records;
 mod scan;
 mod search;
 mod settings;
+mod workflows;
 use eframe::egui;
 use std::path::PathBuf;
 

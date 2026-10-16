@@ -171,3 +171,27 @@ path-to-group assignments and resolved time zones; points are never linked by gu
 Enable **Decode previews** on a new scan to retain bounded native-decoded image fingerprints for
 visual comparisons. Missing fingerprints are shown as coverage gaps. Similarity and anomaly flags
 are leads for review and do not establish common authorship or tampering.
+
+## Export and tools
+
+The desktop **Export & tools** menu runs CSV/JSONL exports for the current filter or selected IDs,
+custom redaction previews/profile saving, bilingual HTML/JSON reports and optional comparison
+baselines. Redaction creates derivatives; the stored originals remain available. Signed reports
+require a separate new receipt path. **Verify report receipt** checks the report's exact bytes and
+signature against an independently trusted public PEM. The CLI equivalent is
+`verify-report REPORT RECEIPT PUBLIC_PEM`.
+
+Encrypted Ed25519 keys, exact-file signatures and trusted verification use masked password input;
+the input is cleared when an operation starts and key passwords are never saved in preferences.
+Public identities can be named and registered in a writable case. Complete portable case bundles
+include original metadata/notes/annotations, irrespective of record filters or redaction settings;
+they do not contain original evidence files. Bundle reopening creates a new destination. JSONL,
+Python case and Python bundle import append to an existing writable case.
+
+Audit verification accepts an optional independently retained anchor, exports the current anchor
+and pages activity by sequence (128 entries per request). Parser diagnostics show current build
+fingerprint, native registry/library versions, worker availability and stored scan engine details.
+An engine change requires a new scan rather than resuming checkpoints under different parsers.
+
+Background operations keep the UI responsive. Output paths must be new; existing files are not
+overwritten. Pause an active scan before reports, bundle operations, imports or case switching.

@@ -9,6 +9,13 @@
 
 #include <algorithm>
 #include <new>
+#include <limits>
+#ifdef __APPLE__
+#include <libproc.h>
+#endif
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -40,19 +47,33 @@ bool ffi_worker_memory_limit(const std::uint64_t bytes) noexcept {
     }
     // Retain the job handle for the lifetime of this short-lived worker.
     return true;
-#else
-#ifdef __APPLE__
-    constexpr int resource = RLIMIT_DATA;
+#elif defined(__APPLE__) || defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
+    // macOS reserves large malloc zones; ASan maps a multi-terabyte shadow.
+    // The parent samples physical footprint on macOS. ASan uses its runtime RSS limit.
+    return true;
 #else
     constexpr int resource = RLIMIT_AS;
-#endif
     struct rlimit current{};
     if (getrlimit(resource, &current) != 0) return false;
     const auto requested = static_cast<rlim_t>(bytes);
     if (static_cast<std::uint64_t>(requested) != bytes) return false;
     current.rlim_cur = current.rlim_cur == RLIM_INFINITY
         ? requested : std::min(current.rlim_cur, requested);
+    if (current.rlim_max != RLIM_INFINITY) current.rlim_cur = std::min(current.rlim_cur, current.rlim_max);
     return setrlimit(resource, &current) == 0;
+#endif
+}
+
+std::uint64_t ffi_worker_memory_usage(const std::uint32_t pid) noexcept {
+#ifdef __APPLE__
+    if (pid > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) return std::numeric_limits<std::uint64_t>::max();
+    struct rusage_info_v2 usage{};
+    if (proc_pid_rusage(static_cast<int>(pid), RUSAGE_INFO_V2,
+                       reinterpret_cast<rusage_info_t*>(&usage)) != 0) return std::numeric_limits<std::uint64_t>::max();
+    return usage.ri_phys_footprint;
+#else
+    static_cast<void>(pid);
+    return 0; // Linux is read by Rust; Windows uses its kernel Job Object limit.
 #endif
 }
 

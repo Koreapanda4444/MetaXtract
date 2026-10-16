@@ -141,6 +141,14 @@ impl ExtractionBackend for BundledWorker {
             .stderr(Stdio::from(request_input))
             .stdout(Stdio::piped());
         library_environment(&mut command, &self.path)?;
+        // Ignored by ordinary builds; ASan cannot combine its shadow mapping with RLIMIT_AS.
+        let mut asan = std::env::var_os("ASAN_OPTIONS").unwrap_or_default();
+        asan.push(format!(
+            ":hard_rss_limit_mb={}",
+            options.max_memory_bytes.div_ceil(1024 * 1024)
+        ));
+        command.env("ASAN_OPTIONS", asan);
+
         let mut child = RunningChild(command.spawn()?);
         let stdout = child
             .0
@@ -172,6 +180,13 @@ impl ExtractionBackend for BundledWorker {
                     if let Some(response) = response {
                         return Ok(response);
                     }
+                } else if let Err(error) =
+                    check_worker_memory(child.0.id(), options.max_memory_bytes)
+                {
+                    // The child can exit between try_wait and the OS memory query.
+                    if child.0.try_wait()?.is_none() {
+                        return Err(error);
+                    }
                 }
                 thread::sleep(Duration::from_millis(10));
             }
@@ -198,6 +213,22 @@ impl ExtractionBackend for BundledWorker {
         })
     }
 }
+fn check_worker_memory(pid: u32, limit: u64) -> io::Result<()> {
+    #[cfg(target_os = "macos")]
+    let bytes = metaxtract_native::worker_memory_usage(pid);
+    #[cfg(not(target_os = "macos"))]
+    let bytes = {
+        let _ = pid;
+        0
+    };
+    if bytes > limit {
+        return Err(io::Error::other(
+            "native worker physical memory limit exceeded",
+        ));
+    }
+    Ok(())
+}
+
 struct RunningChild(Child);
 impl Drop for RunningChild {
     fn drop(&mut self) {

@@ -200,6 +200,14 @@ pub fn run(args: &Args) -> io::Result<Value> {
             w::write_json(&args.path(2)?, &signature)?;
             value(signature)
         }
+        "verify-report" => {
+            let receipt: a::reporting::ReportOutput = w::read_json(&args.path(2)?)?;
+            let public = w::read_text(&args.path(3)?, 16384)?;
+            let input = std::fs::File::open(args.path(1)?)?;
+            Ok(
+                json!({"verified":true,"fingerprint":a::reporting::verify_report(input,&receipt,&public,Default::default())?}),
+            )
+        }
         "verify-signature" => {
             let bytes = app::read_bytes(&args.path(1)?, 256 * 1024 * 1024)?;
             let signature = w::read_json(&args.path(2)?)?;

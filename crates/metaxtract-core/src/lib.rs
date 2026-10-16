@@ -38,3 +38,6 @@ impl Default for EngineInfo {
         }
     }
 }
+
+/// Registry metadata from the same native build used by extraction.
+pub use metaxtract_native::{ParserCapability, parser_capabilities};

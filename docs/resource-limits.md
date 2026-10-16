@@ -50,8 +50,12 @@ is 120 seconds. Scan-wide deadlines are optional. Pause/cancel and ordinary file
 A 4 GiB planned-memory budget admits jobs by conservative reservations. Result records have a
 256 MiB retained-size ceiling; the wire/SQLite blob ceiling is 1 GiB. Reservations and retained-size
 estimates are not measurements of aggregate RSS. Worker processes additionally enforce Linux
-address-space, macOS data-segment or Windows process-memory limits. macOS does not offer the
-same address-space guarantee as Linux through this interface.
+address-space or Windows Job Object process-memory limits. On macOS, large reserved allocator
+zones prevent useful data-segment limits; the Rust parent samples physical footprint using the
+native OS API, approximately every 10 ms, with possible brief overshoot. Sanitizer builds
+set ASan's `hard_rss_limit_mb` because ASan reserves a multi-terabyte virtual shadow; its runtime
+polls physical memory. Normal Linux builds retain the hard address-space limit.
+See the [AddressSanitizer mapping note](https://clang.llvm.org/docs/AddressSanitizer.html#limitations).
 
 Each worker receives a private captured file whose hashes match the evidence read. It never
 receives the original writable evidence handle. Timeout, cancellation, crash and malformed output

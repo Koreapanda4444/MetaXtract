@@ -12,6 +12,7 @@ pub enum Purpose {
     Preview,
     GeoJson,
     Kml,
+    Workflow(crate::workflows::Field),
 }
 pub struct Picker {
     pub purpose: Purpose,

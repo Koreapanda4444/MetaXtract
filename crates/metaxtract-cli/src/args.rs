@@ -60,7 +60,7 @@ impl Args {
             ),
             "keygen" => (3, 3, &["name", "password-stdin"]),
             "sign" => (3, 3, &["key", "name", "password-stdin"]),
-            "verify-signature" => (4, 4, &[]),
+            "verify-signature" | "verify-report" => (4, 4, &[]),
             "bundle" => match self.word(1)?.as_str() {
                 "export" => (4, 4, &["key", "name", "password-stdin"]),
                 "verify" => (3, 3, &["public-key"]),
