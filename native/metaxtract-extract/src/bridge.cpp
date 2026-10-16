@@ -135,6 +135,8 @@ metaxtract::native::ResourceLimits convert_limits(const FfiResourceLimits limits
         .max_entries = limits.max_entries,
         .max_observations = limits.max_observations,
         .max_wall_time_ms = limits.max_wall_time_ms,
+        .max_member_bytes = limits.max_member_bytes,
+        .max_expansion_ratio = limits.max_expansion_ratio,
     };
 }
 

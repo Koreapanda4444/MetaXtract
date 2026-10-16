@@ -58,6 +58,11 @@ Retained regressions include archive error reporting after a read-budget failure
 before archive initialization with an unusable allocation budget, and malformed PDF Flate
 cross-reference data. These inputs must produce bounded, recoverable errors and retain earlier fields.
 
+Archive fixtures also check ZIP/TAR and gzip/bzip2/xz filters, member and allocation ceilings,
+compressed PAX headers, and skipped special members. CLI checks nest stored ZIPs to verify that
+expansion budgets accumulate across the entire tree and that configurable limits retain partial
+observations instead of silently dropping evidence.
+
 For the rules these checks protect, see [architecture](../docs/architecture.md),
 [the language boundary](../docs/ffi.md), and [parser resource limits](../docs/resource-limits.md).
 

@@ -252,6 +252,8 @@ pub(crate) mod bridge {
         max_entries: u32,
         max_observations: u32,
         max_wall_time_ms: u32,
+        max_member_bytes: u64,
+        max_expansion_ratio: u32,
     }
 
     struct FfiBudgetStatus {

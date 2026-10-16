@@ -7,7 +7,7 @@ use metaxtract_app::{self as app, analysis, core::scan::ScanControl, storage};
 use serde_json::{Value, json};
 use std::io;
 
-const HELP: &str = "MetaXtract Rust CLI\n  scan ROOT --case CASE [--workers N] [--journal PATH] [--resume RUN --scan ID]\n  inspect FILE\n  compare CASE OLD_SCAN NEW_SCAN\n  preview CASE RECORD_ID FILE\n  verify CASE\n  case create CASE [TITLE]\n  case info|history CASE\n  case notes CASE TEXT\n  search CASE SCAN [--query TEXT --limit N --cursor JSON --save NAME]\n  export|redact CASE SCAN OUTPUT [--format csv|jsonl --profile JSON]\n  redact CASE SCAN --preview RECORD_ID\n  report CASE SCAN OUTPUT [--format html|json --title TEXT --analyst NAME]\n  analyze CASE SCAN [--view dashboard|timeline|locations|duplicates|findings]\n  import CASE INPUT [--kind jsonl|python|python-bundle]\n  keygen PRIVATE_PEM PUBLIC_PEM --name NAME --password-stdin\n  sign INPUT SIGNATURE --key PRIVATE_PEM --password-stdin\n  verify-signature INPUT SIGNATURE PUBLIC_PEM\n  verify-report REPORT RECEIPT PUBLIC_PEM\n  bundle export CASE OUTPUT [--key PRIVATE_PEM --password-stdin]\n  bundle verify INPUT [--public-key PEM]\n  bundle open INPUT CASE [--public-key PEM]\n\nBuild the bundled metaxtract-worker beside this executable. / 전용 파서 실행 파일을 함께 빌드하세요.";
+const HELP: &str = "MetaXtract Rust CLI\n  scan ROOT --case CASE [--workers N] [--journal PATH] [--resume RUN --scan ID]\n    [--max-member-bytes N --max-decoded-bytes N --max-tree-bytes N --max-expansion-ratio N]\n  inspect FILE [--max-member-bytes N --max-decoded-bytes N --max-tree-bytes N --max-expansion-ratio N]\n  compare CASE OLD_SCAN NEW_SCAN\n  preview CASE RECORD_ID FILE\n  verify CASE\n  case create CASE [TITLE]\n  case info|history CASE\n  case notes CASE TEXT\n  search CASE SCAN [--query TEXT --limit N --cursor JSON --save NAME]\n  export|redact CASE SCAN OUTPUT [--format csv|jsonl --profile JSON]\n  redact CASE SCAN --preview RECORD_ID\n  report CASE SCAN OUTPUT [--format html|json --title TEXT --analyst NAME]\n  analyze CASE SCAN [--view dashboard|timeline|locations|duplicates|findings]\n  import CASE INPUT [--kind jsonl|python|python-bundle]\n  keygen PRIVATE_PEM PUBLIC_PEM --name NAME --password-stdin\n  sign INPUT SIGNATURE --key PRIVATE_PEM --password-stdin\n  verify-signature INPUT SIGNATURE PUBLIC_PEM\n  verify-report REPORT RECEIPT PUBLIC_PEM\n  bundle export CASE OUTPUT [--key PRIVATE_PEM --password-stdin]\n  bundle verify INPUT [--public-key PEM]\n  bundle open INPUT CASE [--public-key PEM]\n\nBuild the bundled metaxtract-worker beside this executable. / 전용 파서 실행 파일을 함께 빌드하세요.";
 fn run(a: &Args) -> io::Result<Value> {
     match a.word(0)?.as_str() {
         "scan" => {
@@ -15,6 +15,7 @@ fn run(a: &Args) -> io::Result<Value> {
                 io::Error::new(io::ErrorKind::InvalidInput, "scan requires --case PATH")
             })?;
             let mut request = app::scan::ScanRequest::new(a.path(1)?, case);
+            resource_policy(a, &mut request)?;
             if let Some(p) = a.flag_path("journal") {
                 request.journal_path = p;
             }
@@ -65,11 +66,9 @@ fn run(a: &Args) -> io::Result<Value> {
         "inspect" => {
             let temp = tempfile::tempdir()?;
             let path = temp.path().join("inspect.mxcase");
-            let result = app::scan::run(
-                &app::scan::ScanRequest::new(a.path(1)?, path.clone()),
-                ScanControl::new(),
-                |_| Ok(()),
-            )?;
+            let mut request = app::scan::ScanRequest::new(a.path(1)?, path.clone());
+            resource_policy(a, &mut request)?;
+            let result = app::scan::run(&request, ScanControl::new(), |_| Ok(()))?;
             let case = app::open_case(&path, false)?;
             let q = analysis::search::parse(&result.scan_id, "")?;
             Ok(json!({"summary":result,"records":app::collect(&case,&q)?}))
@@ -132,6 +131,35 @@ fn run(a: &Args) -> io::Result<Value> {
         },
         _ => workflows::run(a),
     }
+}
+
+fn resource_policy(args: &Args, request: &mut app::scan::ScanRequest) -> io::Result<()> {
+    let limits = &mut request.options.recursive;
+    for (flag, target) in [
+        ("max-member-bytes", &mut limits.max_member_bytes),
+        ("max-tree-bytes", &mut limits.max_total_input_bytes),
+        ("max-decoded-bytes", &mut limits.parser.max_decoded_bytes),
+    ] {
+        if let Some(value) = args.flag(flag) {
+            *target = value
+                .parse::<u64>()
+                .ok()
+                .filter(|n| *n > 0)
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("--{flag} requires positive bytes"),
+                    )
+                })?;
+        }
+    }
+    limits.parser.max_member_bytes = limits.max_member_bytes;
+    if let Some(value) = args.flag("max-expansion-ratio") {
+        limits.parser.max_expansion_ratio = value
+            .parse::<u32>()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid expansion ratio"))?;
+    }
+    Ok(())
 }
 fn main() {
     let mut command = None;

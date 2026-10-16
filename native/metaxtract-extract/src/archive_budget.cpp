@@ -5,12 +5,27 @@
 #include <limits>
 
 namespace metaxtract::native::formats {
-namespace { thread_local ParserBudget* current = nullptr; }
-ArchiveBudgetScope::ArchiveBudgetScope(ParserBudget& budget) noexcept : previous(current) { current = &budget; }
-ArchiveBudgetScope::~ArchiveBudgetScope() { current = previous; }
-bool archive_charge(const std::size_t size) noexcept {
-    return !current || current->reserve_library_allocation(size);
+namespace {
+thread_local ParserBudget* current = nullptr;
+thread_local std::size_t emergency_remaining = 0;
 }
+ArchiveBudgetScope::ArchiveBudgetScope(ParserBudget& budget) noexcept
+    : previous(current), previous_emergency(emergency_remaining) {
+    current = &budget; emergency_remaining = emergency_bytes;
+}
+ArchiveBudgetScope::~ArchiveBudgetScope() { current = previous; emergency_remaining = previous_emergency; }
+bool archive_charge(const std::size_t size) noexcept {
+    if (!current || current->reserve_library_allocation(size)) { return true; }
+    // Already charged before entering C. Error strings must remain allocatable
+    // after the ordinary ceiling is exhausted; libarchive treats OOM as fatal.
+    if (size > emergency_remaining) { return false; }
+    emergency_remaining -= size;
+    return true;
+}
+}
+extern "C" int metaxtract_archive_decode(std::size_t count) {
+    using namespace metaxtract::native::formats;
+    return !current || current->consume_decoded(count);
 }
 extern "C" void* metaxtract_archive_malloc(std::size_t count) {
     return metaxtract::native::formats::archive_charge(count) ? std::malloc(count) : nullptr;

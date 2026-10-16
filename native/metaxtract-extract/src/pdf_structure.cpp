@@ -111,7 +111,8 @@ std::vector<std::uint8_t> stream_bytes(Reader& r, QPDFObjectHandle stream, bool 
     std::vector<std::uint8_t> data;
     Pl_Function output("metaxtract bounded PDF stream", nullptr, [&](const unsigned char* bytes, std::size_t length) {
         r.checkpoint();
-        if (!r.context.budget().consume_decoded(length) || !r.context.budget().reserve_allocation(static_cast<std::uint64_t>(length) * 2)) {
+        if (length > UINT64_MAX - data.size() || !r.context.budget().check_member_size(data.size() + length) ||
+            !r.context.budget().consume_decoded(length) || !r.context.budget().reserve_allocation(static_cast<std::uint64_t>(length) * 2)) {
             throw Failure{ParseStatus::Internal, "PDF stream output limit exceeded", r.base};
         }
         data.insert(data.end(), bytes, bytes + length);

@@ -51,7 +51,7 @@ void signed_number(Reader& reader, const std::string& key, const std::int64_t va
 }
 
 ParseStatus inspect_archive(Reader& source) {
-    if (!source.context.budget().reserve_allocation(64 * 1024)) {
+    if (!source.context.budget().reserve_allocation(ArchiveBudgetScope::emergency_bytes)) {
         throw Failure{ParseStatus::AllocationFailure, "Archive working memory budget exceeded", 0};
     }
     ArchiveBudgetScope budget(source.context.budget());
@@ -75,6 +75,7 @@ ParseStatus inspect_archive(Reader& source) {
     archive_read_set_read_callback(library, read_block);
     archive_read_set_seek_callback(library, seek_block);
     archive_read_set_skip_callback(library, skip_block);
+    source.checkpoint();
     if (archive_read_open1(library) != ARCHIVE_OK) {
         throw Failure{input.failed ? ParseStatus::ReadFailure : ParseStatus::Malformed, "Archive header/filter could not be opened", 0};
     }
@@ -135,6 +136,10 @@ ParseStatus inspect_archive(Reader& source) {
             if (archive_read_data_skip(library) < ARCHIVE_WARN) { throw Failure{ParseStatus::Malformed, "Archive special member cannot be skipped", 0}; }
             continue;
         }
+        if (archive_entry_size_is_set(entry) && declared >= 0 &&
+            !source.context.budget().check_member_size(static_cast<std::uint64_t>(declared))) {
+            throw Failure{ParseStatus::Internal, "Archive member size exceeds policy", 0};
+        }
         std::vector<std::uint8_t> payload;
         while (true) {
             field.checkpoint();
@@ -146,6 +151,12 @@ ParseStatus inspect_archive(Reader& source) {
                 status = ParseStatus::Malformed; break;
             }
             const auto end = static_cast<std::uint64_t>(at) + count;
+            if (static_cast<std::uint64_t>(at) < payload.size()) {
+                throw Failure{ParseStatus::Malformed, "Archive data blocks overlap or move backwards", 0};
+            }
+            if (!source.context.budget().check_member_size(end)) {
+                throw Failure{ParseStatus::Internal, "Archive sparse member extent exceeds policy", 0};
+            }
             if (end > payload.size()) {
                 const auto increase = end - payload.size();
                 if (increase > UINT64_MAX / 2) { throw Failure{ParseStatus::Malformed, "Archive sparse extent overflows allocation size", 0}; }

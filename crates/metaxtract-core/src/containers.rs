@@ -295,6 +295,15 @@ fn extract_input(
     {
         return Err(capacity_error(NativeErrorCode::SourceTooLarge));
     }
+    let root_expansion_limit = if limits.parser.max_expansion_ratio == 0 {
+        u64::MAX
+    } else {
+        input
+            .size()
+            .saturating_mul(u64::from(limits.parser.max_expansion_ratio))
+    };
+    let decoded_limit = limits.parser.max_decoded_bytes.min(root_expansion_limit);
+    let member_limit = limits.max_member_bytes.min(limits.parser.max_member_bytes);
     let capabilities = parser_capabilities()?;
     let deadline = Instant::now() + Duration::from_millis(u64::from(limits.max_wall_time_ms));
     struct Work {
@@ -401,6 +410,7 @@ fn extract_input(
                 output.stopped = Some(NativeErrorCode::DeadlineExceeded);
                 break;
             }
+            let tree_remaining = limits.max_total_input_bytes.saturating_sub(queued_bytes);
             let available = ParserLimits {
                 max_source_bytes: if file_root {
                     limits.parser.max_source_bytes
@@ -415,10 +425,9 @@ fn extract_input(
                     .parser
                     .max_allocation_bytes
                     .saturating_sub(output.usage.allocation_bytes),
-                max_decoded_bytes: limits
-                    .parser
-                    .max_decoded_bytes
-                    .saturating_sub(output.usage.decoded_bytes),
+                max_decoded_bytes: decoded_limit.saturating_sub(output.usage.decoded_bytes),
+                max_member_bytes: member_limit.min(tree_remaining),
+                max_expansion_ratio: limits.parser.max_expansion_ratio,
                 max_entries: limits
                     .parser
                     .max_entries
@@ -433,7 +442,18 @@ fn extract_input(
                     .max_wall_time_ms
                     .min(remaining_ms.min(u128::from(u32::MAX)) as u32),
             };
-            let result = extract_parser(&input, id, available)?;
+            let mut result = extract_parser(&input, id, available)?;
+            if let Some(error) = &mut result.error {
+                if error.code == NativeErrorCode::DecodeBudgetExceeded
+                    && root_expansion_limit < limits.parser.max_decoded_bytes
+                {
+                    *error = capacity_error(NativeErrorCode::ExpansionRatioExceeded);
+                } else if error.code == NativeErrorCode::MemberSizeExceeded
+                    && tree_remaining < member_limit
+                {
+                    *error = capacity_error(NativeErrorCode::DecodeBudgetExceeded);
+                }
+            }
             output.usage.read_bytes = output
                 .usage
                 .read_bytes
@@ -455,8 +475,10 @@ fn extract_input(
                 if matches!(
                     error.code,
                     NativeErrorCode::ReadBudgetExceeded
+                        | NativeErrorCode::MemberSizeExceeded
                         | NativeErrorCode::AllocationBudgetExceeded
                         | NativeErrorCode::DecodeBudgetExceeded
+                        | NativeErrorCode::ExpansionRatioExceeded
                         | NativeErrorCode::EntryLimitExceeded
                         | NativeErrorCode::ObservationLimitExceeded
                         | NativeErrorCode::DeadlineExceeded
@@ -497,10 +519,12 @@ fn extract_input(
                 }
                 let child_size = payload.len() as u64;
                 let charge = child_size.saturating_mul(2).saturating_add(4096);
-                if child_size > limits.max_member_bytes
-                    || queued_bytes.saturating_add(child_size) > limits.max_total_input_bytes
-                {
-                    output.stopped = Some(NativeErrorCode::SourceTooLarge);
+                if child_size > member_limit {
+                    output.stopped = Some(NativeErrorCode::MemberSizeExceeded);
+                    continue;
+                }
+                if queued_bytes.saturating_add(child_size) > limits.max_total_input_bytes {
+                    output.stopped = Some(NativeErrorCode::DecodeBudgetExceeded);
                     continue;
                 }
                 if output.usage.allocation_bytes.saturating_add(charge)
@@ -570,9 +594,11 @@ fn extract_input(
                 matches!(
                     code,
                     NativeErrorCode::DeadlineExceeded
+                        | NativeErrorCode::MemberSizeExceeded
                         | NativeErrorCode::ReadBudgetExceeded
                         | NativeErrorCode::AllocationBudgetExceeded
                         | NativeErrorCode::DecodeBudgetExceeded
+                        | NativeErrorCode::ExpansionRatioExceeded
                         | NativeErrorCode::EntryLimitExceeded
                         | NativeErrorCode::ObservationLimitExceeded
                 )
@@ -588,6 +614,7 @@ fn extract_input(
                     | NativeErrorCode::ReadBudgetExceeded
                     | NativeErrorCode::AllocationBudgetExceeded
                     | NativeErrorCode::DecodeBudgetExceeded
+                    | NativeErrorCode::ExpansionRatioExceeded
                     | NativeErrorCode::ObservationLimitExceeded
             )
         }) {

@@ -77,6 +77,12 @@
       "name": "pdf-malformed-flate-xref",
       "parser": "*",
       "base64": "JVBERi0xLjcKMSAwIG9iago8PCAvVHlwZSAvWFJlZiAvU2l6ZSAxIC9XIFsxIDEgMV0gL0xlbmd0aCAyIC9GaWx0ZXIgL0ZsYXRlRGVjb2RlID4+CnN0cmVhbQp4eAplbmRzdHJlYW0KZW5kb2JqCnN0YXJ0eHJlZgo5CiUlRU9GCg=="
+    },
+    {
+      "name": "archive-initialization-near-allocation-budget",
+      "parser": "container.archive",
+      "budget": "allocation-near",
+      "base64": ""
     }
   ]
 }

@@ -4,7 +4,7 @@
 
 namespace metaxtract::native {
 
-inline constexpr std::uint32_t kApiRevision = 1;
+inline constexpr std::uint32_t kApiRevision = 2;
 inline constexpr std::uint32_t kSchemaRevision = 1;
 
 struct CoreInfo final {

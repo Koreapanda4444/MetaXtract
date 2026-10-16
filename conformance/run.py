@@ -119,7 +119,7 @@ def _fuzz_requests(count: int, seed: int) -> list[tuple[str, str]]:
             data = base64.b64decode(case["base64"], validate=True)[:65536]
             seeds.append((path.stem + "/" + case.get("name", case.get("id", "seed")), case["parser"], data, case.get("budget", "normal")))
     rng = random.Random(seed)
-    modes = ("normal", "read", "allocation", "decoded", "depth", "entries", "observations", "short")
+    modes = ("normal", "read", "allocation", "decoded", "depth", "entries", "observations", "short", "member", "ratio", "allocation-near")
     result = []
     # Retained regressions always replay, even when new mutation count is zero.
     for label, parser, data, mode in seeds:
@@ -148,7 +148,7 @@ def _fuzz_requests(count: int, seed: int) -> list[tuple[str, str]]:
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool,
                     fuzz_cases: int = 256, fuzz_seed: int = 0x4d58) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
-    wanted = ["INFO\t1\t1\t22", "SCHEMA\tOK"]
+    wanted = ["INFO\t2\t1\t22", "SCHEMA\tOK"]
     request_labels = ["build info", "schema invariants"]
     extraction_cases = _read_json(ROOT / "conformance" / "corpus" / "images.json")["cases"]
     for corpus_path in sorted((ROOT / "conformance" / "corpus").glob("native-*.json")):
@@ -158,7 +158,7 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
         data = base64.b64decode(case["base64"], validate=True)
         selected = ",".join(case["fields"])
         request = f"EXTRACT\t{data.hex()}\t{case['parser']}\t{selected}\t{case['read_max']}\t{case['observation_max']}"
-        request += f"\t{case.get('allocation_max', 512 * 1024 * 1024)}\t{case.get('decoded_max', 256 * 1024 * 1024)}\t{case.get('depth_max', 32)}\t{case.get('entries_max', 100000)}"
+        request += f"\t{case.get('allocation_max', 512 * 1024 * 1024)}\t{case.get('decoded_max', 256 * 1024 * 1024)}\t{case.get('depth_max', 32)}\t{case.get('entries_max', 100000)}\t{case.get('member_max', 64 * 1024 * 1024)}\t{case.get('ratio_max', 1000)}"
         requests.append(request)
         fields = ";".join(key + "=" + "|".join(values) for key, values in case["fields"].items())
         wanted.append(f"EXTRACT\t{case['status']}\t{fields}")
@@ -374,6 +374,34 @@ def _compare_cli(release: bool) -> list[str]:
             invoke("verify-report", report, receipt, public)
             report.write_bytes(report.read_bytes() + b"changed")
             invoke("verify-report", report, receipt, public, code=4)
+            # Each stored ZIP expands by less than 2x; only the shared tree
+            # ceiling can catch the cumulative cost across recursive calls.
+            import io
+            import zipfile
+            nested = bytes(range(256)) * 16
+            for _ in range(3):
+                buffer = io.BytesIO()
+                with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as archive:
+                    archive.writestr("inside.zip", nested)
+                nested = buffer.getvalue()
+            container = root / "nested.zip"
+            container.write_bytes(nested)
+            limited = invoke("inspect", container, "--max-expansion-ratio", 2)
+            codes = {d["code"] for r in limited["records"] for d in r["diagnostics"]}
+            if "recursive.ExpansionRatioExceeded" not in codes or len(limited["records"]) < 2:
+                raise ValueError("recursive expansion budget reset between nested members")
+            expanded = invoke("inspect", container, "--max-expansion-ratio", 0)
+            if len(expanded["records"]) != 4:
+                raise ValueError("bounded nested ZIP exploration lost members")
+            for flag, code in [("--max-member-bytes", "MemberSizeExceeded"),
+                               ("--max-tree-bytes", "DecodeBudgetExceeded")]:
+                limited = invoke("inspect", container, flag, 32)
+                codes = {d["code"] for r in limited["records"] for d in r["diagnostics"]}
+                if len(limited["records"]) != 1 or "recursive." + code not in codes:
+                    raise ValueError(f"{flag} did not stop decoding before queuing a member")
+                if not limited["records"][0]["observations"]:
+                    raise ValueError("resource limit discarded earlier archive metadata")
+            invoke("inspect", container, "--max-member-bytes", 0, code=2)
 
         return []
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:

@@ -30,13 +30,36 @@ The current defaults in `ParserLimits` are:
 | Container entries | 10,000 |
 | Observations | 250,000 |
 | Wall time per parser | 30,000 ms |
+| Nested member / selected stream size | 64 MiB |
+| Decoded expansion relative to source | 1,000x |
 
 Rust input callbacks additionally cap an individual read at 1 MiB. These are safety ceilings
-rather than format validity rules and can later be exposed as scan-policy settings.
+rather than format validity rules. Rust callers can customize the policy; the CLI exposes the
+four expansion limits listed below.
 
 Crossing a limit returns a specific recoverable error. The initial image adapter and extraction
 transport retain observations emitted before a failure. The conformance-only
 fixture parser exercises every budget and the exception boundary through the same dispatcher.
+
+Archive limits apply during decoding, before a child payload is allocated or queued. ZIP
+declarations and sparse extents are checked before materialization; overlapping/backward blocks
+are rejected. The pinned libarchive reader is built with guards on both normal and skipped
+compressed filter reads, including compressed headers and special members. Filter stages and
+materialized member output each charge decoded work, so layered compression cannot hide work
+inside a library skip. A 64 KiB allowance, charged before entering the C library, keeps error
+reporting possible when its ordinary allocation budget is exhausted.
+
+Rust subtracts already charged read/allocation/decoded work across all parsers and descendants.
+The expansion ceiling also uses the original root size for the whole tree; it does not reset at
+each nested member. Byte arithmetic saturates or checks overflow before multiplication or copying.
+Limit failures retain earlier observations and mark the scan as partial; they do not establish
+that the remaining file is safe or empty. The native API revision is 2 for the additional policy
+fields. Old serialized policies default these fields, and old case records remain readable.
+
+`scan` and `inspect` accept `--max-member-bytes`, `--max-decoded-bytes`, `--max-tree-bytes`, and
+`--max-expansion-ratio`. A ratio of `0` disables only the ratio ceiling; byte, time and worker
+memory limits still apply. For example, `metaxtract inspect evidence.zip --max-expansion-ratio 2000`
+permits more expansion while retaining the other defaults. The desktop currently uses the defaults.
 
 See the [boundary contract](ffi.md) and [conformance guide](../conformance/README.md).
 

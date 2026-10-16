@@ -59,6 +59,8 @@ fn fuzz(bytes: Vec<u8>, parser: &str, mode: &str) -> Result<(), Box<dyn Error>> 
         max_entries: 256,
         max_observations: 256,
         max_wall_time_ms: 250,
+        max_member_bytes: 1024 * 1024,
+        max_expansion_ratio: 1000,
     };
     match mode {
         "normal" | "short" => {}
@@ -68,6 +70,9 @@ fn fuzz(bytes: Vec<u8>, parser: &str, mode: &str) -> Result<(), Box<dyn Error>> 
         "depth" => limits.max_container_depth = 0,
         "entries" => limits.max_entries = 0,
         "observations" => limits.max_observations = 0,
+        "member" => limits.max_member_bytes = 0,
+        "ratio" => limits.max_expansion_ratio = 1,
+        "allocation-near" => limits.max_allocation_bytes = 65 * 1024,
         _ => return Err("unknown fuzz budget mode".into()),
     }
     let input = BoundedInput::from_bytes(
@@ -256,6 +261,16 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
                         .map(|v| v.parse())
                         .transpose()?
                         .unwrap_or(ParserLimits::default().max_entries),
+                    max_member_bytes: options
+                        .get(4)
+                        .map(|v| v.parse())
+                        .transpose()?
+                        .unwrap_or(ParserLimits::default().max_member_bytes),
+                    max_expansion_ratio: options
+                        .get(5)
+                        .map(|v| v.parse())
+                        .transpose()?
+                        .unwrap_or(ParserLimits::default().max_expansion_ratio),
                     ..ParserLimits::default()
                 },
             )?;
@@ -414,6 +429,7 @@ fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
                 max_entries: 2,
                 max_observations: 2,
                 max_wall_time_ms: wall_time.parse()?,
+                ..ParserLimits::default()
             };
             for _ in 0..repetitions.parse::<usize>()? {
                 match run_parser(&input, "conformance.resource_limits", limits) {

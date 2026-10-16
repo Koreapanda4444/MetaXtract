@@ -12,6 +12,7 @@ void* metaxtract_archive_calloc(size_t, size_t);
 void* metaxtract_archive_realloc(void*, size_t);
 char* metaxtract_archive_strdup(const char*);
 wchar_t* metaxtract_archive_wcsdup(const wchar_t*);
+int metaxtract_archive_decode(size_t);
 #ifdef __cplusplus
 }
 #endif

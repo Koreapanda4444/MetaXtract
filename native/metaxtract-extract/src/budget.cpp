@@ -6,6 +6,7 @@ namespace metaxtract::native {
 
 ParserBudget::ParserBudget(ResourceLimits limits, const std::uint64_t source_size) noexcept
     : limits_(limits),
+      source_size_(source_size),
       status_(source_size <= limits.max_source_bytes ? BudgetStatus::Ok : BudgetStatus::SourceBytes),
       deadline_(
           std::chrono::steady_clock::now()
@@ -36,7 +37,21 @@ bool ParserBudget::reserve_library_allocation(const std::uint64_t amount) noexce
 }
 
 bool ParserBudget::consume_decoded(const std::uint64_t amount) noexcept {
+    if (!checkpoint()) { return false; }
+    if (amount > limits_.max_decoded_bytes - decoded_bytes_) { return fail(BudgetStatus::DecodedBytes); }
+    if (!check_expansion(decoded_bytes_ + amount, source_size_)) { return false; }
     return consume(decoded_bytes_, amount, limits_.max_decoded_bytes, BudgetStatus::DecodedBytes);
+}
+
+bool ParserBudget::check_member_size(const std::uint64_t size) noexcept {
+    return checkpoint() && (size <= limits_.max_member_bytes || fail(BudgetStatus::MemberBytes));
+}
+
+bool ParserBudget::check_expansion(const std::uint64_t decoded, const std::uint64_t encoded) noexcept {
+    if (!checkpoint()) { return false; }
+    const auto ratio = limits_.max_expansion_ratio;
+    if (ratio == 0 || encoded > UINT64_MAX / ratio) { return true; }
+    return decoded <= encoded * ratio || fail(BudgetStatus::ExpansionRatio);
 }
 
 bool ParserBudget::check_depth(const std::uint32_t depth) noexcept {

@@ -12,7 +12,7 @@ pub use extraction::{
 
 use std::{error::Error, fmt, fs::File};
 
-pub const NATIVE_API_REVISION: u32 = 1;
+pub const NATIVE_API_REVISION: u32 = 2;
 pub const NATIVE_SCHEMA_REVISION: u32 = 1;
 
 /// Configure child limits; macOS uses parent monitoring and ASan its runtime RSS limit.
@@ -50,6 +50,8 @@ pub enum NativeErrorCode {
     ObservationLimitExceeded,
     DeadlineExceeded,
     MalformedData,
+    MemberSizeExceeded,
+    ExpansionRatioExceeded,
     Unknown(u32),
 }
 
@@ -73,6 +75,8 @@ impl From<u32> for NativeErrorCode {
             16 => Self::ObservationLimitExceeded,
             17 => Self::DeadlineExceeded,
             18 => Self::MalformedData,
+            19 => Self::MemberSizeExceeded,
+            20 => Self::ExpansionRatioExceeded,
             other => Self::Unknown(other),
         }
     }
@@ -146,6 +150,17 @@ pub struct ParserLimits {
     pub max_entries: u32,
     pub max_observations: u32,
     pub max_wall_time_ms: u32,
+    #[serde(default = "default_member_bytes")]
+    pub max_member_bytes: u64,
+    #[serde(default = "default_expansion_ratio")]
+    pub max_expansion_ratio: u32,
+}
+
+fn default_member_bytes() -> u64 {
+    64 * 1024 * 1024
+}
+fn default_expansion_ratio() -> u32 {
+    1000
 }
 
 impl Default for ParserLimits {
@@ -159,6 +174,8 @@ impl Default for ParserLimits {
             max_entries: 10_000,
             max_observations: 250_000,
             max_wall_time_ms: 30_000,
+            max_member_bytes: default_member_bytes(),
+            max_expansion_ratio: default_expansion_ratio(),
         }
     }
 }
@@ -182,6 +199,8 @@ impl ParserLimits {
             max_entries: self.max_entries,
             max_observations: self.max_observations,
             max_wall_time_ms: self.max_wall_time_ms,
+            max_member_bytes: self.max_member_bytes,
+            max_expansion_ratio: self.max_expansion_ratio,
         }
     }
 }
@@ -356,6 +375,8 @@ fn error_message(code: NativeErrorCode) -> &'static str {
         NativeErrorCode::ObservationLimitExceeded => "metadata observation limit exceeded",
         NativeErrorCode::DeadlineExceeded => "parser deadline exceeded",
         NativeErrorCode::MalformedData => "native parser found a malformed structure",
+        NativeErrorCode::MemberSizeExceeded => "decoded member size limit exceeded",
+        NativeErrorCode::ExpansionRatioExceeded => "decoded expansion ratio limit exceeded",
         NativeErrorCode::Unknown(_) => "native extraction returned an unknown error",
     }
 }

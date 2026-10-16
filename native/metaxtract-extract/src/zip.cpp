@@ -241,6 +241,10 @@ std::vector<ZipEntry> zip_directory(Reader& source) {
 
 std::vector<std::uint8_t> zip_payload(Reader& source, const ZipEntry& entry) {
     if ((entry.flags & 0x2041U) != 0) { throw Failure{ParseStatus::Unsupported, "Encrypted ZIP metadata is not decoded", source.base + entry.data_offset}; }
+    if (!source.context.budget().check_member_size(entry.size) ||
+        !source.context.budget().check_expansion(entry.size, entry.compressed_size)) {
+        throw Failure{ParseStatus::Internal, "ZIP member expansion exceeds policy", source.base + entry.data_offset};
+    }
     auto compressed = source.read(entry.data_offset, entry.compressed_size);
     std::vector<std::uint8_t> bytes;
     if (entry.compression == 0) {
