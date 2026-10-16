@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+mod analysis;
 mod desktop;
 mod files;
 mod inspectors;

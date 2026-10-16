@@ -99,6 +99,8 @@ pub struct InvestigationReport {
     pub case_revision: u64,
     pub scan_id: String,
     pub scan: metaxtract_storage::ScanInfo,
+    #[serde(default)]
+    pub scan_statistics: Option<Value>,
     pub anchor: AuditAnchor,
     pub case_state_verified: bool,
     pub independently_anchored_prefix: bool,
@@ -163,6 +165,30 @@ pub fn build_report(
     let mut scan = case
         .scan_info(&query.records.scan_id)?
         .ok_or_else(|| invalid("report scan does not exist"))?;
+    let mut scan_statistics = case.scan_receipt(&query.records.scan_id, "application.summary")?;
+    if options.redaction.is_some() {
+        // Receipts can contain original evidence paths and decoder messages.
+        scan_statistics = scan_statistics.map(|s| {
+            let mut counts = serde_json::Map::new();
+            for key in [
+                "discovered",
+                "completed",
+                "failed",
+                "unstable",
+                "notices",
+                "bytes_hashed",
+            ] {
+                if let Some(v) = s
+                    .get("summary")
+                    .and_then(|v| v.get(key))
+                    .and_then(Value::as_u64)
+                {
+                    counts.insert(key.into(), v.into());
+                }
+            }
+            serde_json::json!({"summary": counts})
+        });
+    }
     if options.redaction.is_some() {
         scan.source = "[withheld]".into();
         scan.imported_from = None;
@@ -364,6 +390,7 @@ pub fn build_report(
         case_revision: info.revision,
         scan_id: query.records.scan_id.clone(),
         scan,
+        scan_statistics,
         anchor: anchor.clone(),
         case_state_verified: true,
         independently_anchored_prefix: options.expected_anchor.is_some(),

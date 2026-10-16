@@ -49,6 +49,8 @@ pub struct ScanOutcome {
     pub summary: ScanSummary,
     #[serde(default)]
     pub errors: Vec<ScanFailure>,
+    #[serde(default)]
+    pub engine_fingerprint: String,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ScanFailure {
@@ -190,7 +192,7 @@ pub fn run(
                 &scan,
                 &[],
                 "application.session",
-                &serde_json::json!({"run":run,"journal":journal,"root":root.original}),
+                &serde_json::json!({"run":run,"journal":journal,"root":root.original,"engine_fingerprint":engine_fingerprint()}),
             )?;
             saved = true;
         }
@@ -257,20 +259,20 @@ pub fn run(
     };
     match result {
         Ok((run, summary)) => {
-            case.finish_scan(
-                &scan,
-                match summary.stopped {
-                    None => ScanStatus::Completed,
-                    Some(StopReason::Cancelled) => ScanStatus::Cancelled,
-                    Some(_) => ScanStatus::Paused,
-                },
-            )?;
-            Ok(ScanOutcome {
+            let status = match summary.stopped {
+                None => ScanStatus::Completed,
+                Some(StopReason::Cancelled) => ScanStatus::Cancelled,
+                Some(_) => ScanStatus::Paused,
+            };
+            let outcome = ScanOutcome {
                 scan_id: scan,
                 run,
                 summary,
                 errors: failures,
-            })
+                engine_fingerprint: engine_fingerprint().into(),
+            };
+            case.finish_scan_with_summary(&outcome.scan_id, status, &outcome)?;
+            Ok(outcome)
         }
         Err(e) => {
             let _ = case.finish_scan(&scan, ScanStatus::Paused);

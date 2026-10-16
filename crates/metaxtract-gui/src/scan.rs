@@ -18,6 +18,7 @@ pub struct ScanUi {
     pub source: String,
     pub source_path: Option<PathBuf>,
     pub workers: usize,
+    pub decode_previews: bool,
     pub queue: VecDeque<PathBuf>,
     active: Option<Active>,
     pub latest: Option<app::scan::AppScanEvent>,
@@ -32,6 +33,7 @@ impl Default for ScanUi {
             source: String::new(),
             source_path: None,
             workers: 2,
+            decode_previews: false,
             queue: VecDeque::new(),
             active: None,
             latest: None,
@@ -69,6 +71,7 @@ impl Desktop {
         };
         let mut request = app::scan::ScanRequest::new(source, case.path().to_owned());
         request.workers = self.scan.workers;
+        request.options.recursive.preview = self.scan.decode_previews;
         if let Some((run, scan, journal)) = resume {
             request.resume = Some((run, scan));
             request.journal_path = journal;
@@ -124,6 +127,7 @@ impl Desktop {
         }
         if let Some(result) = finished {
             self.scan.active = None;
+            self.analysis.metrics_loaded = false;
             match result {
                 Ok(out) => {
                     self.scan.held |= out.summary.stopped.is_some();
@@ -174,6 +178,10 @@ impl Desktop {
     }
     pub fn scan_view(&mut self, ui: &mut egui::Ui) {
         ui.heading("Scan queue / 스캔 대기열");
+        ui.checkbox(
+            &mut self.scan.decode_previews,
+            "Decode previews for visual similarity / 시각적 유사성용 미리보기 디코딩",
+        );
         ui.label("Choose a file or directory. Results are saved as they arrive. / 파일·폴더를 선택하면 결과를 순서대로 저장합니다.");
         ui.horizontal(|ui| {
             if ui.text_edit_singleline(&mut self.scan.source).changed() {

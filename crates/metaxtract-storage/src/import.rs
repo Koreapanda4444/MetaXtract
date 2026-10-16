@@ -77,6 +77,25 @@ pub struct ImportReceipt {
 }
 
 impl CaseWorkspace {
+    /// Final status and its persisted file counts belong to the same audited transaction.
+    pub fn finish_scan_with_summary(
+        &self,
+        scan: &str,
+        status: crate::ScanStatus,
+        summary: &impl Serialize,
+    ) -> Result<()> {
+        crate::text(scan, 1024, false)?;
+        if status == crate::ScanStatus::Running {
+            return Err(invalid("invalid final scan status"));
+        }
+        let data = codec::encode(summary, 16 * 1024 * 1024)?;
+        self.write_named("finish_scan", |tx| {
+            let changed = tx.execute("UPDATE scans SET status=?1,finished_ms=?2 WHERE id=?3 AND status IN('running','paused')", params![status.as_str(),now_ms()?,scan]).map_err(db)?;
+            if changed != 1 { return Err(invalid("scan cannot be finalized")); }
+            tx.execute("INSERT INTO scan_receipts(scan_id,key,data,digest) VALUES(?1,'application.summary',?2,?3) ON CONFLICT(scan_id,key) DO UPDATE SET data=excluded.data,digest=excluded.digest",params![scan,data,Sha256::digest(&data).as_slice()]).map_err(db)?;
+            Ok(())
+        })
+    }
     pub fn scan_receipt(&self, scan: &str, key: &str) -> Result<Option<Value>> {
         crate::text(scan, 1024, false)?;
         crate::text(key, 1024, false)?;

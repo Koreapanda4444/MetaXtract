@@ -157,3 +157,17 @@ the compared IDs, query and case revision, distinguishes added/removed/changed/m
 and opens each changed field's before/after value beside semantic claim changes. Binary changes
 use length and SHA-256 rather than large byte arrays. Pause active scans for a consistent
 comparison; a revision change aborts the operation.
+
+### Analysis views
+
+**Analysis** includes whole-case totals, a revision-bound dashboard, provenance-linked timeline,
+offline longitude/latitude plot, exact hash groups, visual similarity and severity-filtered findings.
+The current record filter or selected IDs define the analysis scope. File completion/failure counts
+are persisted atomically with scan status and survive reopening; older imports may lack these counts.
+GeoJSON/KML export contains all valid locations. The plot caps drawn points at 5,000 and exposes
+all samples in the paged display. Invalid coordinates stay in diagnostics. Tracks require explicit
+path-to-group assignments and resolved time zones; points are never linked by guesswork.
+
+Enable **Decode previews** on a new scan to retain bounded native-decoded image fingerprints for
+visual comparisons. Missing fingerprints are shown as coverage gaps. Similarity and anomaly flags
+are leads for review and do not establish common authorship or tampering.

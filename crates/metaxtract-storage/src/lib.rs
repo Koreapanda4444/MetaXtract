@@ -58,6 +58,16 @@ pub struct CaseInfo {
     pub revision: u64,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CaseTotals {
+    pub scans: u64,
+    pub records: u64,
+    pub observations: u64,
+    pub claims: u64,
+    pub conflicts: u64,
+    pub diagnostics: u64,
+}
+
 pub struct CaseWorkspace {
     pub(crate) conn: Mutex<Connection>,
     path: PathBuf,
@@ -66,6 +76,9 @@ pub struct CaseWorkspace {
 }
 
 impl CaseWorkspace {
+    pub fn totals(&self) -> Result<CaseTotals> {
+        self.lock()?.query_row("SELECT (SELECT count(*) FROM scans),(SELECT count(*) FROM records),(SELECT count(*) FROM raw_fields),(SELECT count(*) FROM normalized_claims),(SELECT count(*) FROM conflicts),(SELECT count(*) FROM diagnostics)", [], |r| Ok(CaseTotals { scans: r.get(0)?, records:r.get(1)?, observations:r.get(2)?, claims:r.get(3)?, conflicts:r.get(4)?, diagnostics:r.get(5)? })).map_err(db)
+    }
     pub fn create(path: impl AsRef<Path>, title: &str) -> Result<Self> {
         text(title, 4096, false)?;
         let path = path.as_ref();

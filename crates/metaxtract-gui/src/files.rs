@@ -10,6 +10,8 @@ pub enum Purpose {
     Csv,
     Jsonl,
     Preview,
+    GeoJson,
+    Kml,
 }
 pub struct Picker {
     pub purpose: Purpose,
