@@ -56,6 +56,7 @@ def build() -> tuple[dict[str, Path], Path]:
 
 def copy_licenses(root: Path, native: Path) -> None:
     shutil.copytree(native / "share/metaxtract/licenses", root / "licenses/native")
+    print("Collecting Rust dependency notices", file=sys.stderr, flush=True)
     metadata = json.loads(runtime.output("cargo", "metadata", "--locked", "--format-version", "1"))
     inventory = []
     for package in metadata["packages"]:
@@ -190,6 +191,7 @@ def sources(destination: Path, revision: str, dirty: bool) -> list[dict]:
             source = ROOT / "target/native-sources" / (dependency["name"].lower() + "-" + dependency["revision"])
             if not source.is_dir():
                 continue  # Planned, unused dependencies are not distributed libraries.
+            print("Archiving native source: " + dependency["name"], file=sys.stderr, flush=True)
             process = subprocess.Popen(["git", "-C", str(source), "archive", dependency["revision"]], stdout=subprocess.PIPE)
             assert process.stdout is not None
             with tarfile.open(fileobj=process.stdout, mode="r|") as incoming:
@@ -200,7 +202,13 @@ def sources(destination: Path, revision: str, dirty: bool) -> list[dict]:
                     if item.islnk():
                         item.linkname = prefix + item.linkname
                     archive.addfile(item, stream)
-            if process.wait():
+            # Git may write another complete zero-filled tar block after the first
+            # EOF header. Drain it before waiting: Windows pipes can be smaller
+            # than that block, leaving the producer blocked otherwise.
+            while process.stdout.read(65536):
+                pass
+            process.stdout.close()
+            if process.wait(timeout=60):
                 raise ValueError("could not archive reviewed dependency source")
             included.append(dependency)
         data = json.dumps({"git_commit": revision, "source_dirty": dirty, "native_sources": included}, indent=2).encode()
@@ -217,6 +225,53 @@ def sources(destination: Path, revision: str, dirty: bool) -> list[dict]:
     return included
 
 
+def source_archive_fixture() -> None:
+    """Exercise Git's extra tar trailer block through the real source packer."""
+    global ROOT
+    original = ROOT
+    with tempfile.TemporaryDirectory(prefix="metaxtract-source-pipe-") as temporary:
+        base = Path(temporary)
+        upstream, app, hooks = base / "upstream", base / "application", base / "hooks"
+        for path in (upstream, app, hooks):
+            path.mkdir()
+
+        def git(repo: Path, *args: str) -> str:
+            return subprocess.check_output(["git", "-C", str(repo), *args], text=True,
+                                           encoding="utf-8", stderr=subprocess.STDOUT, timeout=30).strip()
+
+        def commit(repo: Path) -> str:
+            git(repo, "add", ".")
+            git(repo, "-c", "user.name=Archive fixture", "-c", "user.email=fixture@example.invalid",
+                "-c", "commit.gpgsign=false", "-c", "core.hooksPath=" + str(hooks),
+                "commit", "-qm", "source pipe fixture")
+            return git(repo, "rev-parse", "HEAD")
+
+        git(upstream, "init", "-q")
+        # The commit pax header, file header and 8192-byte payload leave only
+        # one EOF record in Git's current block, forcing another full block.
+        payload = b"P" * 8192
+        (upstream / "payload.bin").write_bytes(payload)
+        revision = commit(upstream)
+        git(app, "init", "-q")
+        (app / "third-party.lock.toml").write_text(
+            '[[dependency]]\nname = "PipeFixture"\nrevision = "' + revision + '"\n', encoding="utf-8")
+        commit(app)
+        cached = app / "target/native-sources" / ("pipefixture-" + revision)
+        cached.parent.mkdir(parents=True)
+        shutil.move(str(upstream), cached)
+        target = base / "sources.tar.gz"
+        try:
+            ROOT = app
+            sources(target, "fixture", False)
+        finally:
+            ROOT = original
+        with tarfile.open(target) as archive:
+            with archive.extractfile("MetaXtract-sources/upstream/PipeFixture/payload.bin") as stream:
+                if stream.read() != payload:
+                    raise ValueError("source archive pipe changed the payload")
+    print(json.dumps({"source_archive_pipe": "passed", "fixture_bytes": 8192}))
+
+
 def checksum_file(path: Path) -> None:
     path.with_name(path.name + ".sha256").write_text(sha256(path) + "  " + path.name + "\n", encoding="ascii")
 
@@ -225,7 +280,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=ROOT / "dist")
     parser.add_argument("--allow-dirty", action="store_true", help="mark an uncommitted local verification build")
+    parser.add_argument("--check-source-archives", action="store_true", help="check source archive pipes without compiling")
+    parser.add_argument("--source-archive-fixture", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.source_archive_fixture:
+        source_archive_fixture()
+        return 0
+    if args.check_source_archives:
+        subprocess.run([sys.executable, str(Path(__file__).resolve()), "--source-archive-fixture"],
+                       check=True, timeout=60)
+        return 0
     os.chdir(ROOT)
     dirty = bool(runtime.output("git", "status", "--porcelain", "--untracked-files=normal"))
     if dirty and not args.allow_dirty:

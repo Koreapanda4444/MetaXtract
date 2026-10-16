@@ -61,6 +61,7 @@ Python·Rust·CMake·ExifTool·ffprobe나 시스템에 별도로 설치한 메�
 문서의 Rust·C++ 빌드 도구와 Python 3.11 이상을 준비한 깨끗한 Git 작업 폴더에서 실행합니다.
 
 ```bash
+python packaging/build.py --check-source-archives
 python packaging/build.py
 ```
 

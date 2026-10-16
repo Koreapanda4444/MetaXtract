@@ -60,6 +60,7 @@ toolchain is still required to rebuild, but is not required to run the resulting
 From a clean Git checkout with the documented Rust/C++ toolchain and Python 3.11+:
 
 ```bash
+python packaging/build.py --check-source-archives
 python packaging/build.py
 ```
 
