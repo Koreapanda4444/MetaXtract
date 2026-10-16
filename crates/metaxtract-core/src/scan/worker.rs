@@ -134,6 +134,12 @@ impl ExtractionBackend for BundledWorker {
             .write_all(&codec::encode(&request, REQUEST_LIMIT)?)?;
         control.as_file_mut().flush()?;
         let mut command = Command::new(&self.path);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // The desktop must not open a console for each internal parser task.
+            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
         command
             .arg("--protocol=1")
             .arg(control.path())

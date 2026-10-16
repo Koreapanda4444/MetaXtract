@@ -32,6 +32,7 @@ fn main() {
         "crates/metaxtract-worker/build.rs",
         "crates/metaxtract-worker/Cargo.toml",
         "native/metaxtract-extract",
+        "native/runtime.rs",
         "CMakeLists.txt",
     ] {
         println!("cargo:rerun-if-changed=../../{path}");

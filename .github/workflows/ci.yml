@@ -62,7 +62,9 @@ jobs:
           path: target/native-ffmpeg
           key: native-media-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('third-party.lock.toml', 'native/metaxtract-extract/build_ffmpeg.py', 'native/metaxtract-extract/ffmpeg.cmake', 'rust-toolchain.toml') }}
       - name: Validate migration boundaries and locks
-        run: python conformance/validate.py --cargo
+        run: |
+          python conformance/validate.py --cargo
+          python -m ruff check --select E4,E7,E9,F,I packaging
       - name: Verify upstream release commits
         if: runner.os == 'Linux'
         run: python conformance/validate.py --online
@@ -88,6 +90,14 @@ jobs:
           key: ${{ steps.native-media-cache.outputs.cache-primary-key }}
       - name: Build production workspace
         run: cargo build --workspace --release --locked
+      - name: Build standalone Rust package
+        run: python packaging/build.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rust-MetaXtract-${{ runner.os }}-${{ runner.arch }}
+          path: dist/MetaXtract-*
+          compression-level: 0
+          if-no-files-found: error
       - name: Smoke-test Rust desktop
         if: runner.os == 'Linux'
         env:

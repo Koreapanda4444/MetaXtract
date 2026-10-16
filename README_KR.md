@@ -54,6 +54,11 @@ Python 소스는 결과 비교를 위한 기준판으로 동결합니다. 새 �
 
 ## 현재 앱 실행
 
+CI의 독립 패키지는 데스크톱·CLI·전용 파서·네이티브 라이브러리와 고지를 함께 제공합니다.
+전체를 풀고 Windows는 `metaxtract-gui.exe`, Linux는 `metaxtract-gui`, macOS는
+`MetaXtract.app`을 실행하세요. 플랫폼 요구 사항·설치·업데이트·원본 압축 파일은
+[패키지 안내](docs/packaging_KR.md)에 있습니다.
+
 아래 빌드 도구를 준비하고 저장소 루트에서 실행합니다.
 
 ```bash
@@ -109,6 +114,7 @@ python conformance/run.py
 | [`legacy/python/`](legacy/python/README_KR.md) | 실행 가능한 Python 앱과 동결된 소스 기준판 |
 | [`reference/python/`](reference/python/README_KR.md) | Python 앱에서 기록한 기존 동작 기준 |
 | [`conformance/`](conformance/README_KR.md) | 전환용 샘플과 호환성 검증 |
+| [`packaging/`](docs/packaging_KR.md) | 빌드용 독립 패키지 제작과 의존성 검사 |
 | `docs/` | 설계 이유, 의존성 정책과 네이티브 코드의 안전성 규칙 |
 
 ## 문서 안내

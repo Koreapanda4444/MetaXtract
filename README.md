@@ -51,6 +51,11 @@ See the [Rust application guide](docs/application.md) for the new CLI and Rust d
 
 ## Run the current application
 
+Standalone CI packages include the desktop, CLI, parser worker, native libraries and notices.
+Extract the complete package and launch `metaxtract-gui.exe` on Windows, `metaxtract-gui` on
+Linux, or `MetaXtract.app` on macOS. See the [package guide](docs/packaging.md) for platform
+requirements, installation, updates and source archives.
+
 Build with the prerequisites below, then launch from the repository root:
 
 ```bash
@@ -106,6 +111,7 @@ complete extraction or workflow parity for every format; the frozen Python basel
 | [`legacy/python/`](legacy/python/README.md) | Working Python application and frozen source reference |
 | [`reference/python/`](reference/python/README.md) | Stable behavior captured from the Python application |
 | [`conformance/`](conformance/README.md) | Fixtures and compatibility checks for the migration |
+| [`packaging/`](docs/packaging.md) | Build-time standalone assembly and dependency inspection |
 | `docs/` | Design decisions, dependency policy, and native safety contracts |
 
 ## Documentation
