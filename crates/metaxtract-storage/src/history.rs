@@ -3,6 +3,25 @@ use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+// Keep outer UPSERT conflict policies from overriding audit-trigger conflict handling.
+fn put_annotation(tx: &rusqlite::Transaction<'_>, id: i64, note: &str, data: &[u8]) -> Result<()> {
+    let now = now_ms()?;
+    let changed = tx
+        .execute(
+            "UPDATE annotations SET note=?2,tags=?3,updated_ms=?4 WHERE record_id=?1",
+            params![id, note, data, now],
+        )
+        .map_err(db)?;
+    if changed == 0 {
+        tx.execute(
+            "INSERT INTO annotations VALUES(?1,?2,?3,?4)",
+            params![id, note, data, now],
+        )
+        .map_err(db)?;
+    }
+    Ok(())
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ScanInfo {
     pub id: String,
@@ -230,7 +249,7 @@ impl CaseWorkspace {
     pub fn annotate(&self, id: i64, note: &str, tags: &[String]) -> Result<()> {
         validate_annotation(note, tags)?;
         let data = codec::encode(&tags, 64 * 1024)?;
-        self.write_named("annotate",|tx|{tx.execute("INSERT INTO annotations VALUES(?1,?2,?3,?4) ON CONFLICT(record_id) DO UPDATE SET note=excluded.note,tags=excluded.tags,updated_ms=excluded.updated_ms",params![id,note,data,now_ms()?]).map_err(db)?;Ok(())})
+        self.write_named("annotate", |tx| put_annotation(tx, id, note, &data))
     }
     /// Replace annotations for a bounded selection in one audited transaction.
     pub fn annotate_many(&self, ids: &[i64], note: &str, tags: &[String]) -> Result<usize> {
@@ -244,9 +263,9 @@ impl CaseWorkspace {
             return Err(invalid("select 1..64 distinct record IDs"));
         }
         let data = codec::encode(&tags, 64 * 1024)?;
-        self.write_named("annotate_many",|tx|{
+        self.write_named("annotate_many", |tx| {
             for id in &unique {
-                tx.execute("INSERT INTO annotations VALUES(?1,?2,?3,?4) ON CONFLICT(record_id) DO UPDATE SET note=excluded.note,tags=excluded.tags,updated_ms=excluded.updated_ms",params![id,note,data,now_ms()?]).map_err(db)?;
+                put_annotation(tx, *id, note, &data)?;
             }
             Ok(unique.len())
         })
@@ -296,7 +315,23 @@ impl CaseWorkspace {
             }
         }
         let query = codec::encode(query, 32 * 1024)?;
-        self.write_named("save_filter",|tx|{tx.execute("INSERT INTO saved_filters VALUES(?1,?2,?3) ON CONFLICT(name) DO UPDATE SET query=excluded.query,updated_ms=excluded.updated_ms",params![name.trim(),query,now_ms()?]).map_err(db)?;Ok(())})
+        self.write_named("save_filter", |tx| {
+            let now = now_ms()?;
+            let changed = tx
+                .execute(
+                    "UPDATE saved_filters SET query=?2,updated_ms=?3 WHERE name=?1",
+                    params![name.trim(), query, now],
+                )
+                .map_err(db)?;
+            if changed == 0 {
+                tx.execute(
+                    "INSERT INTO saved_filters VALUES(?1,?2,?3)",
+                    params![name.trim(), query, now],
+                )
+                .map_err(db)?;
+            }
+            Ok(())
+        })
     }
     pub fn filters(&self, after: Option<&str>, limit: usize) -> Result<Vec<SavedFilter>> {
         page_limit(limit)?;

@@ -92,7 +92,13 @@ impl CaseWorkspace {
         self.write_named("finish_scan", |tx| {
             let changed = tx.execute("UPDATE scans SET status=?1,finished_ms=?2 WHERE id=?3 AND status IN('running','paused')", params![status.as_str(),now_ms()?,scan]).map_err(db)?;
             if changed != 1 { return Err(invalid("scan cannot be finalized")); }
-            tx.execute("INSERT INTO scan_receipts(scan_id,key,data,digest) VALUES(?1,'application.summary',?2,?3) ON CONFLICT(scan_id,key) DO UPDATE SET data=excluded.data,digest=excluded.digest",params![scan,data,Sha256::digest(&data).as_slice()]).map_err(db)?;
+            // UPSERT's conflict policy can override INSERT OR IGNORE in audit triggers.
+            // The immediate transaction makes an explicit update/insert race-free.
+            let digest = Sha256::digest(&data);
+            let updated = tx.execute("UPDATE scan_receipts SET data=?2,digest=?3 WHERE scan_id=?1 AND key='application.summary'", params![scan,data,digest.as_slice()]).map_err(db)?;
+            if updated == 0 {
+                tx.execute("INSERT INTO scan_receipts(scan_id,key,data,digest) VALUES(?1,'application.summary',?2,?3)",params![scan,data,digest.as_slice()]).map_err(db)?;
+            }
             Ok(())
         })
     }

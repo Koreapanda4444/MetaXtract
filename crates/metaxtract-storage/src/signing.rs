@@ -218,7 +218,9 @@ impl CaseWorkspace {
         self.write_named("identity.register",|tx|{
             let previous:Option<String>=tx.query_row("SELECT fingerprint FROM identities WHERE name=?1 COLLATE NOCASE",[name.trim()],|r|r.get(0)).optional().map_err(db)?;
             if previous.is_some_and(|p|p!=fingerprint){return Err(invalid("identity name already belongs to another key"));}
-            let now=now_ms()?;tx.execute("INSERT INTO identities VALUES(?1,?2,?3,?4,?4) ON CONFLICT(name) DO UPDATE SET public_pem=excluded.public_pem,updated_ms=excluded.updated_ms",params![name.trim(),fingerprint,public_pem,now]).map_err(db)?;
+            let now=now_ms()?;
+            let changed=tx.execute("UPDATE identities SET public_pem=?2,updated_ms=?3 WHERE name=?1",params![name.trim(),public_pem,now]).map_err(db)?;
+            if changed==0 {tx.execute("INSERT INTO identities VALUES(?1,?2,?3,?4,?4)",params![name.trim(),fingerprint,public_pem,now]).map_err(db)?;}
             tx.query_row("SELECT name,fingerprint,public_pem,created_ms,updated_ms FROM identities WHERE name=?1 COLLATE NOCASE",[name.trim()],row_identity).map_err(db)
         })
     }

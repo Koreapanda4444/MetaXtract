@@ -301,6 +301,8 @@ def _compare_cli(release: bool) -> list[str]:
             if len(page["items"]) != 1 or page["next"] is None:
                 raise ValueError("CLI pagination omitted its cursor")
             invoke("search", case, paused["scan_id"], "--limit", 1, "--cursor", json.dumps(page["next"]))
+            invoke("search", case, paused["scan_id"], "--save", "contract")
+            invoke("search", case, paused["scan_id"], "--save", "contract", "--order", "size")
             output = root / "records.jsonl"
             invoke("export", case, paused["scan_id"], output)
             invoke("export", case, paused["scan_id"], output, code=3)
