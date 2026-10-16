@@ -98,14 +98,6 @@ jobs:
           path: dist/MetaXtract-*
           compression-level: 0
           if-no-files-found: error
-      - name: Smoke-test Rust desktop
-        if: runner.os == 'Linux'
-        env:
-          LIBGL_ALWAYS_SOFTWARE: "1"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb fonts-noto-cjk libxkbcommon-x11-0 libegl1 libgl1-mesa-dri
-          xvfb-run -a cargo run -p metaxtract-gui --release --locked -- --smoke
       - name: Configure native core
         run: cmake --preset dev
       - name: Build native core
@@ -114,6 +106,77 @@ jobs:
         run: ctest --preset dev -C Debug
       - name: Check release extraction contracts
         run: python conformance/run.py --release
+
+  installed-native:
+    name: Installed Rust package (${{ matrix.os }})
+    needs: native
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: packaging
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download current native package
+        uses: actions/download-artifact@v4
+        with:
+          name: Rust-MetaXtract-${{ runner.os }}-${{ runner.arch }}
+          path: package-current
+      - name: Find previous successful native package
+        id: previous-native
+        uses: actions/github-script@v8
+        env:
+          PACKAGE_ARTIFACT: Rust-MetaXtract-${{ runner.os }}-${{ runner.arch }}
+        with:
+          retries: 3
+          script: |
+            const runs = await github.rest.actions.listWorkflowRuns({
+              ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push',
+              status: 'success', per_page: 30
+            });
+            for (const run of runs.data.workflow_runs) {
+              if (run.id === context.runId) continue;
+              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                ...context.repo, run_id: run.id, per_page: 100
+              });
+              if (artifacts.data.artifacts.some(a => a.name === process.env.PACKAGE_ARTIFACT && !a.expired)) {
+                core.setOutput('run_id', String(run.id));
+                return;
+              }
+            }
+            core.info('No retained previous package; verify reinstall and schema migration.');
+      - name: Download previous native package
+        if: steps.previous-native.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: Rust-MetaXtract-${{ runner.os }}-${{ runner.arch }}
+          path: previous-package
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.previous-native.outputs.run_id }}
+      - name: Verify standalone installation (Linux)
+        if: runner.os == 'Linux'
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb fonts-noto-cjk libxkbcommon-x11-0 libegl1 libgl1-mesa-dri
+          xvfb-run -a python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke
+      - name: Verify standalone installation (Windows and macOS)
+        if: runner.os != 'Linux'
+        run: python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rust-installation-${{ runner.os }}-${{ runner.arch }}
+          path: package-current/installation-verification.json
+          if-no-files-found: error
 
   native-sanitizers:
     name: Native and FFI sanitizers

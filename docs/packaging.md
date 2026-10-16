@@ -68,3 +68,30 @@ linked non-OS dependency, and writes the application and matching source archive
 Windows needs Visual Studio's x64 C++ tools and REDIST files; Unix needs `readelf` or `otool`.
 `--allow-dirty` is for local verification and marks the inventory as uncommitted. It is not used
 for CI release artifacts. Cross-compilation and public code signing are outside this builder.
+
+## Installation verification
+
+```bash
+python packaging/verify.py --dist dist
+python packaging/verify.py --dist dist --previous path/to/previous-artifact --gui-smoke
+```
+
+The Python verifier is a build/CI tool, not part of the installed application. It uses a private
+folder with spaces and Korean characters, an empty tool PATH and no Cargo/Python/library-path
+environment. It installs and verifies the archive and matching sources, extracts real PNG
+metadata, decodes known pixels, and preserves a case's raw export, identity and notes across
+replacement. It exercises failed-activation rollback, refuses unknown files/directories,
+migrates a generated pre-audit schema-5 case, rejects a future schema without writing, and checks
+that removal retains external evidence, cases and settings. GUI mode opens the persisted case
+and preserves the desktop's actual recent-case settings as well.
+
+Separate fresh CI jobs download the built package and a previous successful package for the
+same OS/architecture when one is retained. They do not reuse the native build tree or install
+the Python reference application.
+`installation-verification.json` records both commits and distinguishes a previous-package upgrade
+from a same-package reinstall. Reports are published in `Rust-installation-<OS>-<arch>` artifacts alongside the
+`Rust-MetaXtract-<OS>-<arch>` package artifacts.
+All three platforms exercise the packaged desktop; Linux uses Xvfb and software rendering.
+This checks an isolated runtime environment on hosted runners, not
+every possible operating-system image, GPU driver or distribution. Original Python reference
+CI remains separate until the parity/removal stages.

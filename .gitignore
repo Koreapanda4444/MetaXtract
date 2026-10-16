@@ -14,4 +14,5 @@ build/
 .idea/
 .DS_Store
 /target/
+/previous-package/
 /cmake-build-*/
