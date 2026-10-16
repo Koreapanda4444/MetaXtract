@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import random
 import struct
 import subprocess
 import sys
@@ -10,7 +11,6 @@ import tempfile
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_SOURCE = ROOT / "legacy" / "python" / "src"
@@ -110,7 +110,43 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
     return ["frozen Python baseline and conformance plain-text projection differ"]
 
 
-def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool) -> tuple[list[str], int]:
+def _fuzz_requests(count: int, seed: int) -> list[tuple[str, str]]:
+    """Replay retained malformed seeds and deterministic mutations through the FFI."""
+    seeds = []
+    paths = [ROOT / "conformance/corpus/images.json", *sorted((ROOT / "conformance/corpus").glob("native-*.json")), ROOT / "conformance/corpus/fuzz-seeds.json"]
+    for path in paths:
+        for case in _read_json(path)["cases"]:
+            data = base64.b64decode(case["base64"], validate=True)[:65536]
+            seeds.append((path.stem + "/" + case.get("name", case.get("id", "seed")), case["parser"], data, case.get("budget", "normal")))
+    rng = random.Random(seed)
+    modes = ("normal", "read", "allocation", "decoded", "depth", "entries", "observations", "short")
+    result = []
+    # Retained regressions always replay, even when new mutation count is zero.
+    for label, parser, data, mode in seeds:
+        if label.startswith("fuzz-seeds/"):
+            result.append((label, f"FUZZ\t{label}\t{data.hex()}\t{parser}\t{mode}"))
+    for index in range(count):
+        label, parser, original, _ = seeds[rng.randrange(len(seeds))]
+        data = bytearray(original)
+        operation = index % 4
+        if operation == 0:
+            del data[rng.randrange(len(data) + 1):]
+        elif operation == 1 and data:
+            at = rng.randrange(len(data))
+            data[at] ^= 1 << rng.randrange(8)
+        elif operation == 2:
+            at = rng.randrange(len(data) + 1)
+            data[at:at + 8] = bytes([0xff if (index // 4) % 2 else 0]) * 8
+        else:
+            data.extend(rng.randbytes(min(32, 65536 - len(data))))
+        label = f"seed{seed:x}-{index}-{label}"
+        mode = modes[(index // 4) % len(modes)]
+        result.append((label, f"FUZZ\t{label}\t{data[:65536].hex()}\t{parser}\t{mode}"))
+    return result
+
+
+def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool,
+                    fuzz_cases: int = 256, fuzz_seed: int = 0x4d58) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
     wanted = ["INFO\t1\t1\t22", "SCHEMA\tOK"]
     request_labels = ["build info", "schema invariants"]
@@ -234,6 +270,12 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
             requests.append(f"PARSE\t{opcode:02x}0a141e\t4\t8\t4\t{wall_time}\t1")
             wanted.append(f"ERR\t{code}\t{'false' if opcode == 7 else 'true'}")
 
+        request_labels.extend(["protocol command"] * (len(wanted) - len(request_labels)))
+        for label, request in _fuzz_requests(fuzz_cases, fuzz_seed):
+            requests.append(request)
+            request_labels.append(label)
+            wanted.append("FUZZ\tOK")
+
         command = ["cargo", "run", "--locked", "--quiet", "-p", "metaxtract-native", "--features", "conformance", "--example", "conformance"]
         if release:
             command.append("--release")
@@ -242,13 +284,13 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
             # protocol runtime. Keep Cargo's DLL search setup when running.
             build_command = command.copy()
             build_command[1] = "build"
-            build = subprocess.run(build_command, cwd=ROOT, text=True, capture_output=True, timeout=1800)
+            build = subprocess.run(build_command, cwd=ROOT, text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=1800)
             if build.returncode:
                 detail = build.stderr.strip()
                 if len(detail) > 6000:
                     detail = detail[:4000] + "\n... compiler output omitted ...\n" + detail[-2000:]
                 return [f"native conformance build failed ({build.returncode}): {detail}"], 0
-            result = subprocess.run(command, cwd=ROOT, input="\n".join(requests) + "\n", text=True, capture_output=True, timeout=300)
+            result = subprocess.run(command, cwd=ROOT, input="\n".join(requests) + "\n", text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=300)
         except (OSError, subprocess.TimeoutExpired) as exc:
             return [f"native conformance could not run: {exc}"], 0
         if result.returncode:
@@ -338,7 +380,8 @@ def _compare_cli(release: bool) -> list[str]:
         return [f"CLI workflow contract failed: {exc}"]
 
 
-def run(*, python_only: bool = False, release: bool = False) -> dict[str, Any]:
+def run(*, python_only: bool = False, release: bool = False,
+        fuzz_cases: int = 256, fuzz_seed: int = 0x4d58) -> dict[str, Any]:
     sys.path.insert(0, str(PYTHON_SOURCE))
     corpus = _read_json(ROOT / "conformance" / "corpus" / "files.json")
     expected = _read_json(ROOT / "conformance" / "expected" / "python.json")
@@ -349,7 +392,7 @@ def run(*, python_only: bool = False, release: bool = False) -> dict[str, Any]:
     failures.extend(_compare_frozen_baseline(expected))
     native_cases = 0
     if not python_only:
-        native_failures, native_cases = _compare_native(corpus, expected, release)
+        native_failures, native_cases = _compare_native(corpus, expected, release, fuzz_cases, fuzz_seed)
         failures.extend(native_failures)
         failures.extend(_compare_cli(release))
     return {
@@ -369,13 +412,18 @@ def main() -> int:
     parser.add_argument("--python-only", action="store_true", help="check only the frozen Python baseline")
     parser.add_argument("--release", action="store_true", help="check the release Rust/C++ build")
     parser.add_argument("--cli-only", action="store_true", help="check application command contracts")
+    parser.add_argument("--fuzz-cases", type=int, default=256, help="deterministic mutation count (0..10000)")
+    parser.add_argument("--fuzz-seed", type=lambda value: int(value, 0), default=0x4d58, help="reproducible mutation seed")
     args = parser.parse_args()
+    if not 0 <= args.fuzz_cases <= 10000:
+        parser.error("--fuzz-cases must be between 0 and 10000")
 
     if args.cli_only:
         failures = _compare_cli(args.release)
         print(json.dumps({"ok": not failures, "failures": failures}, ensure_ascii=False))
         return int(bool(failures))
-    result = run(python_only=args.python_only, release=args.release)
+    result = run(python_only=args.python_only, release=args.release,
+                 fuzz_cases=args.fuzz_cases, fuzz_seed=args.fuzz_seed)
     if args.json:
         print(json.dumps(result, separators=(",", ":"), sort_keys=True))
     elif result["ok"]:

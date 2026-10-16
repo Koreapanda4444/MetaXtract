@@ -464,6 +464,19 @@
           "504446207761726e696e6720636f756e74206365696c696e67206578636565646564"
         ]
       }
+    },
+    {
+      "name": "pdf-malformed-flate-xref",
+      "parser": "pdf.metadata",
+      "base64": "JVBERi0xLjcKMSAwIG9iago8PCAvVHlwZSAvWFJlZiAvU2l6ZSAxIC9XIFsxIDEgMV0gL0xlbmd0aCAyIC9GaWx0ZXIgL0ZsYXRlRGVjb2RlID4+CnN0cmVhbQp4eAplbmRzdHJlYW0KZW5kb2JqCnN0YXJ0eHJlZgo5CiUlRU9GCg==",
+      "read_max": 4194304,
+      "observation_max": 256,
+      "status": "MalformedData",
+      "fields": {
+        "header_version": [
+          "312e37"
+        ]
+      }
     }
   ]
 }

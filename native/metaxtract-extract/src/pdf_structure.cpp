@@ -1,6 +1,8 @@
 #include "pdf.hpp"
 #include <qpdf/Pl_Function.hh>
+#include <qpdf/QPDFExc.hh>
 #include <cctype>
+#include <stdexcept>
 
 namespace metaxtract::native::formats::pdf {
 namespace {
@@ -115,7 +117,16 @@ std::vector<std::uint8_t> stream_bytes(Reader& r, QPDFObjectHandle stream, bool 
         data.insert(data.end(), bytes, bytes + length);
     });
     bool filtered = false;
-    const auto success = stream.pipeStreamData(&output, &filtered, 0, decode ? qpdf_dl_specialized : qpdf_dl_none, true, false);
+    bool success = false;
+    try {
+        success = stream.pipeStreamData(&output, &filtered, 0, decode ? qpdf_dl_specialized : qpdf_dl_none, true, false);
+    } catch (const QPDFExc&) {
+        throw;
+    } catch (const std::runtime_error& error) {
+        // In-memory streams bypass QPDF's file-stream error conversion. Its
+        // decoder reports malformed compressed data with std::runtime_error.
+        throw Failure{ParseStatus::Malformed, std::string("PDF stream decoder failed: ") + error.what(), r.base};
+    }
     r.checkpoint();
     if (!success || (decode && !stream.getDict().getKey("/Filter").isNull() && !filtered)) { throw Failure{ParseStatus::Unsupported, "PDF stream filter or stream data could not be decoded completely", r.base}; }
     return data;

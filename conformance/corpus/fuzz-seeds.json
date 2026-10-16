@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "name": "empty",
+      "parser": "*",
+      "base64": ""
+    },
+    {
+      "name": "all-ones",
+      "parser": "*",
+      "base64": "/////////////////////////////////////////w=="
+    },
+    {
+      "name": "zip-pdf-polyglot",
+      "parser": "*",
+      "base64": "UEsDBHh4JVBERi0xLjcK//////////////////////////////////////////8="
+    },
+    {
+      "name": "tiff-outside-ifd",
+      "parser": "*",
+      "base64": "SUkqAPz///8="
+    },
+    {
+      "name": "zip-oversized-entry",
+      "parser": "*",
+      "base64": "UEsDBAAAAAAAAAAAAAAAAAAA//////////8AAAAA"
+    },
+    {
+      "name": "riff-oversized",
+      "parser": "*",
+      "base64": "UklGRv////9XQVZF"
+    },
+    {
+      "name": "bmff-extended-overflow",
+      "parser": "*",
+      "base64": "AAAAAW1vb3b//////////w=="
+    },
+    {
+      "name": "ebml-unknown-size",
+      "parser": "*",
+      "base64": "GkXfo/////////////////////8="
+    },
+    {
+      "name": "jpeg-short-exif",
+      "parser": "*",
+      "base64": "/9j/4f//RXhpZgAASUkqAA=="
+    },
+    {
+      "name": "ogg-truncated",
+      "parser": "*",
+      "base64": "T2dnU////////////////////////////////w=="
+    },
+    {
+      "name": "pe-outside-header",
+      "parser": "*",
+      "base64": "TVoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////w=="
+    },
+    {
+      "name": "dicom-undefined",
+      "parser": "*",
+      "base64": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABESUNN/////////////////////w=="
+    },
+    {
+      "name": "archive-error-report-after-read-budget",
+      "parser": "container.archive",
+      "budget": "read",
+      "base64": "/////////////////////////////////////////w=="
+    },
+    {
+      "name": "archive-initialization-allocation-budget",
+      "parser": "container.archive",
+      "budget": "allocation",
+      "base64": ""
+    },
+    {
+      "name": "pdf-malformed-flate-xref",
+      "parser": "*",
+      "base64": "JVBERi0xLjcKMSAwIG9iago8PCAvVHlwZSAvWFJlZiAvU2l6ZSAxIC9XIFsxIDEgMV0gL0xlbmd0aCAyIC9GaWx0ZXIgL0ZsYXRlRGVjb2RlID4+CnN0cmVhbQp4eAplbmRzdHJlYW0KZW5kb2JqCnN0YXJ0eHJlZgo5CiUlRU9GCg=="
+    }
+  ]
+}

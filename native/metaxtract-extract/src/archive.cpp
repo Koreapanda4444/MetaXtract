@@ -51,6 +51,9 @@ void signed_number(Reader& reader, const std::string& key, const std::int64_t va
 }
 
 ParseStatus inspect_archive(Reader& source) {
+    if (!source.context.budget().reserve_allocation(64 * 1024)) {
+        throw Failure{ParseStatus::AllocationFailure, "Archive working memory budget exceeded", 0};
+    }
     ArchiveBudgetScope budget(source.context.budget());
     std::unique_ptr<archive, decltype(&archive_read_free)> handle(archive_read_new(), archive_read_free);
     if (!handle) { throw Failure{ParseStatus::AllocationFailure, "Archive reader allocation failed", 0}; }

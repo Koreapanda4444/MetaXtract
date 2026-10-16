@@ -34,6 +34,7 @@ public:
 
     [[nodiscard]] bool consume_read(std::uint64_t amount) noexcept;
     [[nodiscard]] bool reserve_allocation(std::uint64_t amount) noexcept;
+    [[nodiscard]] bool reserve_library_allocation(std::uint64_t amount) noexcept;
     [[nodiscard]] bool consume_decoded(std::uint64_t amount) noexcept;
     [[nodiscard]] bool check_depth(std::uint32_t depth) noexcept;
     [[nodiscard]] bool add_entries(std::uint32_t amount) noexcept;

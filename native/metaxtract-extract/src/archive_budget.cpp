@@ -9,7 +9,7 @@ namespace { thread_local ParserBudget* current = nullptr; }
 ArchiveBudgetScope::ArchiveBudgetScope(ParserBudget& budget) noexcept : previous(current) { current = &budget; }
 ArchiveBudgetScope::~ArchiveBudgetScope() { current = previous; }
 bool archive_charge(const std::size_t size) noexcept {
-    return !current || (current->checkpoint() && current->reserve_allocation(size));
+    return !current || current->reserve_library_allocation(size);
 }
 }
 extern "C" void* metaxtract_archive_malloc(std::size_t count) {

@@ -23,6 +23,18 @@ bool ParserBudget::reserve_allocation(const std::uint64_t amount) noexcept {
         BudgetStatus::AllocationBytes);
 }
 
+bool ParserBudget::reserve_library_allocation(const std::uint64_t amount) noexcept {
+    // C libraries may allocate while reporting an earlier read/decode failure.
+    // Keep accounting under the same ceiling without replacing the first error.
+    static_cast<void>(checkpoint());
+    if (amount > limits_.max_allocation_bytes - allocation_bytes_) {
+        if (status_ == BudgetStatus::Ok) { static_cast<void>(fail(BudgetStatus::AllocationBytes)); }
+        return false;
+    }
+    allocation_bytes_ += amount;
+    return true;
+}
+
 bool ParserBudget::consume_decoded(const std::uint64_t amount) noexcept {
     return consume(decoded_bytes_, amount, limits_.max_decoded_bytes, BudgetStatus::DecodedBytes);
 }

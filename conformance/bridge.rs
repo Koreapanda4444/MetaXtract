@@ -5,8 +5,8 @@ use std::{
 };
 
 use metaxtract_native::{
-    BoundedInput, InputLimits, NativeError, ParserLimits, build_info, check_input, detect_content,
-    extract_parser, parser_capabilities, read_input, run_parser,
+    BoundedInput, InputLimits, NativeError, NativeErrorCode, ParserLimits, build_info, check_input,
+    detect_content, extract_parser, parser_capabilities, read_input, run_parser,
 };
 use metaxtract_schema::{
     ByteRange, Confidence, EvidenceKind, EvidencePath, EvidenceSegment, GeoPoint, RawValue,
@@ -47,6 +47,101 @@ fn rendered(value: &RawValue) -> String {
 
 fn failure(error: NativeError) {
     println!("ERR\t{:?}\t{}", error.code, error.recoverable);
+}
+
+fn fuzz(bytes: Vec<u8>, parser: &str, mode: &str) -> Result<(), Box<dyn Error>> {
+    let mut limits = ParserLimits {
+        max_source_bytes: 65536,
+        max_read_bytes: 4 * 1024 * 1024,
+        max_allocation_bytes: 256 * 1024 * 1024,
+        max_decoded_bytes: 1024 * 1024,
+        max_container_depth: 8,
+        max_entries: 256,
+        max_observations: 256,
+        max_wall_time_ms: 250,
+    };
+    match mode {
+        "normal" | "short" => {}
+        "read" => limits.max_read_bytes = 1,
+        "allocation" => limits.max_allocation_bytes = 1,
+        "decoded" => limits.max_decoded_bytes = 0,
+        "depth" => limits.max_container_depth = 0,
+        "entries" => limits.max_entries = 0,
+        "observations" => limits.max_observations = 0,
+        _ => return Err("unknown fuzz budget mode".into()),
+    }
+    let input = BoundedInput::from_bytes(
+        bytes.clone(),
+        InputLimits {
+            max_single_read: if mode == "short" { 1 } else { 1024 * 1024 },
+            ..limits.input_limits()
+        },
+    )?;
+    let unexpected = |error: &NativeError| {
+        matches!(
+            error.code,
+            NativeErrorCode::Internal
+                | NativeErrorCode::Unknown(_)
+                | NativeErrorCode::RevisionMismatch
+                | NativeErrorCode::AllocationFailure
+        )
+    };
+    match detect_content(&input, limits) {
+        Ok(values)
+            if values
+                .iter()
+                .any(|v| v.source_range.end() > bytes.len() as u64) =>
+        {
+            return Err("detector fabricated an out-of-source range".into());
+        }
+        Err(error) if unexpected(&error) => return Err(error.into()),
+        _ => {}
+    }
+    let mut tested = 0;
+    for capability in parser_capabilities()? {
+        if capability.id.starts_with("conformance.") || (parser != "*" && capability.id != parser) {
+            continue;
+        }
+        tested += 1;
+        let result = extract_parser(&input, &capability.id, limits)
+            .map_err(|error| format!("{}: {error}", capability.id))?;
+        if let Some(error) = &result.error {
+            if unexpected(error) {
+                return Err(format!("{}: {error}", capability.id).into());
+            }
+        }
+        let usage = result.run;
+        if usage.read_bytes > limits.max_read_bytes
+            || usage.allocation_bytes > limits.max_allocation_bytes
+            || usage.decoded_bytes > limits.max_decoded_bytes
+            || usage.entries > limits.max_entries
+            || usage.observations > limits.max_observations
+            || result.observations.len() > usage.observations as usize
+        {
+            return Err(format!("{} exceeded a parser budget", capability.id).into());
+        }
+        for observation in result.observations {
+            if let Some(range) = observation.source_range {
+                if range.end() > bytes.len() as u64
+                    || bytes[range.offset() as usize..range.end() as usize] != observation.encoded
+                {
+                    return Err(format!("{} fabricated source bytes", capability.id).into());
+                }
+            }
+            if matches!(
+                observation.method,
+                metaxtract_schema::ExtractionMethod::DecodedPayload
+                    | metaxtract_schema::ExtractionMethod::NativeLibrary
+            ) && (observation.source_range.is_some() || observation.stream_id.is_none())
+            {
+                return Err(format!("{} lost decoded provenance", capability.id).into());
+            }
+        }
+    }
+    if tested == 0 {
+        return Err("fuzz requested an unregistered production parser".into());
+    }
+    Ok(())
 }
 
 fn schema_check() -> Result<(), Box<dyn Error>> {
@@ -108,6 +203,12 @@ fn schema_check() -> Result<(), Box<dyn Error>> {
 
 fn dispatch(fields: &[&str]) -> Result<(), Box<dyn Error>> {
     match fields {
+        ["FUZZ", label, value, parser, mode] => {
+            eprintln!("fuzz checkpoint: {label} ({parser}/{mode})");
+            fuzz(decode(value)?, parser, mode)
+                .map_err(|error| format!("fuzz case {label} ({parser}/{mode}): {error}"))?;
+            println!("FUZZ\tOK");
+        }
         ["INFO"] => {
             let info = build_info()?;
             println!(

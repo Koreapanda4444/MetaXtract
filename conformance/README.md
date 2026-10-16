@@ -45,6 +45,19 @@ CI runs Linux, Windows, and macOS builds and both debug/release contract checks.
 runs AddressSanitizer and UndefinedBehaviorSanitizer on the native core and the generated FFI.
 Rust policy regression checks also run with `cargo test --workspace --locked`.
 
+Each debug, release and sanitizer contract run also replays `corpus/fuzz-seeds.json` and
+256 reproducible mutations of the existing format corpus. Retained malformed seeds marked `*`
+exercise every production parser. Truncation, bit flips, hostile lengths and trailing data run
+with ordinary, tiny-budget and short-read policies. The Rust bridge rejects internal failures,
+budget overruns, fabricated source bytes and missing decoded provenance. Reproduce a campaign
+with `python conformance/run.py --fuzz-seed 0x4d58 --fuzz-cases 256`; increase the count up to
+10000 for a longer bounded campaign. New minimized failures belong in the same retained corpus,
+with their parser and original bytes, before the associated fix is accepted. This deterministic
+mutation campaign does not claim exhaustive parser coverage.
+Retained regressions include archive error reporting after a read-budget failure, rejection
+before archive initialization with an unusable allocation budget, and malformed PDF Flate
+cross-reference data. These inputs must produce bounded, recoverable errors and retain earlier fields.
+
 For the rules these checks protect, see [architecture](../docs/architecture.md),
 [the language boundary](../docs/ffi.md), and [parser resource limits](../docs/resource-limits.md).
 
