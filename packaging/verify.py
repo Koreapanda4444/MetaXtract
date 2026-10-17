@@ -15,6 +15,7 @@ import tarfile
 import tempfile
 import zipfile
 import zlib
+from contextlib import closing
 from pathlib import Path, PurePosixPath
 
 
@@ -193,7 +194,7 @@ def generated_schema_five(source: Path, destination: Path) -> None:
     retained = {"case_info", "scans", "records", "raw_fields", "normalized_claims", "conflicts",
                 "diagnostics", "case_notes", "annotations", "saved_filters", "imports",
                 "import_artifacts", "legacy_records", "scan_receipts"}
-    with sqlite3.connect(destination) as db:
+    with closing(sqlite3.connect(destination)) as db, db:
         for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type='trigger'").fetchall():
             db.execute('DROP TRIGGER "' + name.replace('"', '""') + '"')
         for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
@@ -298,7 +299,7 @@ def workflow(current: Path, previous: Path | None, gui: bool) -> dict:
         # A future schema must be refused without writing to the evidence case.
         future = root / "future.mxcase"
         shutil.copyfile(case, future)
-        with sqlite3.connect(future) as db:
+        with closing(sqlite3.connect(future)) as db, db:
             db.execute("PRAGMA user_version=2147483647")
         original = digest(future)
         invoke(app, env, "case", "notes", future, "must not save", success=False)
