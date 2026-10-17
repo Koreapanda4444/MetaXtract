@@ -16,7 +16,8 @@ to run the package. Keep the complete extracted folder together.
 | macOS, package architecture | `MetaXtract.app` | `MetaXtract.app/Contents/MacOS/metaxtract --help` |
 
 Extract the archive into a new user-owned folder before opening the desktop. Windows 10+ packages
-include the MSVC app-local release runtime. Linux uses the operating system's glibc, C++ runtime
+include the MSVC app-local release runtime. The desktop also needs an OpenGL 2.0+ graphics driver.
+Linux uses the operating system's glibc, C++ runtime
 and desktop graphics services; `package.json` records the minimum required glibc and linked OS
 libraries, including C++ ABI requirements. It does not promise compatibility with an older
 distribution or a different CPU. The macOS bundle records its minimum OS version as well.
@@ -93,6 +94,17 @@ the Python reference application.
 from a same-package reinstall. Reports are published in `Rust-installation-<OS>-<arch>` artifacts alongside the
 `Rust-MetaXtract-<OS>-<arch>` package artifacts.
 All three platforms exercise the packaged desktop; Linux uses Xvfb and software rendering.
+Windows CI uses SHA-256-pinned [Mesa llvmpipe](https://github.com/pal1000/mesa-dist-win/releases/tag/26.2.4)
+as its graphics driver. The verifier supplies that external driver directory only to GUI children;
+the application inventory stays intact and CLI/worker checks keep their isolated library search.
+The graphics mode is recorded as `desktop_graphics` in the receipt.
+
+For main-branch changes limited to the installation verifier, this CI job, or the paired package
+guide, CI can download previously verified packages. It checks ancestry, the complete changed-file
+list, unchanged build/sanitizer/reference job settings, successful prior jobs and all three retained
+native package artifacts. Other changes run the full builds. Fresh installation jobs always run
+the current verifier. Reused packages retain their original build commit in their inventories
+and matching source archives; the CI log identifies the source run and commit.
 This checks an isolated runtime environment on hosted runners, not
 every possible operating-system image, GPU driver or distribution. Original Python reference
 CI remains separate until the parity/removal stages.

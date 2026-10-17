@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
@@ -15,7 +16,7 @@ import tarfile
 import tempfile
 import zipfile
 import zlib
-from contextlib import closing
+from contextlib import closing, contextmanager
 from pathlib import Path, PurePosixPath
 
 
@@ -172,12 +173,48 @@ def environment(root: Path) -> dict[str, str]:
     return env
 
 
+
+@contextmanager
+def windows_graphics(directory: Path | None):
+    """Provide a CI graphics driver to GUI children without changing the package."""
+    if directory is None:
+        yield
+        return
+    if os.name != "nt":
+        raise ValueError("a Windows OpenGL directory is only valid on Windows")
+    directory = directory.resolve(strict=True)
+    for name in ("opengl32.dll", "libgallium_wgl.dll"):
+        if not (directory / name).is_file():
+            raise ValueError("Windows graphics driver is incomplete: " + name)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GetDllDirectoryW.argtypes = [ctypes.c_uint32, ctypes.c_wchar_p]
+    kernel.GetDllDirectoryW.restype = ctypes.c_uint32
+    kernel.SetDllDirectoryW.argtypes = [ctypes.c_wchar_p]
+    kernel.SetDllDirectoryW.restype = ctypes.c_int
+    previous = ctypes.create_unicode_buffer(32768)
+    length = kernel.GetDllDirectoryW(len(previous), previous)
+    if length >= len(previous):
+        raise ValueError("Windows DLL directory exceeds the verifier limit")
+    if not kernel.SetDllDirectoryW(str(directory)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        yield
+    finally:
+        if not kernel.SetDllDirectoryW(previous.value if length else None):
+            raise ctypes.WinError(ctypes.get_last_error())
+
 def invoke(app: Path, env: dict, *args: object, role: str = "cli", success: bool = True,
-           json_output: bool = True):
+           json_output: bool = True, graphics: Path | None = None):
     manifest = check_inventory(app)
     executable = app / manifest["executables"][role]
-    result = subprocess.run([str(executable), *map(str, args)], cwd=app.parent,
-                            env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+    child_env = dict(env)
+    if graphics is not None and role != "gui":
+        raise ValueError("a graphics driver is only permitted for GUI verification")
+    if graphics is not None:
+        child_env["GALLIUM_DRIVER"] = "llvmpipe"
+    with windows_graphics(graphics):
+        result = subprocess.run([str(executable), *map(str, args)], cwd=app.parent,
+                                env=child_env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
     if success != (result.returncode == 0):
         raise ValueError(f"{role} {args[0]} exit {result.returncode}: {result.stderr[-2000:]} {result.stdout[:1000]}")
     if not success or not json_output:
@@ -203,7 +240,7 @@ def generated_schema_five(source: Path, destination: Path) -> None:
         db.execute("PRAGMA user_version=5")
 
 
-def workflow(current: Path, previous: Path | None, gui: bool) -> dict:
+def workflow(current: Path, previous: Path | None, gui: bool, graphics: Path | None = None) -> dict:
     with tempfile.TemporaryDirectory(prefix="MetaXtract install 근거 ") as temporary:
         root = Path(temporary)
         app = root / "Application with spaces 한글"
@@ -220,7 +257,7 @@ def workflow(current: Path, previous: Path | None, gui: bool) -> dict:
         activate(initial, app, lambda path: invoke(path, env, "--help", json_output=False))
         old = check_inventory(app)
         check_sources(initial, old)
-        invoke(app, env, "--help", role="gui", json_output=False)
+        invoke(app, env, "--help", role="gui", json_output=False, graphics=graphics)
         case = root / "investigation.mxcase"
         scan = invoke(app, env, "scan", evidence, "--case", case, "--workers", 1)
         if scan["summary"]["failed"] or scan["summary"]["completed"] != 1:
@@ -306,7 +343,7 @@ def workflow(current: Path, previous: Path | None, gui: bool) -> dict:
         if digest(future) != original:
             raise ValueError("future case was modified")
         if gui:
-            invoke(app, env, case, "--smoke", role="gui", json_output=False)
+            invoke(app, env, case, "--smoke", role="gui", json_output=False, graphics=graphics)
         desktop = (root / "home/Library/Application Support" if sys.platform == "darwin"
                    else root / "config") / "MetaXtract/desktop.json"
         if gui and not desktop.is_file():
@@ -334,7 +371,8 @@ def workflow(current: Path, previous: Path | None, gui: bool) -> dict:
                 "previous_commit": old["git_commit"], "upgrade_kind": "previous-package" if previous else "reinstall",
                 "installation": True, "upgrade": True, "rollback": True, "schema_five_migration": True,
                 "future_schema_refused": True, "unowned_files_retained": True, "removal": True,
-                "desktop_smoke": gui, "preserved_records": 1, "decoder_rgb": preview["rgb"]}
+                "desktop_smoke": gui, "desktop_graphics": "mesa-llvmpipe" if graphics else "system",
+                "preserved_records": 1, "decoder_rgb": preview["rgb"]}
 
 
 def find_package(directory: Path) -> Path:
@@ -351,13 +389,14 @@ def main() -> int:
     parser.add_argument("--previous", type=Path, help="directory containing a previous successful native-host package")
     parser.add_argument("--previous-if-present", type=Path, help="CI baseline directory, if a previous artifact is available")
     parser.add_argument("--gui-smoke", action="store_true")
+    parser.add_argument("--windows-opengl-directory", type=Path, help="CI-only Mesa graphics driver directory; never added to the package")
     args = parser.parse_args()
     current = find_package(args.dist)
     if args.previous and args.previous_if_present:
         raise ValueError("choose one previous-package option")
     baseline = args.previous or (args.previous_if_present if args.previous_if_present and args.previous_if_present.exists() else None)
     previous = find_package(baseline) if baseline else None
-    result = workflow(current, previous, args.gui_smoke)
+    result = workflow(current, previous, args.gui_smoke, args.windows_opengl_directory)
     destination = args.dist / "installation-verification.json"
     destination.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result))

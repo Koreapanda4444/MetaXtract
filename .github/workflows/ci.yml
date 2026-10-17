@@ -12,8 +12,89 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build_plan:
+    name: Build or reuse verified packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      package_run_id: ${{ steps.plan.outputs.package_run_id }}
+    steps:
+      - name: Reuse only unchanged, previously verified build inputs
+        id: plan
+        uses: actions/github-script@v8
+        with:
+          retries: 3
+          script: |
+            if (context.eventName !== 'push' || context.ref !== 'refs/heads/main') return;
+            const permitted = new Set([
+              '.github/workflows/ci.yml', 'packaging/verify.py',
+              'docs/packaging.md', 'docs/packaging_KR.md'
+            ]);
+            const required = [
+              'Rust / C++ (ubuntu-latest)', 'Rust / C++ (windows-latest)',
+              'Rust / C++ (macos-latest)', 'Native and FFI sanitizers', 'build',
+              'Installed CLI (Linux / Python 3.11)', 'Installed CLI (Linux / Python 3.14)',
+              'Installed CLI (Windows / Python 3.11)', 'Installed CLI (macOS / Python 3.11)',
+              'Standalone Windows GUI'
+            ];
+            const packages = ['Rust-MetaXtract-Linux-X64', 'Rust-MetaXtract-Windows-X64',
+              'Rust-MetaXtract-macOS-ARM64'];
+            function buildSettings(text) {
+              const marker = '\njobs:\n';
+              const start = text.indexOf(marker);
+              if (start < 0) throw new Error('Workflow has no jobs section');
+              const chunks = text.slice(start + marker.length).split(/(?=^  [A-Za-z0-9_-]+:[ \t]*$)/m);
+              const retained = chunks.filter(chunk => !/^  (build_plan|installed-native):/.test(chunk));
+              return text.slice(0, start) + marker + retained.join('')
+                .replace(/^    needs: build_plan\n/gm, '')
+                .replace(/^    if: needs\.build_plan\.outputs\.package_run_id == ''\n/gm, '')
+                .trimEnd() + '\n';
+            }
+            async function workflowAt(ref) {
+              const response = await github.rest.repos.getContent({
+                ...context.repo, path: '.github/workflows/ci.yml', ref
+              });
+              return Buffer.from(response.data.content, 'base64').toString('utf8');
+            }
+            const current = buildSettings(await workflowAt(context.sha));
+            const runs = await github.rest.actions.listWorkflowRuns({
+              ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push',
+              status: 'completed', per_page: 10
+            });
+            for (const run of runs.data.workflow_runs) {
+              if (run.id === context.runId) continue;
+              const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                ...context.repo, basehead: run.head_sha + '...' + context.sha
+              });
+              const files = comparison.data.files;
+              if (!files || files.length >= 300 ||
+                  !['ahead', 'identical'].includes(comparison.data.status) ||
+                  comparison.data.merge_base_commit.sha !== run.head_sha ||
+                  files.some(file => !permitted.has(file.filename) ||
+                    (file.previous_filename && !permitted.has(file.previous_filename)))) continue;
+              if (buildSettings(await workflowAt(run.head_sha)) !== current) continue;
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                ...context.repo, run_id: run.id, per_page: 100
+              });
+              if (!required.every(name => jobs.some(job => job.name === name &&
+                  job.status === 'completed' && job.conclusion === 'success'))) continue;
+              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                ...context.repo, run_id: run.id, per_page: 100
+              });
+              if (!packages.every(name => artifacts.data.artifacts.some(artifact =>
+                  artifact.name === name && !artifact.expired))) continue;
+              core.info('Unchanged build inputs: reusing run ' + run.id + ' at ' + run.head_sha);
+              core.setOutput('package_run_id', String(run.id));
+              return;
+            }
+            core.info('No identical verified build; compile and validate all native and reference jobs.');
+
   native:
     name: Rust / C++ (${{ matrix.os }})
+    needs: build_plan
+    if: needs.build_plan.outputs.package_run_id == ''
     runs-on: ${{ matrix.os }}
     env:
       RUSTUP_HOME: ${{ github.workspace }}/../metaxtract-rustup-${{ github.run_id }}-native
@@ -112,7 +193,8 @@ jobs:
 
   installed-native:
     name: Installed Rust package (${{ matrix.os }})
-    needs: native
+    needs: [build_plan, native]
+    if: always() && needs.build_plan.result == 'success' && (needs.native.result == 'success' || needs.build_plan.outputs.package_run_id != '')
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -133,6 +215,8 @@ jobs:
         with:
           name: Rust-MetaXtract-${{ runner.os }}-${{ runner.arch }}
           path: package-current
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.build_plan.outputs.package_run_id || github.run_id }}
       - name: Find previous successful native package
         id: previous-native
         uses: actions/github-script@v8
@@ -164,6 +248,23 @@ jobs:
           path: previous-package
           github-token: ${{ github.token }}
           run-id: ${{ steps.previous-native.outputs.run_id }}
+      - name: Prepare Windows CI software graphics
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'mesa3d-26.2.4-release-msvc.7z'
+          $directory = Join-Path $env:RUNNER_TEMP 'metaxtract-ci-mesa'
+          Invoke-WebRequest 'https://github.com/pal1000/mesa-dist-win/releases/download/26.2.4/mesa3d-26.2.4-release-msvc.7z' -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne '351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695') {
+            throw 'CI Mesa archive checksum differs'
+          }
+          7z x $archive "-o$directory" '-y' 'x64/*'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not extract the CI graphics driver' }
+          $driver = Join-Path $directory 'x64'
+          if (!(Test-Path (Join-Path $driver 'opengl32.dll')) -or !(Test-Path (Join-Path $driver 'libgallium_wgl.dll'))) {
+            throw 'CI graphics driver is incomplete'
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "METAXTRACT_CI_OPENGL=$driver"
       - name: Verify standalone installation (Linux)
         if: runner.os == 'Linux'
         env:
@@ -172,9 +273,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb fonts-noto-cjk libxkbcommon-x11-0 libegl1 libgl1-mesa-dri
           xvfb-run -a python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke
-      - name: Verify standalone installation (Windows and macOS)
-        if: runner.os != 'Linux'
+      - name: Verify standalone installation (macOS)
+        if: runner.os == 'macOS'
         run: python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke
+      - name: Verify standalone installation (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke --windows-opengl-directory "$env:METAXTRACT_CI_OPENGL"
       - uses: actions/upload-artifact@v4
         with:
           name: Rust-installation-${{ runner.os }}-${{ runner.arch }}
@@ -211,6 +316,8 @@ jobs:
 
   native-sanitizers:
     name: Native and FFI sanitizers
+    needs: build_plan
+    if: needs.build_plan.outputs.package_run_id == ''
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: ${{ github.workspace }}/../metaxtract-rustup-${{ github.run_id }}-sanitizers
@@ -240,6 +347,8 @@ jobs:
         run: python conformance/run.py
 
   build:
+    needs: build_plan
+    if: needs.build_plan.outputs.package_run_id == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
