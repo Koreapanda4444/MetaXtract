@@ -30,12 +30,6 @@ path = "crates/metaxtract-storage"
 language = "rust"
 allows = ["schema"]
 
-[components.python_reference]
-path = "legacy/python"
-language = "python"
-allows = []
-production = false
-
 [components.analysis]
 path = "crates/metaxtract-analysis"
 language = "rust"

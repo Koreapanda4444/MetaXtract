@@ -8,7 +8,6 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -54,7 +53,9 @@ def validate_repository() -> list[str]:
     for path in (ROOT / components["extractor"]["path"]).rglob("*"):
         if path.suffix in {".cpp", ".hpp"} and forbidden_cpp.search(path.read_text(encoding="utf-8")):
             errors.append(f"native filesystem/process/network API: {path.relative_to(ROOT)}")
-    for name in ("schema", "core", "native"):
+    for name, component in components.items():
+        if not component["language"].startswith("rust"):
+            continue
         for path in (ROOT / components[name]["path"] / "src").rglob("*.rs"):
             text = path.read_text(encoding="utf-8")
             worker_client = path == ROOT / "crates/metaxtract-core/src/scan/worker.rs"
@@ -100,16 +101,17 @@ def validate_repository() -> list[str]:
         if len(matches) != 1 or matches[0]["version"] != pinned["cxx" if name == "cxx-build" else name]:
             errors.append(f"Cargo.lock version mismatch: {name}")
 
-    baseline = json.loads((ROOT / "reference/python/baseline.json").read_text(encoding="utf-8"))
-    result = subprocess.run(["git", "rev-parse", "HEAD:legacy/python/src"], cwd=ROOT, text=True, capture_output=True, check=True)
-    if result.stdout.strip() != baseline["source_tree_git_sha1"]:
-        errors.append("frozen Python source tree differs from the baseline")
-    changes = subprocess.run(["git", "diff", "HEAD", "--", "legacy/python/src"], cwd=ROOT, text=True, capture_output=True, check=True)
-    if changes.stdout:
-        errors.append("frozen Python source has uncommitted changes")
-    extras = subprocess.run(["git", "ls-files", "--others", "--exclude-standard", "legacy/python/src"], cwd=ROOT, text=True, capture_output=True, check=True)
-    if extras.stdout:
-        errors.append("frozen Python source has new files")
+    captured = json.loads((ROOT / "conformance/expected/python.json").read_text(encoding="utf-8"))
+    baseline = captured["baseline"]
+    for field in ("baseline_commit", "source_tree_git_sha1"):
+        if not re.fullmatch(r"[0-9a-f]{40}", baseline[field]):
+            errors.append("missing captured Python provenance: " + field)
+    for directory in ("legacy", "reference"):
+        if (ROOT / directory).exists():
+            errors.append("retired application tree remains: " + directory)
+    for component in components.values():
+        if component["language"].startswith("rust") and any((ROOT / component["path"] / "src").rglob("*.py")):
+            errors.append("Python product source remains: " + component["path"])
     return errors
 
 
@@ -155,7 +157,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}")
         return 1
-    print("Repository ownership, frozen Python source, and dependency locks passed")
+    print("Repository ownership, captured reference provenance, and dependency locks passed")
     return 0
 
 

@@ -127,5 +127,5 @@ Rust schemas migrate only in the temporary copy; the original bundle is unchange
 The result reports the original schema and the resulting integrity anchor. Cases
 that predate auditing receive a new explicit baseline, not a fabricated history.
 
-All APIs are library APIs for the Rust application under development. The working
-desktop interface remains the frozen Python reference until the GUI migration.
+The Rust desktop and CLI expose these library operations through the shared application layer.
+Earlier Python cases remain importable without installing or executing the retired application.

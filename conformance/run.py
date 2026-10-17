@@ -6,20 +6,18 @@ import hashlib
 import json
 import os
 import random
+import sqlite3
 import struct
 import subprocess
 import sys
 import tempfile
-import sqlite3
 import zipfile
 from contextlib import closing
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON_SOURCE = ROOT / "legacy" / "python" / "src"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -29,21 +27,15 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def _projection(record: Any) -> dict[str, Any]:
-    row = asdict(record)
-    metadata = dict(row.get("metadata") or {})
-    metadata.pop("mtime", None)
-    metadata.pop("cache_hit", None)
-    row["metadata"] = metadata
-    return row
-
-
 def _materialize(root: Path, corpus: dict[str, Any]) -> None:
-    from metaxtract.core.models import normalize_relative_path
-
     seen = set()
     for case in corpus.get("cases", []):
-        relative = normalize_relative_path(case["path"])
+        relative = case["path"]
+        if not isinstance(relative, str) or not relative or any(
+            part in ("", ".", "..") or any(c in part for c in ("\\", ":", "\0"))
+            for part in relative.split("/")
+        ):
+            raise ValueError("unsafe corpus path")
         if relative.casefold() in seen:
             raise ValueError(f"duplicate corpus path: {relative}")
         seen.add(relative.casefold())
@@ -53,59 +45,23 @@ def _materialize(root: Path, corpus: dict[str, Any]) -> None:
         destination.write_bytes(payload)
 
 
-def _compare_records(corpus: dict[str, Any], expected: dict[str, Any]) -> list[str]:
-    from metaxtract.core.scanner import scan_path
-
-    with tempfile.TemporaryDirectory(prefix="metaxtract-conformance-") as temporary:
-        root = Path(temporary)
-        _materialize(root, corpus)
-        records = [
-            _projection(record)
-            for record in scan_path(
-                root,
-                cache_enabled=False,
-                max_files=max(len(corpus.get("cases", [])), 1),
-            )
-        ]
-
-    actual = sorted(records, key=lambda row: row["path"])
-    wanted = sorted(expected.get("records", []), key=lambda row: row["path"])
-    if actual == wanted:
-        return []
-    return [
-        "Python record projection differs from conformance/expected/python.json",
-        json.dumps({"expected": wanted, "actual": actual}, indent=2, sort_keys=True),
-    ]
-
-
-def _compare_paths(expected: dict[str, Any]) -> list[str]:
-    from metaxtract.core.models import normalize_relative_path
-
+def _validate_captures(corpus: dict[str, Any], expected: dict[str, Any]) -> list[str]:
     failures = []
-    for case in expected.get("path_cases", []):
-        value = case["input"]
-        if case.get("error"):
-            try:
-                normalize_relative_path(value)
-            except ValueError:
-                continue
-            failures.append(f"unsafe path was accepted: {value!r}")
-            continue
-
-        try:
-            actual = normalize_relative_path(value)
-        except ValueError as exc:
-            failures.append(f"valid path was rejected: {value!r}: {exc}")
-            continue
-        if actual != case["normalized"]:
-            failures.append(
-                f"path projection differs for {value!r}: {actual!r} != {case['normalized']!r}"
-            )
+    records = {record["path"]: record for record in expected["records"]}
+    if len(records) != len(expected["records"]) or len(records) != len(corpus["cases"]):
+        failures.append("captured record inventory differs")
+    for case in corpus["cases"]:
+        payload = base64.b64decode(case["base64"], validate=True)
+        record = records.get(case["path"], {})
+        if record.get("sha256") != hashlib.sha256(payload).hexdigest() or record.get("size_bytes") != len(payload):
+            failures.append("captured input identity differs: " + case["path"])
+        if set(record) != set(expected["baseline"]["record_contract"]["required_fields"]):
+            failures.append("captured record contract differs: " + case["path"])
     return failures
 
 
 def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
-    baseline = _read_json(ROOT / "reference" / "python" / "baseline.json")
+    baseline = expected["baseline"]
     plain = next(
         (row for row in expected.get("records", []) if row.get("path") == "evidence.txt"),
         None,
@@ -692,20 +648,18 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
         return [f"application parity gate failed: {error}"], completed
 
 
-def run(*, python_only: bool = False, release: bool = False,
+def run(*, captured_only: bool = False, release: bool = False,
         fuzz_cases: int = 256, fuzz_seed: int = 0x4d58,
         cli_executable: Path | None = None) -> dict[str, Any]:
-    sys.path.insert(0, str(PYTHON_SOURCE))
     corpus = _read_json(ROOT / "conformance" / "corpus" / "files.json")
     expected = _read_json(ROOT / "conformance" / "expected" / "python.json")
 
     failures = []
-    failures.extend(_compare_records(corpus, expected))
-    failures.extend(_compare_paths(expected))
+    failures.extend(_validate_captures(corpus, expected))
     failures.extend(_compare_frozen_baseline(expected))
     native_cases = 0
     application_cases = 0
-    if not python_only:
+    if not captured_only:
         native_failures, native_cases = _compare_native(corpus, expected, release, fuzz_cases, fuzz_seed)
         failures.extend(native_failures)
         failures.extend(_compare_cli(release, cli_executable))
@@ -716,7 +670,7 @@ def run(*, python_only: bool = False, release: bool = False,
         "cases": len(corpus.get("cases", [])),
         "path_cases": len(expected.get("path_cases", [])),
         "native_contract_cases": native_cases,
-        "native_enabled": not python_only,
+        "native_enabled": not captured_only,
         "application_parity_checks": application_cases,
         "native_record_parity": "captured Python fields and migration workflows; bounded corpus, not exhaustive format equivalence",
         "failures": failures,
@@ -726,7 +680,7 @@ def run(*, python_only: bool = False, release: bool = False,
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run MetaXtract migration conformance checks")
     parser.add_argument("--json", action="store_true", help="emit a compact JSON result")
-    parser.add_argument("--python-only", action="store_true", help="check only the frozen Python baseline")
+    parser.add_argument("--captured-only", action="store_true", help="validate captured input hashes and reference data without native tools")
     parser.add_argument("--release", action="store_true", help="check the release Rust/C++ build")
     parser.add_argument("--cli-only", action="store_true", help="check application command contracts")
     parser.add_argument("--acceptance-only", action="store_true", help="check application contracts and captured Python parity")
@@ -738,7 +692,6 @@ def main() -> int:
         parser.error("--fuzz-cases must be between 0 and 10000")
 
     if args.cli_only or args.acceptance_only:
-        sys.path.insert(0, str(PYTHON_SOURCE))
         failures = _compare_cli(args.release, args.cli_executable)
         count = 0
         if args.acceptance_only:
@@ -746,7 +699,7 @@ def main() -> int:
             failures.extend(extra)
         print(json.dumps({"ok": not failures, "application_parity_checks": count, "failures": failures}, ensure_ascii=False))
         return int(bool(failures))
-    result = run(python_only=args.python_only, release=args.release,
+    result = run(captured_only=args.captured_only, release=args.release,
                  fuzz_cases=args.fuzz_cases, fuzz_seed=args.fuzz_seed,
                  cli_executable=args.cli_executable)
     if args.json:
@@ -754,7 +707,7 @@ def main() -> int:
     elif result["ok"]:
         print(
             "Conformance passed: "
-            f"{result['cases']} Python files, {result['path_cases']} paths, "
+            f"{result['cases']} captured files, {result['path_cases']} paths, "
             f"{result['native_contract_cases']} Rust/C++ contract checks"
         )
     else:

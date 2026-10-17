@@ -2,11 +2,8 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-.metaxtract_cache/
 dist/
 build/
-.eggs/
-*.egg-info/
 *.log
 *.tmp
 .cache/

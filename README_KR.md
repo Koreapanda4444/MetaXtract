@@ -6,7 +6,7 @@ MetaXtract는 로컬 파일의 메타데이터를 추출하고 분석 결과의 
 많은 파일 형식을 지원하면서 메타데이터를 깊게 추출하고 정확하게 해석하는 것이 목표입니다.
 성능과 메모리 효율도 중요하지만 분석 범위와 정확도를 희생하지 않습니다.
 
-현재 Python에서 Rust + C++로 전환 중입니다. 언어의 역할은 작업에 따라 나눕니다.
+앱은 Rust + C++로 구현합니다. 언어의 역할은 작업에 따라 나눕니다.
 C++는 바이너리 파싱·디코딩·원본 메타데이터 추출을 맡고, Rust는 앱 운영과 결과 분석을 맡습니다.
 
 ## 현재 상태
@@ -47,8 +47,9 @@ Rust GUI·CLI에서 스캔·일시정지·재개, 페이지별 레코드, 원본
 감사 검증과 파서 진단도 제공합니다.
 지원 필드와 한계는 [추출 지원 범위](docs/extraction_KR.md)를 참고합니다.
 
-Python 소스는 결과 비교를 위한 기준판으로 동결합니다. 새 앱이 기존 사용 흐름, 데이터 호환성,
-추출 결과 검증을 통과한 뒤 제거할 예정입니다.
+기록한 필드와 사용 흐름의 인수 검증을 통과해 Python 앱을 제거했습니다. 소스는 Git 이력에
+보존하며 입력 샘플·예상 필드·실제 이전 케이스 산출물은 [호환성 검증 자료](conformance/README_KR.md)에
+남겨 이후에도 같은 기준으로 검사합니다.
 
 새 CLI·Rust 데스크톱 사용법은 [Rust 앱 안내](docs/application_KR.md)를 참고합니다.
 
@@ -80,14 +81,10 @@ cargo run -p metaxtract-cli --locked -- --help
 의존성을 설치합니다. 한글 표시에는 Noto Sans CJK를 설치하거나 `METAXTRACT_FONT_PATH`로
 글꼴을 지정합니다.
 
-동결된 Python 비교 앱은 `python -m pip install -e ./legacy/python`으로 별도 설치할 수 있습니다.
-사용법은 [기준 앱 안내](legacy/python/README_KR.md)에 있으며 Rust 앱 실행에는 필요하지 않습니다.
+앱은 허용된 네이티브 라이브러리를 연결하거나 함께 배포합니다. ExifTool·ffprobe 같은 외부
+메타데이터 실행 프로그램을 호출하지 않으며 앱 실행에 Python이 필요하지 않습니다.
 
-새 Rust/C++ 제품은 ExifTool이나 ffprobe 같은 외부 메타데이터 실행 프로그램에 의존하지 않습니다.
-허용된 네이티브 라이브러리는 연결하거나 앱과 함께 배포합니다. 동결된 Python 기준판에는
-선택적인 ffprobe 비디오 기능이 남아 있지만 새 아키텍처에 포함되지는 않습니다.
-
-## Rust/C++ 기반 빌드
+## 소스에서 빌드
 
 고정된 Rust 1.88.0 도구 모음, CMake 3.24 이상, C++20 컴파일러를 사용합니다.
 Windows에서 Visual Studio 2026을 사용한다면 CMake 4.2 이상이 필요하며 CI는 4.2.3을 사용합니다.
@@ -95,15 +92,17 @@ Windows에서 Visual Studio 2026을 사용한다면 CMake 4.2 이상이 필요�
 네이티브 빌드에는 Python 3.11 이상, GNU make와 셸도 필요합니다. Windows는 MSVC와
 MSYS2 bash·make를 사용하며 다른 설치 경로는 METAXTRACT_MSYS_ROOT로 지정합니다.
 
-검증 전에 위 명령으로 Python 기준판을 설치합니다. 저장소 루트에서 실행합니다.
+Python은 빌드·검증 스크립트에서만 사용하며 Python 앱을 설치하지 않습니다.
+저장소 루트에서 실행합니다.
 
 ```bash
 cargo build --workspace --locked
 python conformance/run.py
 ```
 
-검증은 명시된 계약과 기록된 기준 사례를 확인합니다. 모든 형식의 추출·사용 흐름이 완전히
-동등하다는 의미는 아니므로 동결된 Python 기준판은 유지합니다.
+검증은 명시된 계약, 캡처한 기준 입력 8개, 이전 케이스 산출물과 앱의 사용 흐름을 확인합니다.
+모든 형식의 완전한 동등성을 보증하지는 않으며 문서에 지원 범위와 한계를 정리합니다.
+별도의 루트 테스트 폴더는 사용하지 않습니다.
 
 ## 저장소 구조
 
@@ -111,8 +110,6 @@ python conformance/run.py
 |---|---|
 | [`crates/`](crates/README_KR.md) | Rust 스키마, 네이티브 연결부와 앱 기반 |
 | [`native/`](native/README_KR.md) | C++ 원시 파서·네이티브 라이브러리 어댑터·제한된 디코딩 |
-| [`legacy/python/`](legacy/python/README_KR.md) | 실행 가능한 Python 앱과 동결된 소스 기준판 |
-| [`reference/python/`](reference/python/README_KR.md) | Python 앱에서 기록한 기존 동작 기준 |
 | [`conformance/`](conformance/README_KR.md) | 전환용 샘플과 호환성 검증 |
 | [`packaging/`](docs/packaging_KR.md) | 빌드용 독립 패키지 제작과 의존성 검사 |
 | `docs/` | 설계 이유, 의존성 정책과 네이티브 코드의 안전성 규칙 |

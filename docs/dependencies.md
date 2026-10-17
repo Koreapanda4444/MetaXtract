@@ -19,8 +19,8 @@ components. Codec plugins pulled by libheif require their own review before enab
 
 Exiv2 is intentionally not selected while the project has no GPL-compatible distribution policy.
 The image plan instead starts from focused libraries and MetaXtract-owned adapters. ExifTool and
-ffprobe are forbidden as production runtime dependencies; their presence in the frozen Python
-reference does not make them part of the new product.
+ffprobe are forbidden as production runtime dependencies. The retired Python application is
+absent from the final product tree; build/verification scripts do not ship as runtime services.
 
 Dependency updates must change the version and revision together, rerun license validation, and
 pass the malformed-file conformance corpus before merging.

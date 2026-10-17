@@ -41,7 +41,7 @@ cargo run -p metaxtract-cli -- bundle open snapshot.zip reopened.mxcase
 넣습니다. `--save NAME`은 구조화된 필터를 저장하고 `--order path|size|insertion`은 검색·내보내기
 정렬을 지정합니다. `redact --preview RECORD_ID`는 파일을 쓰지 않고 변경 내용을 보여 줍니다.
 `--profile FILE`로 기존 비식별화 JSON 프로필을 적용할 수 있으며 원본은 바꾸지 않습니다.
-`import CASE INPUT --kind jsonl|python|python-bundle`로 이전 스캔과 Python 기준판 케이스를 가져옵니다.
+`import CASE INPUT --kind jsonl|python|python-bundle`로 이전 스캔과 Python 케이스를 가져옵니다.
 
 `keygen PRIVATE PUBLIC --name NAME --password-stdin`은 암호화된 Ed25519 개인키를 만듭니다.
 비밀번호는 표준 입력으로 전달하며 명령 인수로는 받지 않습니다. 자동화에서는

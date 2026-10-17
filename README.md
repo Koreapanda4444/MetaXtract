@@ -6,8 +6,7 @@ MetaXtract extracts metadata from local files and preserves the evidence behind 
 The goal is broad format coverage, deep extraction, and accurate interpretation. Performance
 and memory efficiency matter without sacrificing coverage or accuracy.
 
-The application is being migrated from Python to Rust and C++. Responsibilities are divided by
-task: C++ parses, decodes, and extracts raw metadata; Rust manages the application and analyzes
+The application uses Rust and C++. Responsibilities are divided by task: C++ parses, decodes, and extracts raw metadata; Rust manages the application and analyzes
 the results.
 
 ## Current status
@@ -38,8 +37,9 @@ The desktop also provides redaction previews, CSV/JSONL exports, HTML/JSON repor
 keys/signatures, case bundles, imports, audit verification and parser diagnostics.
 See [native extraction coverage](docs/extraction.md) for supported fields and limitations.
 
-The Python source remains frozen as a comparison baseline. It will be removed after the new
-application passes workflow, data compatibility, and extraction conformance checks.
+The Python application has been retired after captured-field and workflow acceptance checks.
+Its source remains in Git history; the input corpus, expected fields and genuine earlier case
+artifacts remain in [conformance](conformance/README.md) for continued compatibility verification.
 
 The Rust [analysis library](docs/analysis.md) provides normalization, field lineage and timelines,
 claim validation, findings, exact/content/visual similarity, offline geographic analysis, scan/field
@@ -76,15 +76,10 @@ libxkbcommon, including its X11 library. On Ubuntu/Debian, install the GUI runti
 `sudo apt-get install libxkbcommon-x11-0 libegl1 libgl1-mesa-dri fonts-noto-cjk`.
 Install Noto Sans CJK or set `METAXTRACT_FONT_PATH` for Korean labels.
 
-The frozen Python comparison app can be installed separately with
-`python -m pip install -e ./legacy/python`. Its usage is in the
-[reference application guide](legacy/python/README.md). It is not needed at Rust application runtime.
+The application uses approved linked or bundled native libraries. It does not invoke external
+metadata executables such as ExifTool or ffprobe, and it does not require Python at runtime.
 
-The new Rust/C++ product must not depend on external metadata executables such as ExifTool or
-ffprobe. Approved native libraries will be linked or bundled. The frozen Python reference still
-has an optional ffprobe video backend; it is not part of the new architecture.
-
-## Build the Rust/C++ foundation
+## Build from source
 
 Use the pinned Rust 1.88.0 toolchain, CMake 3.24 or newer, and a C++20 compiler. Windows builds
 using Visual Studio 2026 require CMake 4.2 or newer; CI uses CMake 4.2.3.
@@ -92,15 +87,17 @@ using Visual Studio 2026 require CMake 4.2 or newer; CI uses CMake 4.2.3.
 Native builds also require Python 3.11+, GNU make and a shell. Windows needs MSVC and MSYS2
 bash/make; set METAXTRACT_MSYS_ROOT if MSYS2 is outside C:/msys64.
 
-Install the Python reference before running compatibility checks. From the repository root:
+Python is used only by build and verification scripts; no Python application is installed.
+From the repository root:
 
 ```bash
 cargo build --workspace --locked
 python conformance/run.py
 ```
 
-Conformance verifies defined contracts and captured reference cases. Passing it does not establish
-complete extraction or workflow parity for every format; the frozen Python baseline is retained.
+Conformance verifies defined contracts, eight captured reference inputs, earlier case artifacts
+and application workflows. Passing it does not establish exhaustive equivalence for every format;
+see the documented coverage and limits. No separate root test directory is required.
 
 ## Repository layout
 
@@ -108,8 +105,6 @@ complete extraction or workflow parity for every format; the frozen Python basel
 |---|---|
 | [`crates/`](crates/README.md) | Rust schema, native bridge, and application foundation |
 | [`native/`](native/README.md) | C++ raw parsers, native library adapters, and bounded decoding |
-| [`legacy/python/`](legacy/python/README.md) | Working Python application and frozen source reference |
-| [`reference/python/`](reference/python/README.md) | Stable behavior captured from the Python application |
 | [`conformance/`](conformance/README.md) | Fixtures and compatibility checks for the migration |
 | [`packaging/`](docs/packaging.md) | Build-time standalone assembly and dependency inspection |
 | `docs/` | Design decisions, dependency policy, and native safety contracts |

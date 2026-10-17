@@ -1,1 +1,0 @@
-MetaXtract Python reference baseline.

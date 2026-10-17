@@ -6,7 +6,8 @@ This directory replaces a generic root test tree for migration-critical verifica
 contains deterministic byte payloads and stable output projections. It never contains private
 evidence or files copied from users.
 
-The checks require Rust 1.88, CMake 3.24 or newer, a C++20 compiler, and the Python reference.
+The checks require Rust 1.88, CMake 3.24 or newer, a C++20 compiler and Python 3.11+
+for the standard-library-only harness. No Python application or extraction package is installed.
 Visual Studio 2026 on Windows requires CMake 4.2 or newer (CI uses 4.2.3). Run from the
 repository root:
 
@@ -23,8 +24,8 @@ Volatile filesystem fields are removed before comparison. The corpus establishes
 for existing behavior; deeper fields introduced by the native engine require format-spec or
 multi-parser evidence and are not constrained to Python's shallow output.
 
-The runner compares Python baseline records and path behavior, then sends fixture bytes through
-Rust, C++, and the Rust-owned memory/file callback. It checks byte ranges, short reads at EOF,
+The runner validates captured input hashes, then sends fixture bytes and retained path cases
+through Rust, C++ and the Rust-owned memory/file callback. It checks byte ranges, short reads at EOF,
 overflow offsets, read ceilings, truncated files, error mapping, schema invariants, and every
 parser resource budget. The fixture parser is enabled only by the explicit Cargo `conformance`
 feature and is absent from ordinary production builds.
@@ -42,7 +43,9 @@ plain text, RGB and RGBA PNG, animated PNG, EXIF/GPS JPEG, ordinary and password
 and DOCX. It compares path, MIME type, size, SHA-256 and every captured metadata field while
 allowing additional native observations. Unknown Unicode metadata and orientation claims must
 survive. `--acceptance-only` runs the application contracts and this gate; `--cli-executable PATH`
-can select an independently packaged CLI. `--python-only` still checks the untouched reference.
+can select an independently packaged CLI. `--captured-only` validates the retained data without
+native build tools. The retired application source is preserved in Git history; expected data
+retains the original source-tree identity and live comparison evidence from the acceptance commit.
 
 The same gate imports genuine Python case/JSONL/signed-bundle artifacts, retains original record
 fields, notes, annotations and saved-filter semantics, and checks analysis of imported GPS.

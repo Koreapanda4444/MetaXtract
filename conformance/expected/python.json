@@ -263,5 +263,17 @@
     "annotation_tag": "reference",
     "annotation_path": "camera.jpg",
     "notes": "Preserved compatibility case notes / 보존할 메모"
+  },
+  "acceptance": {
+    "source_commit": "f187148aefb25d4ff6f424320bcf1c50d943acde",
+    "local_verification": {
+      "live_python_files": 8,
+      "path_cases": 12,
+      "native_contract_cases": 773,
+      "application_checks_linux": 18,
+      "rust_policy_checks": 6,
+      "warnings_and_dependency_policy": "passed"
+    },
+    "scope": "Captured Python fields and retained migration workflows; not exhaustive equivalence for every format."
   }
 }

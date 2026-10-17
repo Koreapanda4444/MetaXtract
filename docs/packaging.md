@@ -89,7 +89,7 @@ and preserves the desktop's actual recent-case settings as well.
 
 Separate fresh CI jobs download the built package and a previous successful package for the
 same OS/architecture when one is retained. They do not reuse the native build tree or install
-the Python reference application.
+a Python application.
 `installation-verification.json` records both commits and distinguishes a previous-package upgrade
 from a same-package reinstall. Reports are published in `Rust-installation-<OS>-<arch>` artifacts alongside the
 `Rust-MetaXtract-<OS>-<arch>` package artifacts.
@@ -101,15 +101,16 @@ The graphics mode is recorded as `desktop_graphics` in the receipt.
 
 For main-branch changes limited to the installation verifier, this CI job, or project Markdown
 guides, CI can download previously verified packages. It checks ancestry, the complete changed-file
-list, unchanged build/sanitizer/reference job settings, successful prior jobs and all three retained
+list, unchanged build/sanitizer job settings, successful prior jobs and all three retained
 native package artifacts. Other changes run the full builds. Fresh installation jobs always run
 the current verifier. Reused packages retain their original build commit in their inventories
 and matching source archives; the CI log identifies the source run and commit.
 This checks an isolated runtime environment on hosted runners, not
-every possible operating-system image, GPU driver or distribution. Original Python reference
-CI remains separate until the parity/removal stages.
+every possible operating-system image, GPU driver or distribution. Python application wheel and
+PyInstaller jobs have been removed; native acceptance retains the captured compatibility artifacts.
 
 Download the `Rust-MetaXtract-<OS>-<arch>` artifact from its native build run. A verification-only
 run identifies that source run in **Build or reuse verified packages** and publishes new
 installation receipts. The application archive, its checksum and matching source archive belong
-together. The older `MetaXtract-Windows` artifact is the frozen Python reference, not the Rust app.
+together. Historical `MetaXtract-Windows` artifacts belong to the retired Python application;
+current CI publishes only the native product packages and verification receipts.

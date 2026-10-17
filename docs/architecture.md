@@ -58,11 +58,13 @@ the C++ side and converted to structured failures.
 MetaXtract may link or bundle approved libraries. It must not invoke ExifTool, ffprobe, or another
 user-installed metadata executable at runtime. Build tools are not runtime dependencies.
 
-## Python reference
+## Retained compatibility evidence
 
-The frozen Python application is an executable compatibility oracle for existing workflows. It is
-not authoritative for fields it never extracted. Rust and C++ replace it only after conformance,
-workspace compatibility, and end-to-end acceptance gates pass.
+The retired Python application remains in Git history. The final tree retains its source-tree
+identity, captured input/output fields and genuine case/signed-bundle artifacts in conformance
+data. Rust/C++ acceptance checks replay them through public application commands. The capture
+is not authoritative for metadata the earlier application never extracted, nor an exhaustive
+format oracle. Build-time Python scripts are separate from the Rust/C++ runtime.
 
 [`architecture.toml`](../architecture.toml) is the machine-readable ownership policy used by
 repository validation. See the [boundary contract](ffi.md), [dependency policy](dependencies.md),

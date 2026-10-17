@@ -1,1 +1,0 @@
-"""MetaXtract metadata scanning toolkit."""
