@@ -315,6 +315,33 @@ pub fn visual_fingerprints(
     }
     Ok(out)
 }
+/// Apply only an unambiguous declared orientation; unresolved transforms remain a coverage gap.
+pub fn record_visual_fingerprints(
+    record: &ExtractionRecord,
+    limits: AnalysisLimits,
+) -> io::Result<Vec<VisualFingerprint>> {
+    let mut orientation = None;
+    for claim in &record.claims {
+        if claim.key.as_str() != "image.orientation"
+            || claim.resolution == ClaimResolution::Rejected
+        {
+            continue;
+        }
+        let value = match claim.value {
+            NormalizedValue::Unsigned(n) => u8::try_from(n).ok(),
+            NormalizedValue::Signed(n) => u8::try_from(n).ok(),
+            _ => None,
+        };
+        let Some(value) = value.filter(|n| (1..=8).contains(n)) else {
+            return Ok(vec![]);
+        };
+        if orientation.is_some_and(|previous| previous != value) {
+            return Ok(vec![]);
+        }
+        orientation = Some(value);
+    }
+    visual_fingerprints(record, orientation.unwrap_or(1), limits)
+}
 pub fn visually_similar(
     fingerprints: &[VisualFingerprint],
     threshold: u8,

@@ -239,3 +239,37 @@ Python 케이스·JSONL·Python 번들 중 입력에 맞는 종류를 선택합�
 선택합니다. CLI는 원래 `--resume RUN --scan SCAN_ID`와 사용자 지정 `--journal PATH`를
 사용합니다. 엔진이 다르면 새 스캔이 필요합니다. 저널을 잃어도 저장된 케이스 기록은
 읽을 수 있지만 사라진 체크포인트를 복원할 수는 없습니다.
+
+## 원본 검증, 증거 전달과 캐시
+
+```bash
+metaxtract scan evidence --case investigation.mxcase --include-hidden --decode-previews --cache on
+metaxtract verify-originals investigation.mxcase SCAN_ID evidence
+metaxtract export-evidence investigation.mxcase SCAN_ID evidence selected.zip --query 'path=evidence.txt'
+metaxtract verify-evidence selected.zip
+metaxtract analyze investigation.mxcase SCAN_ID --view locations --format geojson --output locations.geojson
+metaxtract analyze investigation.mxcase SCAN_ID --view similar --threshold 8
+metaxtract doctor --case investigation.mxcase
+metaxtract cache purge investigation.mxcase.cache.sqlite
+```
+
+데스크톱 Workflows 메뉴에서도 원본 검증, 선택 증거 내보내기, 증거 ZIP 무결성 검증과 캐시
+비우기를 실행할 수 있습니다. 스캔 대기열은 숨김 파일 포함, 파일 개수 제한과 캐시 사용을
+설정합니다. 스캔 중 미리보기 디코딩은 선택 사항이며 저장한 디코딩 프레임으로 시각적 유사성을
+분석합니다. 미리보기 부재와 방향 충돌은 명시적인 분석 범위 누락으로 표시합니다.
+
+사용자가 원본 루트를 지정해야 하며 케이스에 기록된 경로만으로 임의의 디스크 접근을 허용하지
+않습니다. 원본 검증은 지정 루트 안의 일반 파일을 다시 열고 심볼릭 링크를 거부하며 기록된 크기와
+SHA-256을 비교합니다. 중첩된 가상 레코드는 별도로 집계하고 OS 경로로 열지 않습니다. 원본 검증을
+완료했지만 불일치가 있으면 stdout 결과의 `verified`가 false이고 종료 코드는 4입니다.
+선택 증거 내보내기는 실제 루트 파일만 받으므로 중첩 레코드는 먼저 필터로 제외하세요.
+
+증거 ZIP에는 형식화된 메타데이터와 수정하지 않은 원본 바이트가 들어갑니다. 원본에 내장된 개인
+정보도 그대로 포함됩니다. 메타데이터 가리기 내보내기 및 케이스 스냅샷과 구분됩니다.
+`verify-evidence`는 파일을 풀지 않고 정해진 전체 목록과 해시를 검증합니다. 이는 내부 무결성
+검증이며 출처 인증에는 `sign`과 별도로 신뢰한 공개 키를 사용하세요.
+
+변경하지 않은 케이스를 반복 내보내면 고정 ZIP 시각을 사용합니다. 스냅샷 `created_ms`는 내보낸
+현재 시각이 아니라 케이스 내용의 마지막 수정 시각입니다. 별도 용량 제한 캐시는 파일 내용·엔진·
+정책에 따라 원본 추출 결과를 보관합니다. `--cache off`로 우회할 수 있습니다. 캐시 비우기는
+기존 전용 캐시 DB만 허용하며 케이스 레코드와 스캔 체크포인트는 보존합니다.

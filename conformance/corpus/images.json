@@ -284,6 +284,84 @@
       "status": "ObservationLimitExceeded",
       "read_max": 67108864,
       "observation_max": 2
+    },
+    {
+      "name": "apng-two-frames",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAACGFjVEwAAAACAAAAAPONk3AAAAAaZmNUTAAAAAAAAAADAAAAAgAAAAAAAAAAAAEACgAAP7ZcWAAAABNJREFUeJxjZEo58Z8BCpgYkAAAMcICMYXi1NUAAAAaZmNUTAAAAAEAAAADAAAAAgAAAAAAAAAAAAEABQAAr5nxsQAAABdmZEFUAAAAAnicYzzBlPKfAQqYGJAAADLsAjF9FkV/AAAAAElFTkSuQmCC",
+      "parser": "images.structure",
+      "fields": {
+        "frame_count": [
+          "2"
+        ],
+        "animation_frame_count": [
+          "2"
+        ]
+      },
+      "status": "OK",
+      "read_max": 67108864,
+      "observation_max": 250000
+    },
+    {
+      "name": "apng-sequence-gap",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAACGFjVEwAAAACAAAAAPONk3AAAAAaZmNUTAAAAAQAAAADAAAAAgAAAAAAAAAAAAEACgAAP+r9ywAAABNJREFUeJxjZEo58Z8BCpgYkAAAMcICMYXi1NUAAAAaZmNUTAAAAAEAAAADAAAAAgAAAAAAAAAAAAEABQAAr5nxsQAAABdmZEFUAAAAAnicYzzBlPKfAQqYGJAAADLsAjF9FkV/AAAAAElFTkSuQmCC",
+      "parser": "images.structure",
+      "fields": {
+        "width": [
+          "3"
+        ],
+        "height": [
+          "2"
+        ]
+      },
+      "status": "MalformedData",
+      "read_max": 67108864,
+      "observation_max": 250000
+    },
+    {
+      "name": "apng-outside-canvas",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAACGFjVEwAAAACAAAAAPONk3AAAAAaZmNUTAAAAAAAAAADAAAAAgAAAAMAAAAAAAEACgAAplQ6WQAAABNJREFUeJxjZEo58Z8BCpgYkAAAMcICMYXi1NUAAAAaZmNUTAAAAAEAAAADAAAAAgAAAAAAAAAAAAEABQAAr5nxsQAAABdmZEFUAAAAAnicYzzBlPKfAQqYGJAAADLsAjF9FkV/AAAAAElFTkSuQmCC",
+      "parser": "images.structure",
+      "fields": {
+        "width": [
+          "3"
+        ],
+        "height": [
+          "2"
+        ]
+      },
+      "status": "MalformedData",
+      "read_max": 67108864,
+      "observation_max": 250000
+    },
+    {
+      "name": "apng-frame-count-mismatch",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAACGFjVEwAAAADAAAAAM7tusAAAAAaZmNUTAAAAAAAAAADAAAAAgAAAAAAAAAAAAEACgAAP7ZcWAAAABNJREFUeJxjZEo58Z8BCpgYkAAAMcICMYXi1NUAAAAaZmNUTAAAAAEAAAADAAAAAgAAAAAAAAAAAAEABQAAr5nxsQAAABdmZEFUAAAAAnicYzzBlPKfAQqYGJAAADLsAjF9FkV/AAAAAElFTkSuQmCC",
+      "parser": "images.structure",
+      "fields": {
+        "frame_count": []
+      },
+      "status": "MalformedData",
+      "read_max": 67108864,
+      "observation_max": 250000
+    },
+    {
+      "name": "apng-separate-default-image",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAACGFjVEwAAAABAAAAALQt6aAAAAATSURBVHicY2RKOfGfAQqYGJAAADHCAjGF4tTVAAAAGmZjVEwAAAAAAAAAAwAAAAIAAAAAAAAAAAABAAUAADTqG2UAAAAXZmRBVAAAAAF4nGM8wZTynwEKmBiQAAAy7AIx0r8ItQAAAABJRU5ErkJggg==",
+      "parser": "images.structure",
+      "fields": {
+        "frame_count": [
+          "2"
+        ],
+        "animation_frame_count": [
+          "1"
+        ],
+        "default_image_in_animation": [
+          "0"
+        ]
+      },
+      "status": "OK",
+      "read_max": 67108864,
+      "observation_max": 250000
     }
   ]
 }

@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
+import os
 import random
 import struct
 import subprocess
 import sys
 import tempfile
+import sqlite3
+import zipfile
+from contextlib import closing
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -307,18 +313,24 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
         return [], len(wanted)
 
 
-def _compare_cli(release: bool) -> list[str]:
+def _cli_command(release: bool, executable: Path | None = None) -> list[str]:
+    if executable is not None:
+        return [str(executable.resolve())]
+    return ["cargo", "run", "--locked", "--quiet", "-p", "metaxtract-cli", *(["--release"] if release else []), "--"]
+
+
+def _compare_cli(release: bool, executable: Path | None = None) -> list[str]:
     """Exercise installed command contracts, including checkpoint replay and non-clobber."""
     build = ["cargo", "build", "--locked", "--quiet", "-p", "metaxtract-cli", "-p", "metaxtract-worker"]
-    command = ["cargo", "run", "--locked", "--quiet", "-p", "metaxtract-cli"]
+    command = _cli_command(release, executable)
     if release:
         build.append("--release")
-        command.append("--release")
     try:
-        subprocess.run(build, cwd=ROOT, check=True, capture_output=True, timeout=1800)
+        if executable is None:
+            subprocess.run(build, cwd=ROOT, check=True, capture_output=True, timeout=1800)
 
         def invoke(*args: object, code: int = 0, stdin: str | None = None) -> dict[str, Any]:
-            p = subprocess.run(command + ["--", *map(str, args)], cwd=ROOT, text=True, encoding="utf-8",
+            p = subprocess.run(command + [*map(str, args)], cwd=ROOT, text=True, encoding="utf-8",
                                capture_output=True, input=stdin, timeout=120)
             if p.returncode != code:
                 raise ValueError(f"CLI {args[0]} exit {p.returncode}: {p.stderr[-2000:]} {p.stdout[:2000]}")
@@ -408,8 +420,281 @@ def _compare_cli(release: bool) -> list[str]:
         return [f"CLI workflow contract failed: {exc}"]
 
 
+def _raw_value(value: dict[str, Any]) -> Any:
+    kind, payload = next(iter(value.items()))
+    if kind == "Text":
+        return payload["text"]
+    if kind in ("Unsigned", "Signed", "Bool"):
+        return payload
+    if kind == "Rational":
+        return payload["numerator"] / payload["denominator"] if payload["denominator"] else None
+    if kind == "Sequence":
+        return [_raw_value(v) for v in payload]
+    return None
+
+
+def _python_projection(record: dict[str, Any]) -> dict[str, Any]:
+    """Project native facts onto the captured Python fields, leaving richer fields intact."""
+    def values(name: str, namespace: str = "") -> list[Any]:
+        found = []
+        for observation in record["observations"]:
+            tag = observation["tag"]
+            if tag.get("name", "") == name and tag["namespace"].startswith(namespace):
+                value = _raw_value(observation.get("interpreted_value") or observation["raw_value"])
+                if value not in found:
+                    found.append(value)
+        return found
+
+    def one(name: str, namespace: str = "") -> Any:
+        found = values(name, namespace)
+        return found[0] if len(found) == 1 else None
+
+    source = record["source"]
+    mime = source.get("detected_media_type") or source.get("declared_media_type") or "application/octet-stream"
+    metadata: dict[str, Any] = {}
+    if mime in ("image/png", "image/jpeg"):
+        namespace = "image.png" if mime == "image/png" else "image.jpeg"
+        metadata.update(format="PNG" if mime == "image/png" else "JPEG",
+                        width=one("width", namespace), height=one("height", namespace))
+        if mime == "image/png":
+            metadata["mode"] = {0: "L", 2: "RGB", 3: "P", 4: "LA", 6: "RGBA"}.get(one("color_type", namespace))
+            if one("color_type", namespace) == 0 and one("bit_depth", namespace) == 16:
+                metadata["mode"] = "I;16"
+            animated = any(o["tag"].get("name") == "type" and _raw_value(o.get("interpreted_value") or o["raw_value"]) == "acTL" for o in record["observations"])
+            frames = one("frame_count", namespace) if animated else 1
+        else:
+            metadata["mode"] = {1: "L", 3: "RGB", 4: "CMYK"}.get(one("components", namespace))
+            frames = 1
+        metadata.update(frames=frames, animated=frames is not None and frames > 1)
+        for field in ("make", "model", "software", "artist", "lens_model", "datetime_original", "orientation"):
+            found = []
+            for observation in record["observations"]:
+                if ".exif." in observation["tag"]["namespace"] and observation["tag"].get("name") == field:
+                    value = _raw_value(observation.get("interpreted_value") or observation["raw_value"])
+                    if value not in found:
+                        found.append(value)
+            if len(found) == 1:
+                metadata["exif_" + field] = found[0]
+        if "exif_orientation" in metadata:
+            metadata["exif_orientation_label"] = {1: "normal", 2: "mirrored_horizontal", 3: "rotated_180", 4: "mirrored_vertical", 5: "mirrored_horizontal_rotated_270", 6: "rotated_90", 7: "mirrored_horizontal_rotated_90", 8: "rotated_270"}.get(metadata["exif_orientation"], "unknown")
+        locations = [c["value"]["GeoPoint"] for c in record["claims"] if "GeoPoint" in c["value"]]
+        if locations:
+            if any(p != locations[0] for p in locations):
+                raise ValueError("native GPS alternatives conflict in the reference fixture")
+            point = locations[0]
+            metadata.update(gps_latitude=point["latitude"], gps_longitude=point["longitude"])
+            if point["altitude_meters"] is not None:
+                metadata["gps_altitude_m"] = point["altitude_meters"]
+    elif mime == "application/pdf":
+        metadata["pdf_encrypted"] = bool(one("encrypted", "pdf.document"))
+        pages = one("page_count", "pdf.document")
+        if pages is not None:
+            metadata["pages"] = pages
+        for field in ("Title", "Author", "Subject", "Keywords", "Creator", "Producer"):
+            value = one(field, "pdf.info")
+            if value is None:
+                value = one("/" + field, "pdf.info")
+            if value is not None:
+                metadata["pdf_" + field.lower()] = value
+    elif mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        for old, new in (("paragraphs", "paragraph_count"), ("tables", "table_count"), ("sections", "section_count")):
+            metadata["docx_" + old] = one(new, "document.package")
+        dc = "{http://purl.org/dc/elements/1.1/}"
+        cp = "{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}"
+        terms = "{http://purl.org/dc/terms/}"
+        properties = {"title": dc + "title", "author": dc + "creator", "last_modified_by": cp + "lastModifiedBy",
+                      "subject": dc + "subject", "keywords": cp + "keywords", "category": cp + "category",
+                      "comments": dc + "description", "language": dc + "language", "identifier": dc + "identifier",
+                      "version": cp + "version", "content_status": cp + "contentStatus", "revision": cp + "revision",
+                      "created": terms + "created", "modified": terms + "modified", "last_printed": cp + "lastPrinted"}
+        for key, name in properties.items():
+            value = one(name, "document.package")
+            if key == "revision" and value is not None:
+                value = int(value)
+            if key in ("created", "modified", "last_printed") and value is not None:
+                value = datetime.fromisoformat(value.replace("Z", "+00:00")).isoformat()
+            metadata["docx_" + key] = value
+    digest = next(d for d in record["digests"] if d["algorithm"] == "Sha256")
+    return {"path": source["path"]["root"], "mime": mime, "size_bytes": source["identity"]["size_bytes"],
+            "sha256": bytes(digest["bytes"]).hex(), "metadata": metadata}
+
+
+def _compare_application_parity(release: bool, executable: Path | None = None) -> tuple[list[str], int]:
+    """Exercise real mixed-engine records and captured legacy artifacts through the public CLI."""
+    command = _cli_command(release, executable)
+    expected = _read_json(ROOT / "conformance/expected/python.json")
+    completed = 0
+
+    def invoke(*args: object, code: int = 0) -> dict[str, Any]:
+        p = subprocess.run(command + list(map(str, args)), cwd=ROOT, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=180)
+        if p.returncode != code:
+            raise ValueError(f"acceptance {args[0]} exit {p.returncode}: {p.stderr[-1800:]} {p.stdout[:1000]}")
+        envelope = json.loads(p.stdout or p.stderr.splitlines()[-1])
+        return envelope.get("result", envelope)
+
+    def sha(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="metaxtract-acceptance-근거-") as temporary:
+            root = Path(temporary)
+            sources = root / "evidence"
+            sources.mkdir()
+            _materialize(sources, _read_json(ROOT / "conformance/corpus/files.json"))
+            case = root / "acceptance.mxcase"
+            scanned = invoke("scan", sources, "--case", case, "--workers", 1, "--decode-previews")
+            scan = scanned["scan_id"]
+            exported = root / "native.jsonl"
+            invoke("export", case, scan, exported)
+            records = [json.loads(row) for row in exported.read_text(encoding="utf-8").splitlines()]
+            roots = {r["source"]["path"]["root"]: r for r in records if not r["source"]["path"]["nested"]}
+            for wanted in expected["records"]:
+                actual = _python_projection(roots[wanted["path"]])
+                for field in ("path", "mime", "size_bytes", "sha256"):
+                    if actual[field] != wanted[field]:
+                        raise ValueError(f"record parity {wanted['path']} {field}: {actual[field]!r} != {wanted[field]!r}")
+                for field, value in wanted["metadata"].items():
+                    if actual["metadata"].get(field) != value:
+                        raise ValueError(f"record parity {wanted['path']} {field}: {actual['metadata'].get(field)!r} != {value!r}")
+                if "pdf_password_required" in wanted["warnings"] and not any(o["tag"].get("name") == "password_required" and _raw_value(o.get("interpreted_value") or o["raw_value"]) == 1 for o in roots[wanted["path"]]["observations"]):
+                    raise ValueError("encrypted PDF lost its explicit password requirement")
+                completed += 1
+            if not any(c["key"] == "image.orientation" for c in roots["camera.jpg"]["claims"]):
+                raise ValueError("image reconciliation is not wired into the application")
+            for name, text in (("office.docx", "Retain this field"), ("rgba.png", "Retain unknown metadata")):
+                if text not in json.dumps(roots[name], ensure_ascii=False):
+                    raise ValueError("unknown metadata was lost: " + name)
+            completed += 1
+            originals = invoke("verify-originals", case, scan, sources)
+            if not originals["verified"] or originals["verified_files"] != len(expected["records"]):
+                raise ValueError("original verification did not cover the root files")
+            physical_query = "path=evidence.txt"
+            evidence = root / "selected.zip"
+            invoke("export-evidence", case, scan, sources, evidence, "--query", physical_query)
+            if invoke("verify-evidence", evidence)["records"] != 1:
+                raise ValueError("selected evidence archive lost its metadata or original")
+            second = root / "selected-again.zip"
+            invoke("export-evidence", case, scan, sources, second, "--query", physical_query)
+            if sha(evidence) != sha(second):
+                raise ValueError("unchanged selected evidence did not export deterministically")
+            tampered = root / "tampered.zip"
+            with zipfile.ZipFile(evidence) as original, zipfile.ZipFile(tampered, "w") as changed:
+                for name in original.namelist():
+                    data = original.read(name)
+                    changed.writestr(name, b"x" * len(data) if name.startswith("evidence/") else data)
+            invoke("verify-evidence", tampered, code=4)
+            unexpected = root / "unexpected.zip"
+            unexpected.write_bytes(evidence.read_bytes())
+            with zipfile.ZipFile(unexpected, "a") as changed:
+                changed.writestr("../escape", b"no")
+            invoke("verify-evidence", unexpected, code=4)
+            (sources / "evidence.txt").write_bytes(b"modified")
+            if invoke("verify-originals", case, scan, sources, code=4)["verified"]:
+                raise ValueError("changed original passed verification")
+            refused = root / "must-not-exist.zip"
+            invoke("export-evidence", case, scan, sources, refused, "--query", physical_query, code=4)
+            if refused.exists():
+                raise ValueError("failed evidence export published a partial archive")
+            completed += 1
+            first, second = root / "snapshot.zip", root / "snapshot-again.zip"
+            invoke("bundle", "export", case, first)
+            invoke("bundle", "export", case, second)
+            if sha(first) != sha(second):
+                raise ValueError("unchanged case snapshot did not export deterministically")
+            reopened = root / "reopened.mxcase"
+            invoke("bundle", "open", first, reopened)
+            if invoke("verify", reopened)["records"] != len(records):
+                raise ValueError("portable snapshot lost typed records")
+            completed += 1
+            for view in ("timeline", "locations", "duplicates", "findings", "similar", "dashboard"):
+                result = invoke("analyze", case, scan, "--view", view)
+                if view == "locations" and not result["samples"]:
+                    raise ValueError("native EXIF GPS did not reach geographic analysis")
+            geographic = root / "locations.geojson"
+            invoke("analyze", case, scan, "--view", "locations", "--format", "geojson", "--output", geographic)
+            if not json.loads(geographic.read_text())["features"]:
+                raise ValueError("geographic export lost native coordinates")
+            completed += 1
+            diagnostic = invoke("doctor")
+            if not diagnostic["worker_available"] or any(p["id"].startswith("conformance") for p in diagnostic["parsers"]):
+                raise ValueError("production diagnostics report a missing worker or fixture parser")
+            cache = Path(str(case) + ".cache.sqlite")
+            invoke("cache", "purge", cache)
+            if invoke("verify", case)["records"] != len(records):
+                raise ValueError("cache purge changed case records")
+            invoke("cache", "purge", case, code=4)
+            completed += 1
+            legacy = expected["workflow_samples"]
+            old_case, old_bundle, public = root / "python.mxc", root / "python.zip", root / "public.pem"
+            old_case.write_bytes(base64.b64decode(legacy["case_base64"], validate=True))
+            old_bundle.write_bytes(base64.b64decode(legacy["bundle_base64"], validate=True))
+            public.write_text(legacy["trusted_public_pem"], encoding="utf-8")
+            old_jsonl = root / "python.jsonl"
+            old_jsonl.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in expected["records"]), encoding="utf-8")
+            for kind, source in (("python", old_case), ("python-bundle", old_bundle), ("jsonl", old_jsonl)):
+                before = sha(source)
+                target = root / (kind + ".mxcase")
+                invoke("case", "create", target)
+                extra = ["--public-key", public] if kind == "python-bundle" else []
+                result = invoke("import", target, source, "--kind", kind, *extra)
+                if invoke("verify", target)["records"] != legacy["records"] or sha(source) != before:
+                    raise ValueError("legacy import lost records or changed the source: " + kind)
+                with closing(sqlite3.connect(target)) as db:
+                    rows = [json.loads(row[0]) for row in db.execute("SELECT original FROM legacy_records")]
+                    for row in rows:
+                        if kind == "python":
+                            sqlite_row = row.pop("original_sqlite_row")
+                            if sqlite_row["path"] != row["path"] or json.loads(sqlite_row["metadata_json"]) != row["metadata"]:
+                                raise ValueError("original Python SQLite row was changed")
+                        row["metadata"].pop("mtime", None)
+                        row["metadata"].pop("cache_hit", None)
+                    actual_rows = sorted(rows, key=lambda row: row["path"])
+                    if actual_rows != expected["records"]:
+                        differences = [(a["path"], {k: [a.get(k), b.get(k)] for k in a.keys() | b.keys() if a.get(k) != b.get(k)})
+                                       for a, b in zip(actual_rows, expected["records"]) if a != b]
+                        raise ValueError("legacy fields differ: " + json.dumps(differences, ensure_ascii=False)[:1800])
+                    if kind == "python":
+                        if db.execute("SELECT count(*) FROM case_notes WHERE body=?", (legacy["notes"],)).fetchone()[0] != 1:
+                            raise ValueError("Python case notes were lost")
+                        if not db.execute("SELECT 1 FROM annotations WHERE note LIKE 'Preserved annotation%'").fetchone():
+                            raise ValueError("Python annotation was lost")
+                        saved = db.execute("SELECT query FROM saved_filters WHERE name='Reference images'").fetchone()
+                        if saved is None or json.loads(saved[0])["Legacy"]["query"] != "mime:image/jpeg":
+                            raise ValueError("legacy saved filter was changed")
+                if not invoke("analyze", target, result["scans"][0], "--view", "locations")["samples"]:
+                    raise ValueError("legacy GPS was not available for analysis")
+                completed += 1
+            invoke("import", root / "python-bundle.mxcase", old_bundle, "--kind", "python-bundle", code=4)
+            completed += 1
+            if os.name == "posix":
+                unusual = root / "unusual"
+                unusual.mkdir()
+                # Linux permits arbitrary name bytes; other POSIX filesystems
+                # exercise the same reversible codec with its reserved prefix.
+                name = b"name-\xff" if sys.platform.startswith("linux") else b"~os-reserved"
+                non_utf8 = os.fsencode(unusual) + b"/" + name
+                with open(non_utf8, "wb") as output:
+                    output.write(b"encoded evidence name")
+                portable_case = root / "portable.mxcase"
+                portable_scan = invoke("scan", unusual, "--case", portable_case)["scan_id"]
+                if not invoke("verify-originals", portable_case, portable_scan, unusual)["verified"]:
+                    raise ValueError("encoded OS evidence path did not reopen safely")
+                os.unlink(non_utf8)
+                outside = root / "outside"
+                outside.write_bytes(b"encoded evidence name")
+                os.symlink(os.fsencode(outside), non_utf8)
+                if invoke("verify-originals", portable_case, portable_scan, unusual, code=4)["verified"]:
+                    raise ValueError("evidence reopening followed a substituted symlink")
+                completed += 1
+        return [], completed
+    except (OSError, ValueError, KeyError, StopIteration, subprocess.SubprocessError) as error:
+        return [f"application parity gate failed: {error}"], completed
+
+
 def run(*, python_only: bool = False, release: bool = False,
-        fuzz_cases: int = 256, fuzz_seed: int = 0x4d58) -> dict[str, Any]:
+        fuzz_cases: int = 256, fuzz_seed: int = 0x4d58,
+        cli_executable: Path | None = None) -> dict[str, Any]:
     sys.path.insert(0, str(PYTHON_SOURCE))
     corpus = _read_json(ROOT / "conformance" / "corpus" / "files.json")
     expected = _read_json(ROOT / "conformance" / "expected" / "python.json")
@@ -419,17 +704,21 @@ def run(*, python_only: bool = False, release: bool = False,
     failures.extend(_compare_paths(expected))
     failures.extend(_compare_frozen_baseline(expected))
     native_cases = 0
+    application_cases = 0
     if not python_only:
         native_failures, native_cases = _compare_native(corpus, expected, release, fuzz_cases, fuzz_seed)
         failures.extend(native_failures)
-        failures.extend(_compare_cli(release))
+        failures.extend(_compare_cli(release, cli_executable))
+        application_failures, application_cases = _compare_application_parity(release, cli_executable)
+        failures.extend(application_failures)
     return {
         "ok": not failures,
         "cases": len(corpus.get("cases", [])),
         "path_cases": len(expected.get("path_cases", [])),
         "native_contract_cases": native_cases,
         "native_enabled": not python_only,
-        "native_record_parity": "partial native extraction coverage; full record parity pending",
+        "application_parity_checks": application_cases,
+        "native_record_parity": "captured Python fields and migration workflows; bounded corpus, not exhaustive format equivalence",
         "failures": failures,
     }
 
@@ -440,18 +729,26 @@ def main() -> int:
     parser.add_argument("--python-only", action="store_true", help="check only the frozen Python baseline")
     parser.add_argument("--release", action="store_true", help="check the release Rust/C++ build")
     parser.add_argument("--cli-only", action="store_true", help="check application command contracts")
+    parser.add_argument("--acceptance-only", action="store_true", help="check application contracts and captured Python parity")
+    parser.add_argument("--cli-executable", type=Path, help="use a packaged CLI instead of cargo run")
     parser.add_argument("--fuzz-cases", type=int, default=256, help="deterministic mutation count (0..10000)")
     parser.add_argument("--fuzz-seed", type=lambda value: int(value, 0), default=0x4d58, help="reproducible mutation seed")
     args = parser.parse_args()
     if not 0 <= args.fuzz_cases <= 10000:
         parser.error("--fuzz-cases must be between 0 and 10000")
 
-    if args.cli_only:
-        failures = _compare_cli(args.release)
-        print(json.dumps({"ok": not failures, "failures": failures}, ensure_ascii=False))
+    if args.cli_only or args.acceptance_only:
+        sys.path.insert(0, str(PYTHON_SOURCE))
+        failures = _compare_cli(args.release, args.cli_executable)
+        count = 0
+        if args.acceptance_only:
+            extra, count = _compare_application_parity(args.release, args.cli_executable)
+            failures.extend(extra)
+        print(json.dumps({"ok": not failures, "application_parity_checks": count, "failures": failures}, ensure_ascii=False))
         return int(bool(failures))
     result = run(python_only=args.python_only, release=args.release,
-                 fuzz_cases=args.fuzz_cases, fuzz_seed=args.fuzz_seed)
+                 fuzz_cases=args.fuzz_cases, fuzz_seed=args.fuzz_seed,
+                 cli_executable=args.cli_executable)
     if args.json:
         print(json.dumps(result, separators=(",", ":"), sort_keys=True))
     elif result["ok"]:

@@ -243,6 +243,58 @@ impl ScanRoot {
             stamp,
         })
     }
+    /// Reopen a portable scanner path, including reversibly encoded OS components.
+    pub fn open_evidence(&self, relative: &RelativePath) -> io::Result<OpenedEvidence> {
+        let mut path = PathBuf::new();
+        for component in relative.as_str().split('/') {
+            let encoded = component
+                .strip_prefix("~os-u")
+                .map(|s| (s, false))
+                .or_else(|| component.strip_prefix("~os-w").map(|s| (s, true)));
+            let name = if let Some((encoded, windows)) = encoded {
+                if encoded.is_empty() || encoded.len() % 2 != 0 {
+                    return Err(invalid("invalid encoded evidence name"));
+                }
+                let bytes = encoded
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| {
+                        std::str::from_utf8(pair)
+                            .ok()
+                            .and_then(|s| u8::from_str_radix(s, 16).ok())
+                            .ok_or_else(|| invalid("invalid encoded evidence name"))
+                    })
+                    .collect::<io::Result<Vec<_>>>()?;
+                let native = if windows {
+                    if bytes.len() % 2 != 0 {
+                        return Err(invalid("invalid UTF-16 evidence name"));
+                    }
+                    NativePath::Windows(
+                        bytes
+                            .chunks_exact(2)
+                            .map(|p| u16::from_le_bytes([p[0], p[1]]))
+                            .collect(),
+                    )
+                } else {
+                    NativePath::Unix(bytes)
+                };
+                native.to_path()?
+            } else {
+                PathBuf::from(component)
+            };
+            if name.components().count() != 1
+                || !matches!(name.components().next(), Some(Component::Normal(_)))
+            {
+                return Err(invalid("encoded evidence name is not a single component"));
+            }
+            path.push(name);
+        }
+        let opened = self.open_file(&NativePath::from_path(&path), SymlinkPolicy::Skip)?;
+        if opened.evidence_path != *relative {
+            return Err(invalid("evidence path did not round-trip"));
+        }
+        Ok(opened)
+    }
     pub fn relative_to_root(&self, absolute: &Path) -> Option<NativePath> {
         absolute
             .strip_prefix(&self.base)

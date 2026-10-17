@@ -20,6 +20,39 @@ pub struct RecordCache {
     max_entries: u64,
 }
 impl RecordCache {
+    /// Clear only an existing cache database; never remove a directory or evidence file.
+    pub fn purge_existing(path: impl AsRef<Path>) -> io::Result<u64> {
+        let conn = rusqlite::Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(io::Error::other)?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))
+            .map_err(io::Error::other)?;
+        conn.pragma_update(None, "trusted_schema", false)
+            .map_err(io::Error::other)?;
+        let app: i32 = conn
+            .pragma_query_value(None, "application_id", |r| r.get(0))
+            .map_err(io::Error::other)?;
+        let tables: Vec<String> = conn
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+            )
+            .map_err(io::Error::other)?
+            .query_map([], |r| r.get(0))
+            .map_err(io::Error::other)?
+            .collect::<Result<_, _>>()
+            .map_err(io::Error::other)?;
+        if app != 0x4d584354 || tables != ["scan_cache"] {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "not a dedicated MetaXtract record cache",
+            ));
+        }
+        conn.execute("DELETE FROM scan_cache", [])
+            .map(|n| n as u64)
+            .map_err(io::Error::other)
+    }
     pub fn open(path: impl AsRef<Path>, max_bytes: u64, max_entries: u64) -> io::Result<Arc<Self>> {
         if max_bytes == 0
             || max_bytes > i64::MAX as u64

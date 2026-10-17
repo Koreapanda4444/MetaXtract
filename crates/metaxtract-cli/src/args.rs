@@ -20,6 +20,10 @@ impl Args {
                     "scan",
                     "progress",
                     "pause-after",
+                    "include-hidden",
+                    "decode-previews",
+                    "max-files",
+                    "cache",
                     "max-member-bytes",
                     "max-decoded-bytes",
                     "max-tree-bytes",
@@ -37,6 +41,11 @@ impl Args {
                 ],
             ),
             "verify" => (2, 2, &[]),
+            "verify-originals" => (4, 4, &["query", "order"]),
+            "export-evidence" => (5, 5, &["query", "order"]),
+            "verify-evidence" => (2, 2, &[]),
+            "doctor" | "diagnostics" => (1, 1, &["case"]),
+            "cache" if self.word(1)? == "purge" => (3, 3, &[]),
             "compare" | "preview" => (4, 4, &[]),
             "case" => match self.word(1)?.as_str() {
                 "create" => (3, 4, &[]),
@@ -82,7 +91,11 @@ impl Args {
                 _ => return Err(invalid("unknown bundle command")),
             },
             "import" => (3, 3, &["kind", "public-key"]),
-            "analyze" => (3, 3, &["query", "order", "view"]),
+            "analyze" => (
+                3,
+                3,
+                &["query", "order", "view", "threshold", "format", "output"],
+            ),
             _ => return Err(invalid("unknown command; use --help")),
         };
         if !(min..=max).contains(&self.words.len()) {
@@ -92,7 +105,15 @@ impl Args {
             if !allowed.contains(&name.as_str()) && !["json", "pretty"].contains(&name.as_str()) {
                 return Err(invalid(&format!("unknown option --{name}")));
             }
-            if ["json", "pretty", "progress", "password-stdin"].contains(&name.as_str())
+            if [
+                "json",
+                "pretty",
+                "progress",
+                "password-stdin",
+                "include-hidden",
+                "decode-previews",
+            ]
+            .contains(&name.as_str())
                 && value != "true"
             {
                 return Err(invalid("boolean flags cannot have a value"));
@@ -105,6 +126,7 @@ impl Args {
                 "key",
                 "public-key",
                 "receipt",
+                "output",
             ]
             .contains(&name.as_str())
                 && value.to_str().is_none()
@@ -114,6 +136,17 @@ impl Args {
         }
         if self.flags.contains_key("scan") != self.flags.contains_key("resume") {
             return Err(invalid("--scan and --resume must be supplied together"));
+        }
+        if self.word(0)? == "analyze" {
+            let view = self.flag("view").unwrap_or_else(|| "dashboard".into());
+            if self.flags.contains_key("threshold") && view != "similar" {
+                return Err(invalid("--threshold requires --view similar"));
+            }
+            if (self.flags.contains_key("format") || self.flags.contains_key("output"))
+                && view != "locations"
+            {
+                return Err(invalid("--format and --output require --view locations"));
+            }
         }
         Ok(())
     }
@@ -133,7 +166,16 @@ impl Args {
                 if let Some(s) = word.to_str().and_then(|s| s.strip_prefix("--")) {
                     let (name, value) = if let Some((k, v)) = s.split_once('=') {
                         (k.to_owned(), OsString::from(v))
-                    } else if ["help", "json", "progress", "pretty", "password-stdin"].contains(&s)
+                    } else if [
+                        "help",
+                        "json",
+                        "progress",
+                        "pretty",
+                        "password-stdin",
+                        "include-hidden",
+                        "decode-previews",
+                    ]
+                    .contains(&s)
                     {
                         (s.into(), "true".into())
                     } else {

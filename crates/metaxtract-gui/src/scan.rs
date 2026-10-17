@@ -19,6 +19,9 @@ pub struct ScanUi {
     pub source_path: Option<PathBuf>,
     pub workers: usize,
     pub decode_previews: bool,
+    pub include_hidden: bool,
+    pub cache_enabled: bool,
+    pub max_files: u64,
     pub queue: VecDeque<PathBuf>,
     active: Option<Active>,
     pub latest: Option<app::scan::AppScanEvent>,
@@ -34,6 +37,9 @@ impl Default for ScanUi {
             source_path: None,
             workers: 2,
             decode_previews: false,
+            include_hidden: false,
+            cache_enabled: true,
+            max_files: 1_000_000,
             queue: VecDeque::new(),
             active: None,
             latest: None,
@@ -72,6 +78,9 @@ impl Desktop {
         let mut request = app::scan::ScanRequest::new(source, case.path().to_owned());
         request.workers = self.scan.workers;
         request.options.recursive.preview = self.scan.decode_previews;
+        request.options.walk.include_hidden = self.scan.include_hidden;
+        request.options.walk.max_files = self.scan.max_files;
+        request.cache_enabled = self.scan.cache_enabled;
         if let Some((run, scan, journal)) = resume {
             request.resume = Some((run, scan));
             request.journal_path = journal;
@@ -178,6 +187,21 @@ impl Desktop {
     }
     pub fn scan_view(&mut self, ui: &mut egui::Ui) {
         ui.heading("Scan queue / 스캔 대기열");
+        ui.horizontal(|ui| {
+            ui.checkbox(
+                &mut self.scan.include_hidden,
+                "Include hidden names / 숨김 이름 포함",
+            );
+            ui.checkbox(
+                &mut self.scan.cache_enabled,
+                "Reuse verified metadata cache / 검증한 메타데이터 캐시 사용",
+            );
+            ui.add(
+                egui::DragValue::new(&mut self.scan.max_files)
+                    .range(1..=1_000_000)
+                    .prefix("File limit / 파일 수 제한 "),
+            );
+        });
         ui.checkbox(
             &mut self.scan.decode_previews,
             "Decode previews for visual similarity / 시각적 유사성용 미리보기 디코딩",

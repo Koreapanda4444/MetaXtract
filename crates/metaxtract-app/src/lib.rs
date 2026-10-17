@@ -34,9 +34,10 @@ pub fn collect(
     loop {
         let page = case.search_records(query, cursor.as_ref(), 128)?;
         for header in page.items {
-            let record = case
+            let mut record = case
                 .record(header.id)?
                 .ok_or_else(|| io::Error::other("record disappeared"))?;
+            scan::analyze_record(&mut record)?;
             bytes =
                 bytes.saturating_add(serde_json::to_vec(&record).map_err(io::Error::other)?.len());
             if records.len() >= limits.max_records || bytes > limits.max_bytes {

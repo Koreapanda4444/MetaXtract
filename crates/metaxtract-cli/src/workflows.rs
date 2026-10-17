@@ -59,6 +59,37 @@ fn trust(args: &Args) -> io::Result<Option<String>> {
 }
 pub fn run(args: &Args) -> io::Result<Value> {
     match args.word(0)?.as_str() {
+        "doctor" | "diagnostics" => {
+            let case = args
+                .flag_path("case")
+                .map(|p| app::open_case(&p, false))
+                .transpose()?;
+            w::diagnostics(case.as_ref(), None)
+        }
+        "cache" => Ok(
+            json!({"purged_entries":app::core::scan::RecordCache::purge_existing(args.path(2)?)?}),
+        ),
+        "verify-originals" => {
+            let case = app::open_case(&args.path(1)?, false)?;
+            value(w::verify_originals(
+                &case,
+                &query(args, &args.word(2)?)?,
+                &args.path(3)?,
+            )?)
+        }
+        "export-evidence" => {
+            let case = app::open_case(&args.path(1)?, false)?;
+            value(w::export_evidence(
+                &case,
+                &query(args, &args.word(2)?)?,
+                &args.path(3)?,
+                &args.path(4)?,
+            )?)
+        }
+        "verify-evidence" => value(a::export::verify_original_evidence(
+            args.path(1)?,
+            Default::default(),
+        )?),
         "preview" => {
             let case = app::open_case(&args.path(1)?, false)?;
             let id = args
@@ -266,8 +297,59 @@ pub fn run(args: &Args) -> io::Result<Value> {
             let limits = a::AnalysisLimits::default();
             match args.flag("view").as_deref().unwrap_or("dashboard") {
                 "timeline" => value(a::provenance::timeline(&records, limits)?),
-                "locations" => value(a::geo::location_analysis(&records, limits)?),
+                "locations" => {
+                    let result = a::geo::location_analysis(&records, limits)?;
+                    if let Some(format) = args.flag("format") {
+                        if !result.issues.is_empty() {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "review invalid location claims before geographic export",
+                            ));
+                        }
+                        let path = args
+                            .flag_path("output")
+                            .ok_or_else(|| invalid("geographic export requires --output PATH"))?;
+                        match format.as_str() {
+                            "geojson" => {
+                                w::write_json(&path, &a::geo::geojson(&result.samples, limits)?)?
+                            }
+                            "kml" => w::write_bytes(
+                                &path,
+                                a::geo::kml(&result.samples, limits)?.as_bytes(),
+                            )?,
+                            _ => return Err(invalid("location format must be geojson or kml")),
+                        }
+                    } else if args.flag_path("output").is_some() {
+                        return Err(invalid("--output requires --format"));
+                    }
+                    value(result)
+                }
                 "duplicates" => value(a::duplicates::exact(&records, limits)?),
+                "similar" => {
+                    let threshold = args
+                        .flag("threshold")
+                        .map(|v| {
+                            v.parse::<u8>()
+                                .map_err(|_| invalid("invalid visual threshold"))
+                        })
+                        .transpose()?
+                        .unwrap_or(8);
+                    if threshold > 64 {
+                        return Err(invalid("visual threshold must be 0..64"));
+                    }
+                    let mut fingerprints = Vec::new();
+                    let mut missing = Vec::new();
+                    for record in &records {
+                        let values = a::duplicates::record_visual_fingerprints(record, limits)?;
+                        if values.is_empty() {
+                            missing.push(record.source.path.clone());
+                        }
+                        fingerprints.extend(values);
+                    }
+                    Ok(
+                        json!({"matches":a::duplicates::visually_similar(&fingerprints,threshold,limits)?,"missing_previews":missing}),
+                    )
+                }
                 "findings" => value(
                     records
                         .iter()

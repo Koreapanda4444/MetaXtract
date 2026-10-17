@@ -70,8 +70,15 @@ fn integer(v: &RawValue) -> Option<i128> {
         _ => None,
     }
 }
+fn gps_namespace(namespace: &str) -> bool {
+    let leaf = namespace.rsplit('.').next().unwrap_or("");
+    leaf == "gps"
+        || leaf
+            .strip_prefix("gps")
+            .is_some_and(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
+}
 pub(crate) fn field(o: &MetadataObservation) -> String {
-    if o.tag.namespace.ends_with(".gps") {
+    if gps_namespace(&o.tag.namespace) {
         if let TagCode::Numeric(code) = o.tag.code {
             if let Some(name) = match code {
                 1 => Some("latitude_ref"),
@@ -86,7 +93,8 @@ pub(crate) fn field(o: &MetadataObservation) -> String {
             }
         }
     }
-    o.tag
+    let name = o
+        .tag
         .name
         .as_deref()
         .or_else(|| {
@@ -100,7 +108,19 @@ pub(crate) fn field(o: &MetadataObservation) -> String {
         .rsplit('}')
         .next()
         .unwrap_or("")
-        .to_ascii_lowercase()
+        .to_ascii_lowercase();
+    if o.tag.namespace == "legacy.python" {
+        for prefix in ["exif_", "pdf_", "docx_"] {
+            if let Some(name) = name.strip_prefix(prefix) {
+                return name.to_owned();
+            }
+        }
+    }
+    if o.tag.namespace.starts_with("pdf.info") {
+        name.trim_start_matches('/').to_owned()
+    } else {
+        name
+    }
 }
 pub(crate) fn scope(o: &MetadataObservation) -> String {
     let mut s = String::new();
@@ -220,7 +240,7 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
         if name.contains("latitude")
             || name.contains("longitude")
             || name.contains("altitude")
-            || o.tag.namespace.ends_with(".gps")
+            || gps_namespace(&o.tag.namespace)
         {
             gps.entry((
                 o.tag.namespace.clone(),
@@ -230,7 +250,9 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
             .or_default()
             .push(o);
         }
+        let legacy_mtime = o.tag.namespace == "legacy.python" && name == "mtime";
         let role = match name.as_str() {
+            "mtime" if legacy_mtime => Some("modified"),
             "created" | "creationdate" | "creation_date" | "creation_time" | "created_filetime" => {
                 Some("created")
             }
@@ -243,7 +265,21 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
             _ => None,
         };
         let candidate = if let Some(role) = role {
-            let value = if name.ends_with("filetime") {
+            let value = if legacy_mtime {
+                number(raw(o)).and_then(|seconds| {
+                    let micros = (seconds * 1_000_000.0).round();
+                    if !micros.is_finite() || micros.abs() > i64::MAX as f64 {
+                        return None;
+                    }
+                    let mut value =
+                        timestamp::from_unix_nanoseconds((micros as i128).checked_mul(1000)?)?;
+                    value.original = seconds.to_string();
+                    if value.nanosecond == Some(0) {
+                        value.precision = TimestampPrecision::Second;
+                    }
+                    Some(value)
+                })
+            } else if name.ends_with("filetime") {
                 integer(raw(o))
                     .and_then(|v| v.checked_sub(116_444_736_000_000_000))
                     .and_then(|v| v.checked_mul(100))
@@ -275,7 +311,11 @@ pub fn normalize(record: &ExtractionRecord, limits: AnalysisLimits) -> io::Resul
             }
             value.map(|v| {
                 (
-                    format!("{prefix}metadata.{role}"),
+                    if legacy_mtime {
+                        format!("{prefix}filesystem.modified")
+                    } else {
+                        format!("{prefix}metadata.{role}")
+                    },
                     NormalizedValue::Timestamp(v),
                 )
             })

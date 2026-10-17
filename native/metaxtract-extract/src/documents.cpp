@@ -59,9 +59,19 @@ void xml_part(Reader& reader, const std::span<const std::uint8_t> bytes, const s
             throw Failure{ParseStatus::Malformed, "Package content types have an unexpected root namespace", 0};
         }
     }
+    const auto root_name = expanded_xml_name(document.document_element(), document.document_element().name());
+    if ((part == "word/document.xml" && (root_name == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}document" ||
+         root_name == "{http://purl.oclc.org/ooxml/wordprocessingml/main}document")) ||
+        (part == "xl/workbook.xml" && (root_name == "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}workbook" ||
+         root_name == "{http://purl.oclc.org/ooxml/spreadsheetml/main}workbook")) ||
+        (part == "ppt/presentation.xml" && (root_name == "{http://schemas.openxmlformats.org/presentationml/2006/main}presentation" ||
+         root_name == "{http://purl.oclc.org/ooxml/presentationml/main}presentation"))) {
+        reader.decoded("validated_main_part", ValueKind::Text, part, packet);
+    }
     auto node = document.first_child();
     std::uint32_t depth = 1;
     std::uint64_t sequence = 0, revisions = 0, comments = 0, relationships = 0;
+    std::uint64_t paragraphs = 0, tables = 0, sections = 0;
     const bool body = body_part(part);
     while (node) {
         reader.entry(); reader.checkpoint();
@@ -74,6 +84,18 @@ void xml_part(Reader& reader, const std::span<const std::uint8_t> bytes, const s
             field.diagnostic("doctype", "DTD retained; custom and external entities are not expanded", 0);
         } else if (node.type() == pugi::node_element) {
             const auto name = expanded_xml_name(node, node.name());
+            const auto word = [](const std::string& expanded, std::string_view local) {
+                return expanded == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}" + std::string(local) ||
+                    expanded == "{http://purl.oclc.org/ooxml/wordprocessingml/main}" + std::string(local);
+            };
+            if (part == "word/document.xml") {
+                const auto parent_name = expanded_xml_name(node.parent(), node.parent().name());
+                if (word(parent_name, "body")) {
+                    paragraphs += word(name, "p") ? 1 : 0;
+                    tables += word(name, "tbl") ? 1 : 0;
+                }
+                sections += word(name, "sectPr") ? 1 : 0;
+            }
             if (!valid_xml_string(name)) { throw Failure{ParseStatus::Malformed, "Invalid XML name encoding", 0}; }
             field.decoded("element", ValueKind::Text, name, packet);
             for (const auto attribute : node.attributes()) {
@@ -127,6 +149,11 @@ void xml_part(Reader& reader, const std::span<const std::uint8_t> bytes, const s
     reader.derived("revision_marker_count", revisions);
     reader.derived("comment_count", comments);
     reader.derived("relationship_count", relationships);
+    if (part == "word/document.xml") {
+        reader.derived("paragraph_count", paragraphs);
+        reader.derived("table_count", tables);
+        reader.derived("section_count", sections);
+    }
 }
 
 ParseStatus package(ParserContext& context, bool preview) {

@@ -31,6 +31,9 @@ pub fn error_kind(e: &io::Error) -> &'static str {
     }
 }
 pub fn result_code(v: &Value) -> i32 {
+    if v.get("verified").and_then(Value::as_bool) == Some(false) {
+        return 4;
+    }
     let s = if v.get("records").is_some() {
         v.get("summary").and_then(|x| x.get("summary"))
     } else {

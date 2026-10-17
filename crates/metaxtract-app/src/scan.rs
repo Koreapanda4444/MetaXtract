@@ -17,6 +17,7 @@ pub struct ScanRequest {
     pub journal_path: PathBuf,
     pub workers: usize,
     pub resume: Option<(u64, String)>,
+    pub cache_enabled: bool,
     pub options: ScanOptions,
 }
 impl ScanRequest {
@@ -29,6 +30,7 @@ impl ScanRequest {
             journal_path: journal.into(),
             workers: 2,
             resume: None,
+            cache_enabled: true,
             options: ScanOptions::default(),
         }
     }
@@ -62,8 +64,102 @@ fn invalid(s: &str) -> io::Error {
 }
 pub fn analyze_record(record: &mut ExtractionRecord) -> io::Result<()> {
     let limits = analysis::AnalysisLimits::default();
+    if record
+        .observations
+        .iter()
+        .any(|o| o.tag.namespace.starts_with("image."))
+    {
+        let image = crate::core::reconcile_image_metadata_with_limits(
+            &record.observations,
+            crate::core::ImageAnalysisLimits {
+                max_observations: limits.max_fields,
+                max_alternatives_per_key: 64,
+                max_claim_links: limits.max_comparisons,
+            },
+        )
+        .map_err(|e| io::Error::other(format!("image reconciliation: {e:?}")))?;
+        let signature = |c: &NormalizedClaim| {
+            serde_json::to_vec(&(&c.key, &c.value, &c.supporting_observations))
+                .map_err(io::Error::other)
+        };
+        let mut existing = std::collections::BTreeMap::new();
+        for claim in &record.claims {
+            existing.insert(signature(claim)?, claim.id);
+        }
+        let mut next = record
+            .claims
+            .iter()
+            .map(|c| c.id.get())
+            .max()
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or_else(|| io::Error::other("claim ID exhausted"))?;
+        let mut ids = std::collections::BTreeMap::new();
+        for mut claim in image.claims {
+            let key = signature(&claim)?;
+            if let Some(id) = existing.get(&key) {
+                ids.insert(claim.id, *id);
+                continue;
+            }
+            let id = ClaimId::new(next);
+            next = next
+                .checked_add(1)
+                .ok_or_else(|| io::Error::other("claim ID exhausted"))?;
+            ids.insert(claim.id, id);
+            claim.id = id;
+            existing.insert(key, id);
+            record.claims.push(claim);
+        }
+        for mut conflict in image.conflicts {
+            conflict.alternatives = conflict
+                .alternatives
+                .iter()
+                .map(|id| {
+                    ids.get(id)
+                        .copied()
+                        .ok_or_else(|| io::Error::other("missing image conflict claim"))
+                })
+                .collect::<io::Result<_>>()?;
+            if !record.conflicts.contains(&conflict) {
+                record.conflicts.push(conflict);
+            }
+        }
+        for issue in image.issues {
+            let diagnostic = Diagnostic {
+                code: format!("analysis.image.{:?}", issue.kind),
+                severity: DiagnosticSeverity::Information,
+                stage: DiagnosticStage::Parse,
+                message: issue.detail,
+                parser: None,
+                source: record.source.path.clone(),
+                source_range: None,
+                related_observations: issue.observations,
+                recoverable: true,
+            };
+            if !record.diagnostics.contains(&diagnostic) {
+                record.diagnostics.push(diagnostic);
+            }
+        }
+    }
     let result = analysis::normalize::normalize(record, limits)?;
     record.claims.extend(result.claims);
+    for issue in result.issues {
+        let diagnostic = Diagnostic {
+            code: "analysis.normalization".into(),
+            severity: DiagnosticSeverity::Warning,
+            stage: DiagnosticStage::Parse,
+            message: issue.reason,
+            parser: None,
+            source: record.source.path.clone(),
+            source_range: None,
+            related_observations: vec![issue.observation],
+            recoverable: true,
+        };
+        if !record.diagnostics.contains(&diagnostic) {
+            record.diagnostics.push(diagnostic);
+        }
+    }
+    package_media_type(record);
     let result = analysis::validation::reconcile(record, limits)?;
     record.claims = result.claims;
     for conflict in result.conflicts {
@@ -73,6 +169,81 @@ pub fn analyze_record(record: &mut ExtractionRecord) -> io::Result<()> {
     }
     Ok(())
 }
+fn package_media_type(record: &mut ExtractionRecord) {
+    if record.source.detected_media_type.as_deref() != Some("application/zip") {
+        return;
+    }
+    fn text(o: &MetadataObservation) -> Option<&str> {
+        match o.interpreted_value.as_ref().unwrap_or(&o.raw_value) {
+            RawValue::Text(t) if t.lossless => Some(t.text.as_str()),
+            _ => None,
+        }
+    }
+    let mut validated = std::collections::BTreeSet::new();
+    let mut part_names =
+        std::collections::BTreeMap::<(&str, Option<&str>), std::collections::BTreeSet<&str>>::new();
+    for o in &record.observations {
+        if o.provenance.parser.id != "document.package" {
+            continue;
+        }
+        if o.tag.name.as_deref() == Some("validated_main_part") {
+            if let Some(value) = text(o) {
+                validated.insert(value);
+            }
+        } else if o.tag.name.as_deref() == Some("PartName") {
+            if let Some(value) = text(o) {
+                part_names
+                    .entry((o.tag.namespace.as_str(), o.provenance.stream_id.as_deref()))
+                    .or_default()
+                    .insert(value);
+            }
+        }
+    }
+    let mut candidates = std::collections::BTreeSet::new();
+    for o in &record.observations {
+        if o.provenance.parser.id != "document.package"
+            || o.tag.name.as_deref() != Some("ContentType")
+        {
+            continue;
+        }
+        let (part, mime) = match text(o) {
+            Some(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+            ) => (
+                "word/document.xml",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+            Some("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml") => (
+                "xl/workbook.xml",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ),
+            Some(
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+            ) => (
+                "ppt/presentation.xml",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ),
+            _ => continue,
+        };
+        if validated.contains(part)
+            && part_names
+                .get(&(o.tag.namespace.as_str(), o.provenance.stream_id.as_deref()))
+                .is_some_and(|names| {
+                    names.len() == 1 && names.contains(format!("/{part}").as_str())
+                })
+        {
+            candidates.insert(mime);
+        }
+    }
+    if candidates.len() == 1 {
+        record.source.detected_media_type =
+            Some((*candidates.first().expect("one candidate")).into());
+        record
+            .diagnostics
+            .retain(|d| d.code != "content.SubtypeUnverified");
+    }
+}
+
 fn ingest(case: &CaseWorkspace, scan: &str, file: &mut ScannedFile) -> io::Result<()> {
     let key = format!("application.file.{}", file.task.id);
     if case.scan_receipt(scan, &key)?.is_some() {
@@ -124,7 +295,31 @@ pub fn run(
     }
     let store = ScanStore::open(&request.journal_path)?;
     let journal = NativePath::from_path(&request.journal_path.canonicalize()?);
-    let backend: Arc<dyn ExtractionBackend> = BundledWorker::adjacent()?;
+    let mut backend: Arc<dyn ExtractionBackend> = BundledWorker::adjacent()?;
+    if request.cache_enabled {
+        let cache_path = crate::workflows::cache_path(case.path());
+        if cache_path.exists() {
+            let cache = ScanRoot::open(&cache_path, SymlinkPolicy::Skip)?;
+            for path in [
+                case.path(),
+                request.journal_path.as_path(),
+                request.source.as_path(),
+            ] {
+                let target = ScanRoot::open(path, SymlinkPolicy::Skip)?;
+                if cache.stamp.device == target.stamp.device
+                    && cache.stamp.file_id == target.stamp.file_id
+                {
+                    return Err(invalid(
+                        "cache must differ from the case, journal and evidence root",
+                    ));
+                }
+            }
+        }
+        backend = CachedExtractor::new(
+            backend,
+            RecordCache::open(cache_path, 256 * 1024 * 1024, 10000)?,
+        );
+    }
     let mut progress = ScanSummary::default();
     let (scan, resuming) = if let Some((run, id)) = &request.resume {
         let receipt = case

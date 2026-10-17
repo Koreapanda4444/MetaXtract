@@ -1,6 +1,6 @@
 use crate::{
     AccessMode, AuditAnchor, CaseWorkspace, ImportLimits, IntegrityReport, ManifestSignature,
-    Result, SigningIdentity, codec, db, hex, invalid, now_ms, transport, verify_manifest,
+    Result, SigningIdentity, codec, db, hex, invalid, transport, verify_manifest,
 };
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
@@ -75,7 +75,7 @@ impl CaseWorkspace {
             case_sha256: hash,
             record_count: integrity.records,
             audit: Some(integrity.anchor.clone()),
-            created_ms: now_ms()?,
+            created_ms: info.updated_ms,
             signer: signer.map(|s| SnapshotSigner {
                 name: s.name().into(),
                 fingerprint: s.fingerprint(),
@@ -103,6 +103,7 @@ impl CaseWorkspace {
         {
             let mut archive = ZipWriter::new(temporary.as_file_mut());
             let options = SimpleFileOptions::default()
+                .last_modified_time(zip::DateTime::default())
                 .compression_method(CompressionMethod::Deflated)
                 .unix_permissions(0o600);
             archive

@@ -275,7 +275,7 @@ pub fn build_report(
         {
             vec![]
         } else {
-            duplicates::visual_fingerprints(&record, 1, limits)?
+            duplicates::record_visual_fingerprints(&record, limits)?
         };
         if candidate {
             eligible += 1;

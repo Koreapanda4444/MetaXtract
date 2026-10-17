@@ -37,9 +37,21 @@ thumbnail/comment payloads and decompression ceilings. Decoded fields must ident
 source packet and must not claim original-file coordinates.
 HEIF/RAW fixtures include an encoded AVIF, a generated DNG, item/property/extent bounds,
 maker-note tags, external-reference refusal and library working-memory limits.
-Full PNG/PDF/other metadata record parity is still pending. The result reports this
-explicitly instead of treating the Python-only records as native extraction coverage. To check
-only the frozen Python baseline without native build tools, use `--python-only`.
+The migration acceptance gate runs eight captured Python inputs through the actual application:
+plain text, RGB and RGBA PNG, animated PNG, EXIF/GPS JPEG, ordinary and password-protected PDF,
+and DOCX. It compares path, MIME type, size, SHA-256 and every captured metadata field while
+allowing additional native observations. Unknown Unicode metadata and orientation claims must
+survive. `--acceptance-only` runs the application contracts and this gate; `--cli-executable PATH`
+can select an independently packaged CLI. `--python-only` still checks the untouched reference.
+
+The same gate imports genuine Python case/JSONL/signed-bundle artifacts, retains original record
+fields, notes, annotations and saved-filter semantics, and checks analysis of imported GPS.
+Original-file verification, selected evidence integrity, deterministic repeated exports, snapshot
+reopening, cache purging and production diagnostics use public application commands. These checks
+are bounded acceptance evidence, not exhaustive equivalence across every format. CLI syntax and
+case schemas intentionally change. Preview decoding remains bounded; visual hashes use the native
+algorithm and are not promised to match Pillow resampling bit for bit. The captured source-tree
+identity and original artifacts remain in the expected data for future replay.
 
 CI runs Linux, Windows, and macOS builds and both debug/release contract checks. Linux additionally
 runs AddressSanitizer and UndefinedBehaviorSanitizer on the native core and the generated FFI.

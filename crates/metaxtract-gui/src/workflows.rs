@@ -120,7 +120,7 @@ impl Desktop {
     }
     pub fn workflows_view(&mut self, ui: &mut egui::Ui) {
         ui.heading("Export and tools / 내보내기·도구");
-        const ACTIONS: [&str; 14] = [
+        const ACTIONS: [&str; 18] = [
             "Export records / 레코드 내보내기",
             "Redaction profile / 비식별화 프로필",
             "Report / 보고서",
@@ -135,6 +135,10 @@ impl Desktop {
             "Parser diagnostics / 파서 진단",
             "Register public identity / 공개 서명자 등록",
             "Verify report receipt / 보고서 영수증 검증",
+            "Verify original files / 원본 파일 검증",
+            "Export original evidence ZIP / 원본 근거 ZIP 내보내기",
+            "Verify evidence ZIP / 근거 ZIP 검증",
+            "Purge metadata cache / 메타데이터 캐시 비우기",
         ];
         let previous = self.workflows.action;
         egui::ComboBox::from_id_salt("workflow-action")
@@ -151,6 +155,13 @@ impl Desktop {
         }
         let action = self.workflows.action;
         ui.add_space(8.0);
+        if matches!(action, 14 | 15) {
+            ui.checkbox(
+                &mut self.workflows.selected,
+                "Selected records only / 선택 레코드만",
+            );
+            ui.label("Uses the selected scan and current filter. Virtual members are not reopened as disk paths. / 선택 스캔과 현재 필터를 사용합니다. 가상 하위 항목을 디스크 경로로 열지 않습니다.");
+        }
         if matches!(action, 0..=2) {
             if action != 1 {
                 ui.checkbox(
@@ -334,6 +345,19 @@ impl Desktop {
             11 => {
                 ui.label("Shows the current build, parser registry, bundled worker and stored scan engine. Record diagnostics remain in the inspector. / 현재 빌드·파서 목록·동봉 워커·저장된 스캔 엔진을 확인합니다. 레코드별 진단은 검사 화면에서 볼 수 있습니다.");
             }
+            14 | 15 => {
+                self.workflow_path_row(ui, Field::Input, "Original evidence root / 원본 근거 루트");
+                if action == 15 {
+                    self.workflow_path_row(ui, Field::Output, "Evidence ZIP / 근거 ZIP");
+                    ui.label("Original files retain their embedded metadata. Export root files only. / 원본 파일 내부의 메타데이터를 유지합니다. 루트 파일을 선택하세요.");
+                }
+            }
+            16 => {
+                self.workflow_path_row(ui, Field::Input, "Evidence ZIP / 근거 ZIP");
+            }
+            17 => {
+                ui.label("Clears cached rows only. Case, evidence and scan checkpoints are retained. / 캐시 행만 비우고 케이스·근거·체크포인트는 유지합니다.");
+            }
             _ => {
                 self.workflow_path_row(ui, Field::Public, "Public key / 공개 키");
             }
@@ -358,7 +382,7 @@ impl Desktop {
                 ui.text_edit_singleline(&mut self.workflows.name);
             });
         }
-        let requires_case = matches!(action, 0 | 2 | 6 | 9 | 10 | 12);
+        let requires_case = matches!(action, 0 | 2 | 6 | 9 | 10 | 12 | 14 | 15 | 17);
         let writable = matches!(action, 9 | 12);
         let switch_allowed = !self
             .info
@@ -395,7 +419,7 @@ impl Desktop {
     fn run_workflow(&mut self, ctx: &egui::Context) {
         let action = self.workflows.action;
         let prepared = (|| -> io::Result<_> {
-            let query = if matches!(action, 0 | 2) {
+            let query = if matches!(action, 0 | 2 | 14 | 15) {
                 Some(self.active_query(self.workflows.selected)?)
             } else {
                 None
@@ -469,14 +493,12 @@ impl Desktop {
                 8=> {let opened=Arc::new(CaseWorkspace::open_snapshot(path(Field::Input)?,path(Field::Output)?,s::AccessMode::ReadWrite,public()?.as_deref(),&Default::default())?);let info=opened.info()?;let history=opened.scan_history(None,128)?;Ok(Outcome::Open(opened,info,history))},
                 9=>{let case=case()?;let limits=s::ImportLimits::default();let result=match format{0=>case.import_jsonl(path(Field::Input)?,&limits)?,1=>case.import_python_case(path(Field::Input)?,&limits)?,_=>case.import_python_bundle(path(Field::Input)?,public()?.as_deref(),&limits)?};let scan=result.scans.first().cloned();Ok(Outcome::Imported(serde_json::to_value(result).map_err(io::Error::other)?,case.info()?,case.scan_history(None,128)?,scan))},
                 10=>{let case=case()?;let expected=if trusted {Some(w::read_json::<s::AuditAnchor>(path(Field::Input)?)?)}else{None};let verified=case.verify_integrity(expected.as_ref())?;let head=case.audit_head()?;if let Some(p)=paths.get(&Field::Output.index()){w::write_json(p,&head)?;}let events=case.audit_events(after,128)?;value(serde_json::json!({"integrity":verified,"anchor":head,"events":events,"next_after":events.last().map(|e|e.sequence),"page_limit":128}))},
-                11=> {
-                    let capabilities=app::core::parser_capabilities().map_err(io::Error::other)?;
-                    let session=if let (Some(c),Some(id))=(workspace.as_ref(),scan.as_ref()){c.scan_receipt(id,"application.session")?}else{None};
-                    let capabilities:Vec<_>=capabilities.into_iter().map(|p|serde_json::json!({"id":p.id,"library":p.name,"version":p.version,"formats":p.formats,"operations":p.operations})).collect();
-                    let worker=app::core::scan::BundledWorker::adjacent().map(|_|"available".to_string()).unwrap_or_else(|e|e.to_string());
-                    value(serde_json::json!({"engine_fingerprint":app::core::scan::engine_fingerprint(),"bundled_worker":worker,"stored_session":session,"parsers":capabilities}))
-                },
+                11=>value(w::diagnostics(workspace.as_deref(),scan.as_deref())?),
                 13=>{let receipt:a::reporting::ReportOutput=w::read_json(path(Field::Receipt)?)?;let pem=w::read_text(path(Field::Public)?,16384)?;let input=std::fs::File::open(path(Field::Input)?)?;value(serde_json::json!({"verified":true,"fingerprint":a::reporting::verify_report(input,&receipt,&pem,Default::default())?}))},
+                14=>value(w::verify_originals(case()?,query.as_ref().expect("prepared query"),path(Field::Input)?)?),
+                15=>value(w::export_evidence(case()?,query.as_ref().expect("prepared query"),path(Field::Input)?,path(Field::Output)?)?),
+                16=>value(a::export::verify_original_evidence(path(Field::Input)?,Default::default())?),
+                17=>value(serde_json::json!({"purged_entries":app::core::scan::RecordCache::purge_existing(w::cache_path(case()?.path()))?})),
                 _=>{let pem=w::read_text(path(Field::Public)?,16384)?;let registered=case()?.register_public_identity(&name,&pem)?;value(serde_json::json!({"registered":registered,"identities":case()?.identities(None,128)?}))}
             }
         },|s,out|match out {

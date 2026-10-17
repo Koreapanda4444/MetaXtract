@@ -204,13 +204,135 @@ pub fn export_records(
         case_integrity_verified: true,
     })
 }
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct EvidenceMember {
     path: EvidencePath,
     member: String,
     metadata_member: String,
     size_bytes: u64,
     sha256: String,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EvidenceManifest {
+    format: String,
+    case_id: String,
+    anchor: AuditAnchor,
+    original_evidence: bool,
+    members: Vec<EvidenceMember>,
+}
+#[derive(serde::Serialize)]
+pub struct EvidenceVerification {
+    pub verified: bool,
+    pub case_id: String,
+    pub records: usize,
+    pub bytes: u64,
+}
+/// Verify a bounded, stored selected-evidence ZIP without extracting any member.
+pub fn verify_original_evidence(
+    path: impl AsRef<Path>,
+    limits: AnalysisLimits,
+) -> io::Result<EvidenceVerification> {
+    let input = File::open(path)?;
+    if !input.metadata()?.is_file() || input.metadata()?.len() > limits.max_bytes as u64 {
+        return Err(invalid("evidence archive exceeds byte budget"));
+    }
+    let mut archive = zip::ZipArchive::new(input).map_err(|e| invalid(&e.to_string()))?;
+    if archive.len() > limits.max_records.saturating_mul(2).saturating_add(1) {
+        return Err(invalid("evidence archive exceeds member budget"));
+    }
+    let mut inventory = std::collections::BTreeSet::new();
+    let mut bytes = 0u64;
+    for index in 0..archive.len() {
+        let file = archive
+            .by_index(index)
+            .map_err(|e| invalid(&e.to_string()))?;
+        bytes = bytes
+            .checked_add(file.size())
+            .ok_or_else(|| invalid("evidence archive size overflow"))?;
+        if !inventory.insert(file.name().to_owned())
+            || file.is_dir()
+            || file.compression() != zip::CompressionMethod::Stored
+            || file
+                .unix_mode()
+                .is_some_and(|m| m & 0o170000 != 0 && m & 0o170000 != 0o100000)
+            || bytes > limits.max_bytes as u64
+        {
+            return Err(invalid(
+                "ambiguous, special or oversized evidence archive member",
+            ));
+        }
+    }
+    let manifest: EvidenceManifest = {
+        let file = archive
+            .by_name("manifest.json")
+            .map_err(|e| invalid(&e.to_string()))?;
+        serde_json::from_reader(file).map_err(|e| invalid(&e.to_string()))?
+    };
+    if manifest.format != "metaxtract-selected-evidence-v1"
+        || !manifest.original_evidence
+        || manifest.members.len() > limits.max_records
+        || archive.len() != manifest.members.len().saturating_mul(2).saturating_add(1)
+    {
+        return Err(invalid("unsupported evidence archive manifest"));
+    }
+    let mut expected = std::collections::BTreeSet::from(["manifest.json".to_owned()]);
+    let mut buffer = [0u8; 65536];
+    for (index, item) in manifest.members.iter().enumerate() {
+        let ordinal = index + 1;
+        if item.member != format!("evidence/{ordinal:08}.bin")
+            || item.metadata_member != format!("metadata/{ordinal:08}.json")
+        {
+            return Err(invalid("non-canonical evidence archive member path"));
+        }
+        expected.insert(item.member.clone());
+        expected.insert(item.metadata_member.clone());
+        let record: ExtractionRecord = {
+            let file = archive
+                .by_name(&item.metadata_member)
+                .map_err(|e| invalid(&e.to_string()))?;
+            serde_json::from_reader(file).map_err(|e| invalid(&e.to_string()))?
+        };
+        crate::check_record(&record, limits)?;
+        let digest = record
+            .digests
+            .iter()
+            .find(|d| d.algorithm == DigestAlgorithm::Sha256 && d.bytes.len() == 32)
+            .ok_or_else(|| invalid("evidence metadata has no SHA-256"))?;
+        if record.source.path != item.path
+            || record.source.identity.size_bytes != item.size_bytes
+            || hex(&digest.bytes) != item.sha256
+        {
+            return Err(invalid("evidence metadata differs from the manifest"));
+        }
+        let mut file = archive
+            .by_name(&item.member)
+            .map_err(|e| invalid(&e.to_string()))?;
+        if file.size() != item.size_bytes {
+            return Err(invalid("evidence member size differs"));
+        }
+        let mut hash = Sha256::new();
+        loop {
+            let n = file.read(&mut buffer)?;
+            if n == 0 {
+                break;
+            }
+            hash.update(&buffer[..n]);
+        }
+        if hex(&hash.finalize()) != item.sha256 {
+            return Err(invalid("evidence member SHA-256 differs"));
+        }
+    }
+    if inventory != expected {
+        return Err(invalid("evidence archive contains unexpected members"));
+    }
+    Ok(EvidenceVerification {
+        verified: true,
+        case_id: manifest.case_id,
+        records: manifest.members.len(),
+        bytes,
+    })
 }
 /// The caller supplies safely resolved, opened sources. Originals retain their embedded metadata.
 pub fn export_original_evidence(
@@ -224,6 +346,7 @@ pub fn export_original_evidence(
     let (records, bytes, sha256) = atomic_output(destination.as_ref(), |file| {
         let mut zip = zip::ZipWriter::new_stream(LimitedWriter::new(file, limits.max_bytes));
         let options = zip::write::SimpleFileOptions::default()
+            .last_modified_time(zip::DateTime::default())
             .compression_method(zip::CompressionMethod::Stored)
             .unix_permissions(0o600)
             .large_file(true);
@@ -280,7 +403,17 @@ pub fn export_original_evidence(
         })?;
         zip.start_file("manifest.json", options)
             .map_err(io::Error::other)?;
-        serde_json::to_writer(&mut zip,&serde_json::json!({"format":"metaxtract-selected-evidence-v1","case_id":info.case_id,"anchor":anchor,"original_evidence":true,"members":members})).map_err(io::Error::other)?;
+        serde_json::to_writer(
+            &mut zip,
+            &EvidenceManifest {
+                format: "metaxtract-selected-evidence-v1".into(),
+                case_id: info.case_id.clone(),
+                anchor: anchor.clone(),
+                original_evidence: true,
+                members,
+            },
+        )
+        .map_err(io::Error::other)?;
         zip.finish().map_err(io::Error::other)?.flush()?;
         unchanged(case, &info, &anchor)?;
         Ok(count)

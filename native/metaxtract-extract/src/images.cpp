@@ -105,6 +105,8 @@ void inspect_png(Reader& reader, const bool metadata) {
     std::uint64_t at = 8;
     std::uint64_t count = 0;
     bool ihdr = false, idat = false, ended_idat = false, palette = false, ended = false;
+    bool animation = false, default_in_animation = false, frame_data = false;
+    std::uint64_t declared_frames = 0, controls = 0, next_sequence = 0, canvas_width = 0, canvas_height = 0;
     std::uint8_t color = 0;
     while (at < reader.size) {
         reader.entry();
@@ -131,6 +133,7 @@ void inspect_png(Reader& reader, const bool metadata) {
         if (type == "IHDR") {
             if (ihdr || length != 13) { throw Failure{ParseStatus::Malformed, "Duplicate or malformed PNG IHDR", reader.base + at}; }
             const auto width = integer(body, 4, 4), height = integer(body, 8, 4);
+            canvas_width = width; canvas_height = height;
             const auto bits = body[12];
             color = body[13];
             const bool depth = color == 0 ? (bits == 1 || bits == 2 || bits == 4 || bits == 8 || bits == 16) :
@@ -145,6 +148,39 @@ void inspect_png(Reader& reader, const bool metadata) {
             reader.number("color_type", at + 17, 1);
             reader.number("interlace", at + 20, 1);
             ihdr = true;
+        } else if (type == "acTL") {
+            if (animation || idat || length != 8 || integer(body, 4, 4) == 0) {
+                throw Failure{ParseStatus::Malformed, "Invalid APNG animation control", reader.base + at};
+            }
+            animation = true; declared_frames = integer(body, 4, 4);
+            reader.number("animation_frame_count", at + 8, 4);
+            reader.number("animation_play_count", at + 12, 4);
+        } else if (type == "fcTL") {
+            if (!animation || length != 26 || (controls && !frame_data) || integer(body, 4, 4) != next_sequence++) {
+                throw Failure{ParseStatus::Malformed, "Invalid APNG frame control or sequence", reader.base + at};
+            }
+            const auto width = integer(body, 8, 4), height = integer(body, 12, 4);
+            const auto x = integer(body, 16, 4), y = integer(body, 20, 4);
+            if (!width || !height || width > canvas_width || height > canvas_height ||
+                x > canvas_width - width || y > canvas_height - height || body[28] > 2 || body[29] > 1 ||
+                (!idat && (x || y || width != canvas_width || height != canvas_height))) {
+                throw Failure{ParseStatus::Malformed, "Invalid APNG frame geometry or operation", reader.base + at};
+            }
+            if (!controls) { default_in_animation = !idat; }
+            ++controls; frame_data = false;
+            chunk.number("sequence_number", at + 8, 4);
+            chunk.number("frame_width", at + 12, 4); chunk.number("frame_height", at + 16, 4);
+            chunk.number("x_offset", at + 20, 4); chunk.number("y_offset", at + 24, 4);
+            chunk.number("delay_numerator", at + 28, 2); chunk.number("delay_denominator", at + 30, 2);
+            chunk.number("dispose_operation", at + 32, 1); chunk.number("blend_operation", at + 33, 1);
+            if (idat) { ended_idat = true; }
+        } else if (type == "fdAT") {
+            if (!animation || !idat || !controls || (default_in_animation && controls == 1) ||
+                length < 4 || integer(body, 4, 4) != next_sequence++) {
+                throw Failure{ParseStatus::Malformed, "Invalid APNG frame data or sequence", reader.base + at};
+            }
+            chunk.number("sequence_number", at + 8, 4);
+            frame_data = true; ended_idat = true;
         } else if (type == "PLTE") {
             if (palette || idat || length == 0 || length % 3 != 0 || length > 768 || color == 0 || color == 4) {
                 throw Failure{ParseStatus::Malformed, "Invalid PNG palette", reader.base + at};
@@ -153,6 +189,7 @@ void inspect_png(Reader& reader, const bool metadata) {
         } else if (type == "IDAT") {
             if (ended_idat || (color == 3 && !palette)) { throw Failure{ParseStatus::Malformed, "Invalid PNG IDAT ordering", reader.base + at}; }
             idat = true;
+            if (default_in_animation && controls == 1) { frame_data = true; }
         } else if (type == "IEND") {
             if (length != 0 || !idat) { throw Failure{ParseStatus::Malformed, "PNG IEND without image data or with payload", reader.base + at}; }
             ended = true;
@@ -167,6 +204,13 @@ void inspect_png(Reader& reader, const bool metadata) {
         ++count;
     }
     if (!ended) { throw Failure{ParseStatus::Malformed, "PNG IEND missing", reader.base + at}; }
+    if (animation) {
+        if (controls != declared_frames || !frame_data) {
+            throw Failure{ParseStatus::Malformed, "APNG frame controls or data are incomplete", reader.base + at};
+        }
+        reader.derived("frame_count", declared_frames + (default_in_animation ? 0 : 1));
+        reader.derived("default_image_in_animation", default_in_animation ? 1 : 0);
+    }
     if (at != reader.size) { reader.diagnostic("trailing_data", "Bytes remain after PNG IEND", at); }
     reader.derived("chunk_count", count);
 }

@@ -63,7 +63,8 @@ Native paths are accepted for filesystem arguments; search text must be UTF-8.
 
 Exit codes: **0** completed; **2** invalid arguments; **3** I/O or application failure; **4** invalid
 data/integrity; **5** completed scan with failed/unstable files; **6** durably paused; **130** cancelled.
-A partial or paused scan still emits its successful result envelope, counts and checkpoint IDs.
+`verify-originals` also emits a completed result envelope and exits 4 when any original fails
+verification; inspect `verified`, file counts and issues. A partial or paused scan still emits its successful result envelope, counts and checkpoint IDs.
 A closed output pipe exits cleanly. `case history` and `search` return `items` plus `next`;
 restart pagination after a case revision change. `--pause-after N` pauses cooperatively after at
 least N completed files (already running work may finish); retain the journal and resume with the
@@ -237,3 +238,35 @@ syntax remain available for review. A signed Python bundle requires an independe
 then choose **Resume checkpoint**. CLI users supply the original `--resume RUN --scan SCAN_ID`
 and custom `--journal PATH`, if any. An engine mismatch requires a new scan. If the journal was
 lost, completed case records remain readable but the missing checkpoint cannot be reconstructed.
+
+## Original verification, evidence delivery and cache
+
+```bash
+metaxtract scan evidence --case investigation.mxcase --include-hidden --decode-previews --cache on
+metaxtract verify-originals investigation.mxcase SCAN_ID evidence
+metaxtract export-evidence investigation.mxcase SCAN_ID evidence selected.zip --query 'path=evidence.txt'
+metaxtract verify-evidence selected.zip
+metaxtract analyze investigation.mxcase SCAN_ID --view locations --format geojson --output locations.geojson
+metaxtract analyze investigation.mxcase SCAN_ID --view similar --threshold 8
+metaxtract doctor --case investigation.mxcase
+metaxtract cache purge investigation.mxcase.cache.sqlite
+```
+
+The desktop Workflows menu exposes original verification, selected evidence export, archive
+integrity verification and cache purging. Scan queue options include hidden files, file limits
+and cache use. Preview decoding during a scan is opt-in and retained decoded frames enable
+visual similarity. Missing previews and conflicting orientation remain explicit coverage gaps.
+
+A source root is authorized by the operator; case paths never authorize arbitrary disk access.
+Original verification reopens regular root files within that root, refuses symlinks and compares
+recorded size and SHA-256. Nested virtual records are counted separately and never opened as OS
+paths. Selected evidence export requires physical root records; filter nested records out first.
+The resulting ZIP contains typed metadata and unchanged original bytes, including their embedded
+private metadata. It is distinct from a redacted metadata export and a portable case snapshot.
+`verify-evidence` validates the complete canonical inventory and hashes without extracting files;
+this proves internal integrity. Use `sign` and an independently trusted public key for authenticity.
+
+Repeated exports of an unchanged case use fixed ZIP timestamps; snapshot `created_ms` is the case
+content's last update time, not the wall-clock export time. The separate bounded cache stores raw
+extraction results under content, engine and policy identities. `--cache off` bypasses it. Purging
+accepts only a dedicated existing cache database and preserves case records and scan checkpoints.
