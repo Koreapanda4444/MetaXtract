@@ -198,3 +198,44 @@ Python 케이스·번들을 기존 쓰기 가능한 케이스로 가져올 수 �
 
 작업은 백그라운드에서 실행합니다. 출력은 새 경로를 사용하고 기존 파일은 덮어쓰지 않습니다.
 보고서·번들·가져오기·케이스 전환을 실행하려면 진행 중인 스캔을 일시정지하세요.
+
+## 조사 작업 순서
+
+1. 네이티브 패키지 전체를 풀고 데스크톱을 실행해 앱 폴더 밖에 케이스를 만듭니다.
+   원본 근거는 별도 디렉터리에 보관하고 사용한 패키지의 빌드 커밋을 기록합니다.
+2. **스캔 대기열**에 원본을 추가합니다. 시각 유사도가 필요하면 **미리보기 디코딩**을
+   켭니다. 스캔 진행·일시정지 중에는 케이스와 `.scan.sqlite` 저널을 함께 보존합니다.
+3. 정규화된 주장을 쓰기 전에 레코드 상태·진단·Raw·Provenance를 확인하고 **분석**에서
+   충돌과 추출 범위 누락을 검토합니다. 필터·선택은 작업 대상을 정하며 다른 기록을 지우지 않습니다.
+4. 보고서·스냅샷 제작 전 스캔을 일시정지합니다. 내부 검토용 원본 레코드 내보내기를 보존하고
+   필요하면 별도의 비식별화 파생본을 미리 봅니다. 메타데이터 비식별화는 원본 파일 내부의
+   정보를 제거하는 파일 정화 기능이 아닙니다.
+5. 케이스 스냅샷·원본 근거·별도로 신뢰한 공개 키/보고서 영수증을 보존합니다. 스냅샷을 새
+   케이스로 다시 열어 검증한 뒤 작업 사본을 정리합니다. 이동식 케이스 스냅샷에는 데이터베이스가
+   들어가며 원본 근거는 별도로 관리합니다.
+
+아래 `metaxtract`는 실행 파일의 전체 경로, Unix의 `./metaxtract`, Windows PowerShell의
+`.\metaxtract.exe`로 바꿉니다. 명령이 반환한 ID를 다음 작업에 사용합니다.
+
+```text
+metaxtract scan evidence --case investigation.mxcase --progress
+metaxtract case history investigation.mxcase
+metaxtract search investigation.mxcase SCAN_ID --limit 64
+metaxtract verify investigation.mxcase
+metaxtract report investigation.mxcase SCAN_ID report.html --analyst Analyst
+metaxtract bundle export investigation.mxcase snapshot.zip
+metaxtract bundle verify snapshot.zip
+metaxtract bundle open snapshot.zip reopened.mxcase
+```
+
+**이전 케이스 가져오기:** 쓰기 가능한 Rust 케이스를 만들고 **케이스로 가져오기**에서
+Python 케이스·JSONL·Python 번들 중 입력에 맞는 종류를 선택합니다. CLI는
+`case create new.mxcase` 뒤에 `import new.mxcase old.mxc --kind python`을 실행합니다.
+반환한 스캔 ID를 확인하고 대상 케이스를 `verify`로 검사합니다. 원본 케이스는 유지하며
+가져온 원본 행과 지원하지 않는 필터 문법도 검토할 수 있습니다. 서명된 Python 번들에는
+별도로 신뢰한 공개 키가 필요합니다.
+
+**중단된 스캔 복구:** 원래 케이스·저널·원본 루트를 유지한 뒤 **체크포인트 재개**를
+선택합니다. CLI는 원래 `--resume RUN --scan SCAN_ID`와 사용자 지정 `--journal PATH`를
+사용합니다. 엔진이 다르면 새 스캔이 필요합니다. 저널을 잃어도 저장된 케이스 기록은
+읽을 수 있지만 사라진 체크포인트를 복원할 수는 없습니다.

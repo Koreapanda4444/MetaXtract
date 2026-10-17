@@ -2,6 +2,48 @@
 
 [English](extraction.md) | [한국어](extraction_KR.md) | [Project README](../README.md)
 
+## Coverage at a glance
+
+Coverage refers to metadata capabilities, not to every encoding, codec or historical variant.
+The detailed sections below define the limits. Corpus files contain generated structures and,
+where identified, pinned upstream samples; passing a corpus is bounded evidence of support.
+
+| Family | Parser capabilities | Evidence and important limits |
+|---|---|---|
+| JPEG, PNG, TIFF/BigTIFF, WebP, GIF, BMP, ICO/CUR | `images.structure`, `images.metadata` | [Image corpus](../conformance/corpus/native-image-metadata.json): geometry, EXIF/GPS, XMP, IPTC, ICC; metadata success does not validate every pixel |
+| HEIF/HEIC/AVIF and camera RAW | `images.heif`, `images.raw` | [HEIF/RAW corpus](../conformance/corpus/native-heif-raw.json): items, extents, embedded metadata, LibRaw fields; no general HEIF/RAW image rendering |
+| MP3, FLAC, WAV, AIFF, Ogg/Opus and library-supported tags | `audio.metadata` | [Audio corpus](../conformance/corpus/native-audio.json): original and TagLib fields; codec-frame validity is separate |
+| MP4/MOV, Matroska/WebM, AVI and MPEG streams | `media.structure`, `media.details`, `media.inspect`, `media.decode` | [Media corpus](../conformance/corpus/native-media-library.json): container/track claims and bounded first-frame decoding; AV1 software decoding is unavailable |
+| PDF | `pdf.metadata`, `pdf.security`, `pdf.preview` | [PDF corpus](../conformance/corpus/native-pdf-security.json): objects, revisions, security structures; signatures are not authenticated and preview text has font limits |
+| OOXML/ODF and legacy Office/OLE | `document.package`, `document.ole`, `document.preview` | [Document corpus](../conformance/corpus/native-documents.json), [OLE corpus](../conformance/corpus/native-ole.json): properties, parts, streams, comments; no macro execution or full rendering |
+| EML/MIME | `email.mime` | [Mail corpus](../conformance/corpus/native-email.json): headers, routes, bodies and attachments; mail authentication is not verified |
+| ZIP, TAR, 7z and compressed streams | `container.archive` | [Archive corpus](../conformance/corpus/native-archives.json): bounded recursive regular members; links, unsafe names and encryption remain explicit |
+| PE, ELF, Mach-O and scripts | `binaries.metadata` | Structural headers, imports, resources and signing bytes; no execution, disassembly or signer trust decision |
+| Fonts, ebooks and application packages | `formats.resource` | Names, properties, manifests and original unknown values; WOFF2 transforms remain unsupported |
+| DICOM | `formats.dicom` | Tags, private elements and transfer declarations; no clinical interpretation or general pixel decoding |
+| GeoJSON, GPX, KML, SHP/DBF and GeoTIFF | `formats.geo` | Coordinates and declared CRS; no implicit projection conversion or online map requests |
+
+## Reading the evidence
+
+Start with the record status and diagnostics, then inspect raw observations and their provenance.
+`Complete` means the requested operations finished under the selected policy; it does not certify
+the whole file or establish that no other metadata exists. `Partial` retains earlier observations
+and a reason for incomplete extraction. `Unsupported` and `Failed` require reviewing the reported
+capability, encoding or worker failure. A finished scan is not a claim of complete format coverage.
+
+Source byte ranges refer only to the source identified by that observation. Assembled, decoded
+and library-resolved values identify their packet, stream or object instead. A virtual child's
+offset is not an offset in its outer archive. Unknown tags and uninterpreted bytes remain useful
+evidence; absence of a normalized claim does not mean absence of metadata.
+
+Normalized claims retain supporting and conflicting observation IDs. Confidence describes that
+interpretation, not authenticity or a statistical probability. Library defaults and agreeing wrappers
+of the same implementation do not establish independent corroboration. A SHA-256 match establishes
+byte identity with the recorded content; authenticity requires a separately trusted signature/key.
+Unresolved local timestamps retain their unknown timezone, and anomaly findings require review.
+
+See [analysis](analysis.md) for interpretation and [application](application.md) for the operator flow.
+
 ## Content identification
 
 The Rust `metaxtract_native::detect_content` API calls the C++ signature detector through
@@ -87,8 +129,8 @@ No RAW pixel unpacking or filesystem opening is requested.
 
 LibRaw gets cooperative read/progress budgets, a 16 MiB raw-memory setting, and a precharged
 working-memory allowance. This is not a complete meter of every internal library allocation
-or a preemptive hard timeout. Isolated scan workers remain later work; exhausted budgets and
-library failures are surfaced with any observations already obtained.
+or a preemptive hard timeout. Production scans add the bundled worker's memory/time boundary;
+exhausted budgets and library failures are surfaced with any observations already obtained.
 
 ## Image reconciliation
 
@@ -105,7 +147,8 @@ Unix-second projection. Differing precision alone does not establish a timestamp
 Correlated capabilities of the same parser family do not count as independent agreement.
 Duplicate observation IDs and mixed sources are rejected. Configurable analysis limits bound
 observation count, alternatives per key and claim links; exhaustion reports an error and
-does not silently truncate the source observations. Full case/record parity is still pending.
+does not silently truncate the source observations. Case persistence and exports retain the
+typed observations and claims; compatibility evidence is tracked by the conformance corpus.
 
 ## Audio metadata
 
@@ -122,7 +165,7 @@ partial source observations when a library cannot inspect a damaged file. Metada
 is not proof that every audio frame decodes. Ogg headers and continuations are bounded; full
 page CRC and codec-frame verification are not performed here. Library reads and output are
 budgeted, and a 16 MiB working allowance is charged before TagLib. Its internal allocations
-and cooperative deadline still require later scanner isolation for a hard memory/time boundary.
+and cooperative deadline are supplemented by the production scanner's worker memory/time limits.
 
 ## Media containers
 
@@ -158,8 +201,9 @@ is opened on disk or over a network.
 
 FourCC bytes are preserved as original encoded text. Internal path components escape non-ASCII
 and control bytes reversibly, preventing malformed names from breaking the Rust boundary.
-Embedded resources are bounded byte observations at this stage; virtual child evidence and
-GUI previews come later. Codec configuration is declared data, not a successful decode result.
+Embedded resources remain bounded byte observations. Rust also exposes supported attachments as
+virtual child evidence, and the desktop offers verified previews. Codec configuration is declared
+data, not a successful decode result.
 Extended QuickTime sound layouts and laced Matroska per-frame boundaries remain explicitly
 uninterpreted for the in-process demuxer rather than guessed.
 
@@ -184,7 +228,7 @@ explicit decode diagnostics remain available for unsupported codecs.
 Reads, packet traversal, decoder frame buffers, preview copies and output are budgeted.
 A 32 MiB working allowance and a 64 MiB maximum individual FFmpeg allocation complement
 these checks. They do not meter all library allocations or provide a forced timeout;
-the later scanner isolation boundary remains necessary.
+the production scanner's bundled worker provides the additional process boundary.
 
 ## PDF metadata and revisions
 

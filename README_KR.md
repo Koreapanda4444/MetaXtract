@@ -134,3 +134,4 @@ README는 처음 실행하는 방법을 안내합니다. `docs/`는 추출 엔�
 | 분석·검색·보고서 | [Analysis](docs/analysis.md) | [분석·검색·보고서](docs/analysis_KR.md) |
 | 언어 전환 검증 | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
 | 현재 GUI·CLI 사용법 | [Rust application](docs/application.md) | [Rust 앱 사용법](docs/application_KR.md) |
+| 독립 설치·검증 | [Packages](docs/packaging.md) | [독립 패키지](docs/packaging_KR.md) |

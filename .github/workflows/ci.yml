@@ -32,6 +32,8 @@ jobs:
               '.github/workflows/ci.yml', 'packaging/verify.py',
               'docs/packaging.md', 'docs/packaging_KR.md'
             ]);
+            const guide = /^(?:README(?:_KR)?\.md|docs\/[^/]+\.md|(?:conformance|crates|native)\/README(?:_KR)?\.md)$/;
+            const allowed = path => permitted.has(path) || guide.test(path);
             const required = [
               'Rust / C++ (ubuntu-latest)', 'Rust / C++ (windows-latest)',
               'Rust / C++ (macos-latest)', 'Native and FFI sanitizers', 'build',
@@ -72,8 +74,8 @@ jobs:
               if (!files || files.length >= 300 ||
                   !['ahead', 'identical'].includes(comparison.data.status) ||
                   comparison.data.merge_base_commit.sha !== run.head_sha ||
-                  files.some(file => !permitted.has(file.filename) ||
-                    (file.previous_filename && !permitted.has(file.previous_filename)))) continue;
+                  files.some(file => !allowed(file.filename) ||
+                    (file.previous_filename && !allowed(file.previous_filename)))) continue;
               if (buildSettings(await workflowAt(run.head_sha)) !== current) continue;
               const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
                 ...context.repo, run_id: run.id, per_page: 100

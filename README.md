@@ -131,3 +131,4 @@ counterparts; update both when behavior or design changes.
 | Analysis, search and reports | [Analysis](docs/analysis.md) | [분석·검색·보고서](docs/analysis_KR.md) |
 | Migration verification | [Conformance](conformance/README.md) | [전환 검증](conformance/README_KR.md) |
 | Current GUI and CLI | [Rust application](docs/application.md) | [Rust 앱 사용법](docs/application_KR.md) |
+| Standalone installation and verification | [Packages](docs/packaging.md) | [독립 패키지](docs/packaging_KR.md) |

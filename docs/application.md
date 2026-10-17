@@ -196,3 +196,44 @@ An engine change requires a new scan rather than resuming checkpoints under diff
 
 Background operations keep the UI responsive. Output paths must be new; existing files are not
 overwritten. Pause an active scan before reports, bundle operations, imports or case switching.
+
+## Investigation workflow
+
+1. Extract the complete native package, launch the desktop and create a case outside the app
+   folder. Keep original evidence in its own directory and record the package's build commit.
+2. Add evidence to **Scan queue**. Enable **Decode previews** when visual similarity is needed.
+   Retain the case and its `.scan.sqlite` journal while scans are active or paused.
+3. Review record status, diagnostics, Raw and Provenance before using normalized claims. Review
+   conflicting values and partial coverage in **Analysis**. Filters and selections restrict an
+   operation; they do not remove other case records.
+4. Pause the scan before reports or snapshots. Keep an unredacted record export for internal review
+   and preview a separate redacted derivative when needed. Metadata redaction does not sanitize
+   information embedded in an original evidence file.
+5. Retain the case snapshot, original evidence and independently trusted public key/report receipt.
+   Reopen the snapshot into a new case and verify it before removing a working copy. A portable
+   case snapshot contains the database; original evidence is managed separately.
+
+Replace `metaxtract` below with its full executable path, `./metaxtract` on Unix or
+`.\metaxtract.exe` in Windows PowerShell. Commands return IDs for the following operation:
+
+```text
+metaxtract scan evidence --case investigation.mxcase --progress
+metaxtract case history investigation.mxcase
+metaxtract search investigation.mxcase SCAN_ID --limit 64
+metaxtract verify investigation.mxcase
+metaxtract report investigation.mxcase SCAN_ID report.html --analyst Analyst
+metaxtract bundle export investigation.mxcase snapshot.zip
+metaxtract bundle verify snapshot.zip
+metaxtract bundle open snapshot.zip reopened.mxcase
+```
+
+**Import an earlier case:** create a writable Rust case, choose **Import into case**, and select
+Python case/JSONL/Python bundle as appropriate. The CLI equivalent is `case create new.mxcase`,
+then `import new.mxcase old.mxc --kind python`. Review the returned scan IDs and run `verify`
+on the destination. Source cases stay unchanged; original imported rows and unsupported filter
+syntax remain available for review. A signed Python bundle requires an independently trusted key.
+
+**Recover an interrupted scan:** reopen the original case, retain its journal and evidence root,
+then choose **Resume checkpoint**. CLI users supply the original `--resume RUN --scan SCAN_ID`
+and custom `--journal PATH`, if any. An engine mismatch requires a new scan. If the journal was
+lost, completed case records remain readable but the missing checkpoint cannot be reconstructed.

@@ -99,8 +99,8 @@ as its graphics driver. The verifier supplies that external driver directory onl
 the application inventory stays intact and CLI/worker checks keep their isolated library search.
 The graphics mode is recorded as `desktop_graphics` in the receipt.
 
-For main-branch changes limited to the installation verifier, this CI job, or the paired package
-guide, CI can download previously verified packages. It checks ancestry, the complete changed-file
+For main-branch changes limited to the installation verifier, this CI job, or project Markdown
+guides, CI can download previously verified packages. It checks ancestry, the complete changed-file
 list, unchanged build/sanitizer/reference job settings, successful prior jobs and all three retained
 native package artifacts. Other changes run the full builds. Fresh installation jobs always run
 the current verifier. Reused packages retain their original build commit in their inventories
@@ -108,3 +108,8 @@ and matching source archives; the CI log identifies the source run and commit.
 This checks an isolated runtime environment on hosted runners, not
 every possible operating-system image, GPU driver or distribution. Original Python reference
 CI remains separate until the parity/removal stages.
+
+Download the `Rust-MetaXtract-<OS>-<arch>` artifact from its native build run. A verification-only
+run identifies that source run in **Build or reuse verified packages** and publishes new
+installation receipts. The application archive, its checksum and matching source archive belong
+together. The older `MetaXtract-Windows` artifact is the frozen Python reference, not the Rust app.
