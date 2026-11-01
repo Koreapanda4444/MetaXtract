@@ -5,8 +5,9 @@ use std::{
     path::PathBuf,
     sync::{Arc, mpsc},
 };
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub enum Tab {
+    #[default]
     Case,
     Scan,
     Records,
@@ -32,6 +33,8 @@ pub struct Desktop {
     pub title: String,
     pub picker: Option<Picker>,
     pub settings: Settings,
+    pub(crate) settings_checkpoint: std::time::Instant,
+    pub(crate) saved_settings: String,
     pub status: String,
     pub busy: bool,
     pub notifications: crate::notifications::Notifications,

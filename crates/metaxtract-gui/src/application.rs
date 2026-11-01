@@ -1,4 +1,4 @@
-use crate::state::{Desktop, Tab};
+use crate::state::Desktop;
 use crate::tasks;
 use crate::{
     files::{Picker, Purpose},
@@ -26,7 +26,7 @@ impl Desktop {
         settings.appearance.apply(&cc.egui_ctx, settings.scale);
         let (sender, receiver) = tasks::channel();
         let mut app = Self {
-            tab: Tab::Case,
+            tab: settings.workspace.tab,
             records: Default::default(),
             preview: Default::default(),
             inspect: Default::default(),
@@ -42,6 +42,8 @@ impl Desktop {
             notes: String::new(),
             title: crate::i18n::tr("Investigation").into(),
             picker: None,
+            saved_settings: serde_json::to_string(&settings).unwrap_or_default(),
+            settings_checkpoint: std::time::Instant::now(),
             settings,
             status: if korean {
                 crate::i18n::tr("Ready").into()
@@ -57,10 +59,50 @@ impl Desktop {
             smoke,
             frames: 0,
         };
+        app.restore_display_preferences();
         if let Some(path) = open {
             app.open(&cc.egui_ctx, path, false);
         }
         app
+    }
+    fn restore_display_preferences(&mut self) {
+        let w = &self.settings.workspace;
+        self.records.order = w.order;
+        self.preview.hex = w.preview_hex;
+        self.scan.include_hidden = w.include_hidden;
+        self.scan.decode_previews = w.decode_previews;
+        self.scan.workers = w.workers.clamp(1, 32);
+    }
+    pub fn save_display_preferences(&mut self, ctx: &egui::Context, force: bool) {
+        if !force && self.settings_checkpoint.elapsed().as_secs() < 2 {
+            return;
+        }
+        self.settings_checkpoint = std::time::Instant::now();
+        let w = &mut self.settings.workspace;
+        w.tab = self.tab;
+        w.order = self.records.order;
+        w.preview_hex = self.preview.hex;
+        w.include_hidden = self.scan.include_hidden;
+        w.decode_previews = self.scan.decode_previews;
+        w.workers = self.scan.workers;
+        ctx.input(|input| {
+            let viewport = input.viewport();
+            if !viewport.maximized.unwrap_or(false) && !viewport.minimized.unwrap_or(false) {
+                if let Some(rect) = viewport.inner_rect {
+                    w.window_size = [rect.width(), rect.height()];
+                }
+                if let Some(rect) = viewport.outer_rect {
+                    w.window_position = Some([rect.min.x, rect.min.y]);
+                }
+            }
+        });
+        let current = serde_json::to_string(&self.settings).unwrap_or_default();
+        if current != self.saved_settings {
+            match self.settings.save() {
+                Ok(()) => self.saved_settings = current,
+                Err(error) => self.report_error(error),
+            }
+        }
     }
     pub fn report_error(&mut self, error: impl std::fmt::Display) {
         self.status = error.to_string();
@@ -120,6 +162,7 @@ impl Desktop {
         self.search = Default::default();
         self.analysis = Default::default();
         self.workflows = Default::default();
+        self.restore_display_preferences();
         self.scan.close_when_idle = closing;
         if let Err(e) = self.settings.remember(case.path()) {
             self.status = format!("Case opened; recent list was not saved: {e}");

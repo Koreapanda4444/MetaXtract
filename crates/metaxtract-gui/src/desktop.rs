@@ -226,9 +226,10 @@ impl eframe::App for Desktop {
             });
         });
         egui::SidePanel::left("navigation")
-            .default_width(180.0)
-            .resizable(false)
+            .default_width(self.settings.workspace.navigation_width.clamp(150.0, 360.0))
+            .resizable(true)
             .show(ctx, |ui| {
+                self.settings.workspace.navigation_width = ui.available_width();
                 ui.add_space(12.0);
                 ui.label(crate::i18n::tr("WORKSPACE"));
                 ui.selectable_value(&mut self.tab, Tab::Case, crate::i18n::tr("Case"));
@@ -285,6 +286,7 @@ impl eframe::App for Desktop {
                 self.chosen(ctx, purpose, path);
             }
         }
+        self.save_display_preferences(ctx, ctx.input(|i| i.viewport().close_requested()));
         self.notifications.show(ctx);
         if self.smoke {
             self.frames += 1;

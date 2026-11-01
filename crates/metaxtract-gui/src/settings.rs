@@ -4,6 +4,7 @@ use std::{io, path::PathBuf};
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    pub workspace: WorkspacePreferences,
     pub recent: Vec<NativePath>,
     pub korean: bool,
     pub appearance: Appearance,
@@ -82,11 +83,63 @@ fn default_scale() -> f32 {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            workspace: WorkspacePreferences::default(),
             recent: vec![],
             korean: false,
             language: None,
             appearance: Appearance::System,
             scale: 1.0,
         }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(default)]
+pub struct WorkspacePreferences {
+    pub tab: crate::state::Tab,
+    pub order: metaxtract_app::storage::RecordOrder,
+    pub navigation_width: f32,
+    pub window_size: [f32; 2],
+    pub window_position: Option<[f32; 2]>,
+    pub preview_hex: bool,
+    pub include_hidden: bool,
+    pub decode_previews: bool,
+    pub workers: usize,
+}
+impl Default for WorkspacePreferences {
+    fn default() -> Self {
+        Self {
+            tab: Default::default(),
+            order: metaxtract_app::storage::RecordOrder::Path,
+            navigation_width: 180.0,
+            window_size: [1280.0, 820.0],
+            window_position: None,
+            preview_hex: false,
+            include_hidden: false,
+            decode_previews: false,
+            workers: 2,
+        }
+    }
+}
+impl Settings {
+    pub fn viewport(&self) -> eframe::egui::ViewportBuilder {
+        let w = &self.workspace;
+        let size = w.window_size.map(|n| {
+            if n.is_finite() {
+                n.clamp(620.0, 4096.0)
+            } else {
+                820.0
+            }
+        });
+        let mut viewport = eframe::egui::ViewportBuilder::default()
+            .with_inner_size(size)
+            .with_min_inner_size([900.0, 620.0]);
+        if let Some(position) = w
+            .window_position
+            .filter(|p| p.iter().all(|n| n.is_finite() && n.abs() < 32768.0))
+        {
+            viewport = viewport.with_position(position);
+        }
+        viewport
     }
 }
