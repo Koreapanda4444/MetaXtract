@@ -6,6 +6,7 @@ mod categories;
 mod components;
 mod desktop;
 mod file_actions;
+mod explorer_search;
 mod files;
 mod formatting;
 mod i18n;

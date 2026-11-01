@@ -12,6 +12,7 @@ use std::io;
 #[derive(Default)]
 pub struct SearchUi {
     pub text: String,
+    pub pending: Option<std::time::Instant>,
     pub visual: crate::query_builder::VisualQuery,
     pub advanced: bool,
     pub json: String,
@@ -68,6 +69,9 @@ impl Desktop {
         self.active_scan = Some(q.records.scan_id.clone());
         self.records = Default::default();
         self.records.order = q.records.order;
+        self.records.mime_filter = q.records.mime.clone().unwrap_or_default();
+        self.records.status_filter = q.records.status;
+        self.analysis.metrics_loaded = false;
         self.records.query = Some(q);
         self.records.refresh = true;
         self.tab = Tab::Records;

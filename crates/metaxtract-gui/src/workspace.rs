@@ -40,6 +40,21 @@ impl Desktop {
             self.active_scan = Some(scan);
             self.tab = Tab::Records;
         }
+        let mut linked = None;
+        ui.collapsing("Files on current page", |ui| {
+            egui::ScrollArea::vertical()
+                .max_height(180.0)
+                .show(ui, |ui| {
+                    for header in &self.records.headers {
+                        if ui.small_button(header.path.to_string()).clicked() {
+                            linked = Some(header.path.clone());
+                        }
+                    }
+                });
+        });
+        if let (Some(path), Some(scan)) = (linked, self.active_scan.clone()) {
+            self.navigate_to_path(ui.ctx(), scan, path);
+        }
         ui.separator();
         ui.label(crate::textf!(
             "{} waiting sources",
@@ -73,6 +88,7 @@ impl Desktop {
             {
                 self.settings.workspace.show_inspector = true;
             }
+            self.explorer_search(ui);
             egui::ScrollArea::vertical()
                 .id_salt("file-workspace")
                 .show(ui, |ui| self.records_view(ui));
