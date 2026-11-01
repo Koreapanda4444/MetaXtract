@@ -364,5 +364,10 @@
   "Executable": "실행파일",
   "General": "일반",
   "Interpreted": "해석값",
-  "Time zone unknown": "시간대 미확정"
+  "Time zone unknown": "시간대 미확정",
+  "Search metadata names and values": "메타데이터 이름·값 검색",
+  "Copy": "복사",
+  "Copy field name": "필드명 복사",
+  "Copy value": "값 복사",
+  "Copy field JSON": "필드 JSON 복사"
 }

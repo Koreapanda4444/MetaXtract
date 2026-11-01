@@ -11,6 +11,7 @@ mod formatting;
 mod i18n;
 mod ingestion;
 mod inspectors;
+mod metadata_search;
 mod notifications;
 mod preview;
 mod quick_access;
