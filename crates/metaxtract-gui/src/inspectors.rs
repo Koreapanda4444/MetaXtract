@@ -5,6 +5,7 @@ use std::io::{self, Write};
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum InspectorTab {
     #[default]
+    Summary,
     Preview,
     Raw,
     Normalized,
@@ -47,7 +48,7 @@ fn raw_brief(v: &RawValue) -> String {
         RawValue::Structure(v) => format!("{} fields", v.len()),
     }
 }
-fn claim_brief(v: &NormalizedValue) -> String {
+pub(crate) fn claim_brief(v: &NormalizedValue) -> String {
     match v {
         NormalizedValue::Text(s) => shortened(s, 160),
         NormalizedValue::Sequence(v) => format!("{} values", v.len()),
@@ -107,6 +108,7 @@ impl Desktop {
         }
         ui.horizontal_wrapped(|ui| {
             for (label, tab) in [
+                (crate::i18n::tr("Summary"), InspectorTab::Summary),
                 (crate::i18n::tr("Preview"), InspectorTab::Preview),
                 (crate::i18n::tr("Raw"), InspectorTab::Raw),
                 (crate::i18n::tr("Normalized"), InspectorTab::Normalized),
@@ -123,6 +125,7 @@ impl Desktop {
         }
         let (_, record) = self.records.focused.as_ref().expect("focused record");
         match self.inspect.tab {
+            InspectorTab::Summary => crate::summary::overview(ui, record),
             InspectorTab::Preview => {}
             InspectorTab::Raw => {
                 ui.horizontal(|ui| {

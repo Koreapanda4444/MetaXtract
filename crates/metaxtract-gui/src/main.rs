@@ -20,6 +20,7 @@ mod search;
 mod sessions;
 mod settings;
 mod state;
+mod summary;
 mod tasks;
 mod workflows;
 mod workspace;

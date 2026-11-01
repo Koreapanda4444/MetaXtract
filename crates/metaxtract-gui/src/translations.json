@@ -343,5 +343,16 @@
   "Export CSV": "CSV 내보내기",
   "Export JSONL": "JSONL 내보내기",
   "Analyze selected again": "선택 파일 다시 분석",
-  "Resolving original sources": "원본 경로 확인 중"
+  "Resolving original sources": "원본 경로 확인 중",
+  "Summary": "요약",
+  "Captured": "촬영 시간",
+  "Location": "위치",
+  "Author": "작성자",
+  "Camera make": "카메라 제조사",
+  "Camera model": "카메라 모델",
+  "Width": "가로",
+  "Height": "세로",
+  "Duration": "재생 시간",
+  "Missing metadata is not inferred. Conflicting values remain available with their evidence.": "없는 메타데이터를 추정해 채우지 않습니다. 서로 다른 값은 근거와 함께 보존합니다.",
+  "Select a file to inspect metadata and preview it.": "파일을 선택하면 메타데이터와 미리보기를 확인할 수 있습니다."
 }

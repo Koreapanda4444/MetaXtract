@@ -547,6 +547,11 @@ impl Desktop {
         }
     }
     pub fn record_detail_view(&mut self, ui: &mut egui::Ui) {
+        if self.records.focused.is_none() {
+            ui.label(crate::i18n::tr(
+                "Select a file to inspect metadata and preview it.",
+            ));
+        }
         if let Some((id, record)) = &self.records.focused {
             ui.separator();
             ui.label(crate::textf!(
