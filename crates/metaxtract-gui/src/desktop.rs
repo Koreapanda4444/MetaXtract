@@ -31,7 +31,7 @@ impl Desktop {
                 }
             }
             if let Some(path) = selected {
-                self.open(ui.ctx(), path, false);
+                self.chosen(ui.ctx(), Purpose::Open, path);
             }
             return;
         };
@@ -270,6 +270,7 @@ impl eframe::App for Desktop {
                     Tab::Workflows,
                     crate::i18n::tr("Export & tools"),
                 );
+                self.quick_access_view(ui);
                 if let Some(scan) = &self.active_scan {
                     ui.separator();
                     ui.label(crate::i18n::tr("Selected scan"));

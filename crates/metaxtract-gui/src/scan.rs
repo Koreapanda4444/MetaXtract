@@ -376,14 +376,18 @@ impl Desktop {
                 egui::ProgressBar::new(if s.discovered == 0 {
                     0.0
                 } else {
-                    s.completed as f32 / s.discovered as f32
+                    (s.completed as f32 / s.discovered as f32).clamp(0.0, 1.0)
                 })
                 .show_percentage()
                 .animate(!self.scan.discovery_complete),
             );
-            ui.label(format!(
+            ui.label(crate::textf!(
                 "{} / {} files · {} failures · {} bytes hashed",
-                s.completed, s.discovered, s.failed, s.bytes_hashed
+                "{} / {}개 파일 · 실패 {} · 해시 처리 {}바이트",
+                s.completed,
+                s.discovered,
+                s.failed,
+                s.bytes_hashed
             ));
             ui.label(crate::textf!(
                 "{} notices · {} skipped · {} unstable files",
@@ -564,7 +568,15 @@ impl Desktop {
                     let root: app::core::scan::NativePath =
                         serde_json::from_value(receipt["root"].clone())
                             .map_err(io::Error::other)?;
-                    Ok((run, journal.to_path()?, root.to_path()?))
+                    let mut sibling = case.path().as_os_str().to_os_string();
+                    sibling.push(".scan.sqlite");
+                    let sibling = PathBuf::from(sibling);
+                    let journal = if sibling.is_file() {
+                        sibling
+                    } else {
+                        journal.to_path()?
+                    };
+                    Ok((run, journal, root.to_path()?))
                 })();
                 match result {
                     Ok((run, journal, root)) => {
@@ -575,5 +587,28 @@ impl Desktop {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn grouped_queue_reordering_preserves_selected_order_and_boundaries() {
+        let mut queue = ScanUi {
+            queue: ["a", "b", "c", "d"].map(PathBuf::from).into(),
+            ..Default::default()
+        };
+        queue
+            .selected_queue
+            .extend([PathBuf::from("b"), PathBuf::from("c")]);
+        queue.move_selected(true);
+        assert_eq!(queue.queue, ["b", "c", "a", "d"].map(PathBuf::from));
+        queue.move_selected(true);
+        assert_eq!(queue.queue, ["b", "c", "a", "d"].map(PathBuf::from));
+        queue.move_selected(false);
+        assert_eq!(queue.queue, ["a", "b", "c", "d"].map(PathBuf::from));
+        queue.move_selected(false);
+        assert_eq!(queue.queue, ["a", "d", "b", "c"].map(PathBuf::from));
     }
 }

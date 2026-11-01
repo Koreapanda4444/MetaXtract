@@ -15,15 +15,21 @@ impl Desktop {
         korean: bool,
     ) -> Self {
         let settings = Settings::load();
-        crate::i18n::set(
-            settings
-                .language
-                .unwrap_or_else(crate::i18n::system_language),
-        );
+        crate::i18n::set(settings.language.unwrap_or_else(|| {
+            if settings.korean {
+                crate::i18n::Language::Korean
+            } else {
+                crate::i18n::system_language()
+            }
+        }));
         settings.appearance.apply(&cc.egui_ctx, settings.scale);
         let (sender, receiver) = tasks::channel();
         let mut app = Self {
-            tab: settings.workspace.tab,
+            tab: if open.is_some() {
+                settings.workspace.tab
+            } else {
+                crate::state::Tab::Case
+            },
             records: Default::default(),
             preview: Default::default(),
             inspect: Default::default(),
@@ -122,6 +128,7 @@ impl Desktop {
             ));
             return;
         }
+        self.remember_inputs(&paths);
         self.task(
             ctx,
             crate::i18n::tr("Preparing quick analysis"),
@@ -176,8 +183,10 @@ impl Desktop {
                     Ok(v) => {
                         app.status = crate::i18n::tr("Completed").into();
                         apply(app, v);
-                        app.notifications
-                            .push(app.status.clone(), String::new(), false);
+                        if !app.busy && app.status != crate::i18n::tr("Completed") {
+                            app.notifications
+                                .push(app.status.clone(), String::new(), false);
+                        }
                     }
                     Err(e) => app.report_error(e),
                 }));
@@ -219,6 +228,14 @@ impl Desktop {
         self.active_scan = history.items.first().map(|s| s.id.clone());
         self.case = Some(case);
         if !temporary {
+            if let Some(directory) = &self.temporary_session {
+                self.settings.pending.retain(|pending| {
+                    pending
+                        .case
+                        .to_path()
+                        .is_ok_and(|p| !p.starts_with(directory.path()))
+                });
+            }
             self.temporary_session = None;
         }
         self.info = Some(info);
@@ -297,21 +314,18 @@ impl Desktop {
             Purpose::Open => self.open(ctx, path, false),
             Purpose::New => self.open(ctx, path, true),
             Purpose::Copy | Purpose::SaveSession => {
+                if !self.can_switch_case() {
+                    self.report_error(crate::i18n::tr(
+                        "Finish or save the current work before opening another session.",
+                    ));
+                    return;
+                }
                 if let Some(case) = self.case.clone() {
                     self.task(
                         ctx,
                         crate::i18n::tr("Copying case"),
                         move || {
-                            let temporary = tempfile::tempdir()?;
-                            let bundle = temporary.path().join("copy.zip");
-                            case.export_snapshot(&bundle, None, &Default::default())?;
-                            let copied = Arc::new(CaseWorkspace::open_snapshot(
-                                bundle,
-                                path,
-                                storage::AccessMode::ReadWrite,
-                                None,
-                                &Default::default(),
-                            )?);
+                            let copied = crate::sessions::copy_case(&case, &path)?;
                             let info = copied.info()?;
                             let scans = copied.scan_history(None, 128)?;
                             Ok((copied, info, scans))

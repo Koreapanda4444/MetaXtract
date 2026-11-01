@@ -99,8 +99,28 @@ completed file is persisted. **Pause** preserves a resumable checkpoint and hold
 queue; **Cancel scan** marks the current scan cancelled. Queue removal affects waiting sources
 only. Reopen the case and use **Resume checkpoint** for paused/interrupted scans; the receipt
 selects the original source and journal with native paths and verifies their session binding.
-Closing the window first pauses active work and waits for its checkpoint to finish. The waiting
-queue is session-local; durable scan checkpoints remain in the separate journal.
+Closing the window first pauses active work and waits for its checkpoint to finish. Waiting sources are saved per case and restored in a held queue after reopening. The welcome
+page offers recovery after an interrupted temporary session. Durable active-scan checkpoints
+remain in the separate journal. Reorder or remove selected waiting sources without affecting
+the active scan. The latest 256 file events, skipped entries and first 64 failures are visible.
+
+### Quick analysis and desktop preferences
+
+Use **Quick analysis**, choose **Choose file** (multiple selection) or **Choose folder**, and
+analysis starts without a case-creation step. Dropping files/folders into the window also starts
+an analysis or adds them to the current writable queue. Results open in **Records**; the first
+file is selected automatically. Inputs, evidence values and native paths retain their original data.
+
+Quick analysis uses a temporary local workspace. **Save as case** keeps the case and scan journal
+at the chosen destination; closing or replacing an unsaved session offers Save/Discard/Keep working.
+Cleanly discarded temporary data is removed. After a crash, pending temporary sessions appear under
+**Recover pending scans**; resumed queues stay held until **Continue queue** is chosen.
+
+The toolbar selects Korean or English, System/Dark/Light appearance and 75–200% UI scale.
+Window geometry, navigation width, record order and scan display preferences are saved locally.
+The sidebar provides recent files, folders and cases; the star toggles a persistent favorite.
+**Notifications** provides error details, a copy action and recovery guidance. Native dialogs
+use the platform's file picker (the Linux desktop needs an XDG portal provider).
 
 ### Paged results and selections
 
@@ -115,10 +135,12 @@ batch. The structured CLI also accepts `id=NUMBER` for an exact record selection
 
 ### Verified previews
 
-Open a record and choose its original file (or an independently extracted nested member). The
-selected regular file must match the record's size and SHA-256 before decoding. Preview reads
+Opening a native record reconnects its original source when its path belongs to a source root
+previously authorized on this computer. Other cases require choosing the original once; nested
+members require an independently extracted file. Every source must match the recorded size and
+SHA-256 before decoding. Preview reads
 at most 64 MiB, retains at most 64 KiB of hex and 32 KiB of text, and uses a bounded temporary
-snapshot and the bundled parser worker. It does not follow a path from an imported case.
+snapshot and the bundled parser worker. A path in an imported case alone does not authorize a preview.
 
 C++ decodes JPEG/PNG/BMP/GIF/TIFF/WebP and available media codecs to their first RGB frame
 (longest side 256 pixels); audio shows first-frame decode information. Unsupported codecs and

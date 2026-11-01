@@ -10,6 +10,7 @@ mod ingestion;
 mod inspectors;
 mod notifications;
 mod preview;
+mod quick_access;
 mod records;
 mod recovery;
 mod scan;
@@ -54,12 +55,20 @@ fn fonts(ctx: &egui::Context) -> bool {
 fn main() -> eframe::Result {
     let mut open = None;
     let mut smoke = false;
-    for arg in std::env::args_os().skip(1) {
+    let mut analyze = None;
+    let mut args = std::env::args_os().skip(1);
+    while let Some(arg) = args.next() {
         if arg == "--smoke" {
             smoke = true;
+        } else if arg == "--analyze" {
+            analyze = args.next().map(PathBuf::from);
+            if analyze.is_none() {
+                eprintln!("--analyze requires a file or directory");
+                std::process::exit(2);
+            }
         } else if arg == "--help" {
             println!(
-                "MetaXtract desktop / 데스크톱\n  metaxtract-gui [CASE] [--smoke]\nA bundled metaxtract-worker is required for scans. / 스캔에는 전용 파서 실행 파일이 필요합니다."
+                "MetaXtract desktop / 데스크톱\n  metaxtract-gui [CASE | --analyze FILE_OR_DIRECTORY] [--smoke]\nA bundled metaxtract-worker is required for scans. / 스캔에는 전용 파서 실행 파일이 필요합니다."
             );
             return Ok(());
         } else if open.is_none() {
@@ -68,6 +77,10 @@ fn main() -> eframe::Result {
             eprintln!("unexpected argument / 잘못된 인수");
             std::process::exit(2);
         }
+    }
+    if open.is_some() && analyze.is_some() {
+        eprintln!("Choose a case or a quick-analysis source");
+        std::process::exit(2);
     }
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"))
         .expect("bundled icon");
@@ -80,7 +93,11 @@ fn main() -> eframe::Result {
         options,
         Box::new(move |cc| {
             let korean = fonts(&cc.egui_ctx);
-            Ok(Box::new(desktop::Desktop::new(cc, open, smoke, korean)))
+            let mut desktop = desktop::Desktop::new(cc, open, smoke, korean);
+            if let Some(path) = analyze {
+                desktop.quick_analysis(&cc.egui_ctx, path);
+            }
+            Ok(Box::new(desktop))
         }),
     )
 }

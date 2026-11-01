@@ -25,6 +25,7 @@ impl Desktop {
                 if app.records.focused.as_ref().map(|r| r.0) != Some(id) {
                     return;
                 }
+                app.remember_inputs(std::slice::from_ref(&chosen_path));
                 app.preview.source_error = None;
                 app.preview.verified_path = Some(chosen_path);
                 app.preview.record_id = Some(id);
@@ -41,6 +42,7 @@ impl Desktop {
         ) else {
             return;
         };
+        let authorized_sources = self.settings.authorized_sources.clone();
         let hex = self.preview.hex;
         self.preview = PreviewUi {
             record_id: Some(id),
@@ -53,6 +55,16 @@ impl Desktop {
             move || {
                 let result =
                     app::preview::source_candidate(&case, &scan, &record).and_then(|path| {
+                        let path = path.canonicalize()?;
+                        let authorized = authorized_sources
+                            .iter()
+                            .filter_map(|root| root.to_path().ok())
+                            .any(|root| path == root || (root.is_dir() && path.starts_with(root)));
+                        if !authorized {
+                            return Err(std::io::Error::other(crate::i18n::tr(
+                                "Select this source once to authorize automatic previews.",
+                            )));
+                        }
                         app::preview::load(&record, &path).map(|preview| (path, preview))
                     });
                 Ok(result)

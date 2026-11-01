@@ -61,7 +61,9 @@ impl Desktop {
             .as_ref()
             .is_none_or(|q| q.records.scan_id != scan)
         {
+            let order = self.records.order;
             self.records = RecordsUi::default();
+            self.records.order = order;
             let mut q = app::analysis::search::parse(&scan, "").expect("empty query");
             q.records.order = self.records.order;
             self.records.query = Some(q);
@@ -72,6 +74,11 @@ impl Desktop {
                 && self.records.loaded.elapsed() > Duration::from_millis(700))
         {
             self.load_records(ctx, None, 0);
+        }
+        if !self.busy && self.temporary_session.is_some() && self.records.focused.is_none() {
+            if let Some(record) = self.records.headers.first() {
+                self.focus_record(ctx, record.id);
+            }
         }
     }
     fn load_records(&mut self, ctx: &egui::Context, cursor: Option<PageCursor>, direction: i8) {
@@ -216,8 +223,9 @@ impl Desktop {
             if ui.button(crate::i18n::tr("Refresh")).clicked() {
                 self.records.refresh = true;
             }
-            ui.label(format!(
+            ui.label(crate::textf!(
                 "{} records · page {} · {} selected",
+                "{}개 레코드 · {}페이지 · {}개 선택",
                 self.records.total,
                 self.records.back.len() + 1,
                 self.records.selected.len()
@@ -372,8 +380,9 @@ impl Desktop {
         });
         if let Some((id, record)) = &self.records.focused {
             ui.separator();
-            ui.label(format!(
+            ui.label(crate::textf!(
                 "Record {id} · {} raw fields · {} claims · {} diagnostics",
+                "레코드 {id} · 원본 필드 {} · 해석 {} · 진단 {}",
                 record.observations.len(),
                 record.claims.len(),
                 record.diagnostics.len()

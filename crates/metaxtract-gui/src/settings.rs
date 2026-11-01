@@ -4,6 +4,9 @@ use std::{io, path::PathBuf};
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    pub authorized_sources: Vec<NativePath>,
+    pub recent_inputs: Vec<NativePath>,
+    pub favorites: Vec<crate::quick_access::Favorite>,
     pub pending: Vec<crate::recovery::PendingQueue>,
     pub workspace: WorkspacePreferences,
     pub recent: Vec<NativePath>,
@@ -84,6 +87,9 @@ fn default_scale() -> f32 {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            authorized_sources: vec![],
+            recent_inputs: vec![],
+            favorites: vec![],
             pending: vec![],
             workspace: WorkspacePreferences::default(),
             recent: vec![],
@@ -148,4 +154,40 @@ impl Settings {
 
 pub fn session_directory() -> io::Result<PathBuf> {
     Ok(path()?.parent().expect("settings parent").join("sessions"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn legacy_preferences_gain_defaults_without_losing_history() {
+        let legacy: Settings = serde_json::from_str(r#"{"recent":[],"korean":true}"#).unwrap();
+        assert!(legacy.korean);
+        assert_eq!(legacy.scale, 1.0);
+        assert!(legacy.language.is_none());
+        assert!(legacy.pending.is_empty());
+    }
+    #[test]
+    fn preferences_round_trip_pending_queues_and_workspace_choices() {
+        let mut settings = Settings {
+            language: Some(crate::i18n::Language::Korean),
+            ..Default::default()
+        };
+        settings.workspace.tab = crate::state::Tab::Analysis;
+        settings.workspace.order = app::storage::RecordOrder::Size;
+        settings.pending.push(crate::recovery::PendingQueue {
+            case: NativePath::from_path(std::path::Path::new("case.mxcase")),
+            sources: vec![NativePath::from_path(std::path::Path::new(
+                "한글 sample.jpg",
+            ))],
+            temporary: false,
+        });
+        let decoded: Settings =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(decoded.language, settings.language);
+        assert!(decoded.workspace.tab == settings.workspace.tab);
+        assert_eq!(decoded.workspace.order, settings.workspace.order);
+        assert_eq!(decoded.pending.len(), 1);
+        assert!(decoded.pending == settings.pending);
+    }
 }

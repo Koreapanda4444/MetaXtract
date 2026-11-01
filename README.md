@@ -56,6 +56,10 @@ Extract the complete package and launch `metaxtract-gui.exe` on Windows, `metaxt
 Linux, or `MetaXtract.app` on macOS. See the [package guide](docs/packaging.md) for platform
 requirements, installation, updates and source archives.
 
+For a single file, choose **Quick analysis → Choose file** or drop it into the window.
+No case setup is required. **Save as case** keeps temporary results. Language, appearance,
+recent items and favorites are available in the toolbar/sidebar.
+
 Build with the prerequisites below, then launch from the repository root:
 
 ```bash

@@ -159,3 +159,16 @@ impl Desktop {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn untrusted_recovery_paths_never_acquire_a_cleanup_guard() {
+        let directory = tempfile::tempdir().unwrap();
+        let case = directory.path().join("case.mxcase");
+        std::fs::write(&case, b"preserve").unwrap();
+        assert!(TemporarySession::restore(&case).is_err());
+        assert_eq!(std::fs::read(case).unwrap(), b"preserve");
+    }
+}

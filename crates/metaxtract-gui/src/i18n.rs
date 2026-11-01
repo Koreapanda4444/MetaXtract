@@ -76,3 +76,27 @@ macro_rules! textf {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn bundled_translations_cover_primary_workflows_in_one_language() {
+        let dictionary: std::collections::BTreeMap<String, String> =
+            serde_json::from_str(include_str!("translations.json")).unwrap();
+        for key in [
+            "Quick analysis",
+            "Save as case",
+            "Open",
+            "Scan queue",
+            "Records",
+            "Favorites",
+            "Notifications",
+            "Choose file",
+            "Choose folder",
+        ] {
+            let value = dictionary.get(key).unwrap();
+            assert!(!value.is_empty());
+            assert!(!value.contains(" / "));
+        }
+    }
+}

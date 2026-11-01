@@ -9,6 +9,10 @@ pub fn prepare(
     let mut seen: BTreeSet<_> = existing.filter_map(|p| p.canonicalize().ok()).collect();
     let mut accepted = Vec::new();
     let mut rejected = Vec::new();
+    if paths.len() > 1024 {
+        rejected
+            .push(crate::i18n::tr("Too many inputs; only the first 1024 were processed.").into());
+    }
     for path in paths.into_iter().take(1024) {
         let result = (|| {
             let metadata = std::fs::symlink_metadata(&path)?;
@@ -67,6 +71,7 @@ impl Desktop {
         if self.case.is_none() {
             self.quick_analysis_many(ctx, accepted);
         } else {
+            self.remember_inputs(&accepted);
             let capacity = 64usize.saturating_sub(self.scan.queue.len());
             if accepted.len() > capacity {
                 self.report_error(crate::i18n::tr("Queue limit reached"));
@@ -100,5 +105,51 @@ impl Desktop {
                     });
                 });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn mixed_inputs_preserve_native_paths_and_deduplicate() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("한글 sample.txt");
+        std::fs::write(&file, b"metadata").unwrap();
+        let missing = directory.path().join("missing");
+        let (accepted, rejected) = prepare(
+            vec![file.clone(), file.clone(), missing],
+            std::iter::empty(),
+        );
+        assert_eq!(accepted, vec![file.canonicalize().unwrap()]);
+        assert_eq!(rejected.len(), 2);
+        let (accepted, rejected) = prepare(vec![file.clone()], [file].into_iter());
+        assert!(accepted.is_empty());
+        assert_eq!(rejected.len(), 1);
+    }
+    #[test]
+    fn queue_ingestion_enforces_capacity() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut paths = Vec::new();
+        for i in 0..70 {
+            let path = directory.path().join(i.to_string());
+            std::fs::write(&path, []).unwrap();
+            paths.push(path);
+        }
+        let (accepted, rejected) = prepare(paths, std::iter::empty());
+        assert_eq!(accepted.len(), 64);
+        assert_eq!(rejected.len(), 6);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn symlinks_are_not_ingested_as_independent_sources() {
+        let directory = tempfile::tempdir().unwrap();
+        let target = directory.path().join("target");
+        let link = directory.path().join("link");
+        std::fs::write(&target, b"data").unwrap();
+        std::os::unix::fs::symlink(target, &link).unwrap();
+        let (accepted, rejected) = prepare(vec![link], std::iter::empty());
+        assert!(accepted.is_empty());
+        assert_eq!(rejected.len(), 1);
     }
 }
