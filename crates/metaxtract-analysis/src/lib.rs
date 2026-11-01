@@ -2,6 +2,7 @@
 
 pub mod diff;
 pub mod duplicates;
+pub mod evolution;
 pub mod export;
 pub mod findings;
 pub mod geo;

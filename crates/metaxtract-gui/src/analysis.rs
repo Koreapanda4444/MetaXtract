@@ -12,6 +12,7 @@ use metaxtract_app::{
 use std::{io, path::PathBuf};
 
 pub struct AnalysisUi {
+    pub(crate) evolution: crate::evolution::EvolutionUi,
     pub(crate) relationships: crate::relationships::RelationshipsUi,
     pub(crate) findings: crate::finding_review::FindingsUi,
     pub(crate) pair: crate::duplicate_review::PairUi,
@@ -38,6 +39,7 @@ pub struct AnalysisUi {
 impl Default for AnalysisUi {
     fn default() -> Self {
         Self {
+            evolution: Default::default(),
             relationships: Default::default(),
             findings: Default::default(),
             pair: Default::default(),
@@ -211,6 +213,7 @@ impl Desktop {
                 crate::i18n::tr("Duplicates"),
                 crate::i18n::tr("Findings"),
                 "Relationships",
+                "Changes across scans",
             ]
             .into_iter()
             .enumerate()
@@ -253,6 +256,10 @@ impl Desktop {
                     }
                 });
             }
+        }
+        if self.analysis.view == 6 {
+            self.evolution_view(ui);
+            return;
         }
         if self.analysis.view == 5 {
             self.relationships_view(ui);

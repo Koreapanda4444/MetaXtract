@@ -7,6 +7,7 @@ mod components;
 mod dashboard;
 mod desktop;
 mod duplicate_review;
+mod evolution;
 mod explorer_search;
 mod file_actions;
 mod files;
