@@ -217,6 +217,9 @@ impl eframe::App for Desktop {
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 crate::components::status(ui, &self.status, self.busy || self.scan.running());
+                if ui.small_button(crate::i18n::tr("Notifications")).clicked() {
+                    self.notifications.open = true;
+                }
                 if self.readonly {
                     ui.strong(crate::i18n::tr("READ ONLY"));
                 }
@@ -282,6 +285,7 @@ impl eframe::App for Desktop {
                 self.chosen(ctx, purpose, path);
             }
         }
+        self.notifications.show(ctx);
         if self.smoke {
             self.frames += 1;
             if self.frames >= 4 && !self.busy && !self.scan.running() {

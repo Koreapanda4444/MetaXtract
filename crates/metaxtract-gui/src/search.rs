@@ -147,7 +147,7 @@ impl Desktop {
             .and_then(|q| serde_json::to_string_pretty(&q).map_err(io::Error::other))
             {
                 Ok(json) => self.search.json = json,
-                Err(e) => self.status = e.to_string(),
+                Err(e) => self.report_error(e),
             }
         }
         if self.search.advanced {
@@ -170,7 +170,7 @@ impl Desktop {
             {
                 match self.search_query() {
                     Ok(q) => self.apply_search(q),
-                    Err(e) => self.status = e.to_string(),
+                    Err(e) => self.report_error(e),
                 }
             }
             if ui

@@ -115,7 +115,7 @@ impl Desktop {
                 self.scan.outcome = None;
                 self.status = crate::i18n::tr("Scanning").into();
             }
-            Err(e) => self.status = e.to_string(),
+            Err(e) => self.report_error(e),
         }
     }
     pub fn poll_scan(&mut self, ctx: &egui::Context) {
@@ -148,6 +148,11 @@ impl Desktop {
                         out.summary.failed,
                         out.summary.stopped
                     );
+                    self.notifications.push(
+                        self.status.clone(),
+                        String::new(),
+                        out.summary.failed > 0,
+                    );
                     self.scan.outcome = Some(out);
                     if let (Some(event), Some(outcome)) =
                         (&mut self.scan.latest, &self.scan.outcome)
@@ -159,7 +164,7 @@ impl Desktop {
                 }
                 Err(e) => {
                     self.scan.held = true;
-                    self.status = e.to_string();
+                    self.report_error(e);
                 }
             }
             self.scan.refresh_needed = true;
@@ -367,7 +372,7 @@ impl Desktop {
                         self.scan.held = false;
                         self.start_scan(ui.ctx(), root, Some((run, id, journal)));
                     }
-                    Err(e) => self.status = e.to_string(),
+                    Err(e) => self.report_error(e),
                 }
             }
         }

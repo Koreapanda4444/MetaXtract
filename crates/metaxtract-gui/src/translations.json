@@ -255,5 +255,10 @@
   "System": "시스템",
   "Dark": "다크",
   "Light": "라이트",
-  "UI scale": "화면 배율"
+  "UI scale": "화면 배율",
+  "Details": "상세",
+  "Notifications": "알림",
+  "Operation failed": "작업 실패",
+  "Copy details": "상세 복사",
+  "Check the path and access permissions, then retry. Existing results are preserved.": "경로와 접근 권한을 확인한 뒤 다시 시도하세요. 기존 결과는 보존됩니다."
 }

@@ -190,7 +190,7 @@ impl Desktop {
                         crate::textf!("Exported {} records", "{}개 레코드 내보냄", r.records)
                 },
             ),
-            Err(e) => self.status = e.to_string(),
+            Err(e) => self.report_error(e),
         }
     }
     pub fn records_view(&mut self, ui: &mut egui::Ui) {

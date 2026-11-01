@@ -34,6 +34,7 @@ pub struct Desktop {
     pub settings: Settings,
     pub status: String,
     pub busy: bool,
+    pub notifications: crate::notifications::Notifications,
     pub readonly: bool,
     pub(crate) sender: mpsc::SyncSender<Callback>,
     pub(crate) receiver: mpsc::Receiver<Callback>,

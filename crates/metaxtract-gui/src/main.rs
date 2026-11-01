@@ -7,6 +7,7 @@ mod desktop;
 mod files;
 mod i18n;
 mod inspectors;
+mod notifications;
 mod preview;
 mod records;
 mod scan;

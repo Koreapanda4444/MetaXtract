@@ -227,7 +227,7 @@ impl Desktop {
                                 },
                             );
                         }
-                        Err(e) => self.status = e.to_string(),
+                        Err(e) => self.report_error(e),
                     }
                 }
                 self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Save profile"));

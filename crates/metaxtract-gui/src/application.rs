@@ -50,6 +50,7 @@ impl Desktop {
                     .into()
             },
             busy: false,
+            notifications: Default::default(),
             readonly: false,
             sender,
             receiver,
@@ -60,6 +61,14 @@ impl Desktop {
             app.open(&cc.egui_ctx, path, false);
         }
         app
+    }
+    pub fn report_error(&mut self, error: impl std::fmt::Display) {
+        self.status = error.to_string();
+        self.notifications.push(
+            crate::i18n::tr("Operation failed"),
+            self.status.clone(),
+            true,
+        );
     }
     pub fn task<T: Send + 'static>(
         &mut self,
@@ -85,14 +94,16 @@ impl Desktop {
                     Ok(v) => {
                         app.status = crate::i18n::tr("Completed").into();
                         apply(app, v);
+                        app.notifications
+                            .push(app.status.clone(), String::new(), false);
                     }
-                    Err(e) => app.status = e.to_string(),
+                    Err(e) => app.report_error(e),
                 }));
                 context.request_repaint();
             })
         {
             self.busy = false;
-            self.status = e.to_string();
+            self.report_error(e);
         }
     }
     pub fn loaded(
