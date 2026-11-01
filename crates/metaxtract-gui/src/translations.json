@@ -300,5 +300,8 @@
   "Per-file progress (latest 256)": "파일별 진행 상황 · 최근 256개",
   "Scan failures": "스캔 실패 상세",
   "Resumed": "재개됨",
-  "Notice": "안내"
+  "Notice": "안내",
+  "Verifying source and loading preview": "원본 검증·미리보기 읽기",
+  "Verified source": "검증한 원본",
+  "Original source is unavailable or changed. Choose a matching source to reconnect.": "원본을 찾을 수 없거나 파일이 변경됐습니다. 일치하는 원본을 선택해 다시 연결하세요."
 }

@@ -125,6 +125,7 @@ impl Desktop {
     }
     fn focus_record(&mut self, ctx: &egui::Context, id: i64) {
         if let Some(case) = self.case.clone() {
+            let context = ctx.clone();
             self.task(
                 ctx,
                 crate::i18n::tr("Loading record"),
@@ -156,6 +157,7 @@ impl Desktop {
                         .map(|a| a.note.clone())
                         .unwrap_or_default();
                     app.records.tags = annotation.map(|a| a.tags.join(", ")).unwrap_or_default();
+                    app.load_linked_preview(&context);
                 },
             );
         }

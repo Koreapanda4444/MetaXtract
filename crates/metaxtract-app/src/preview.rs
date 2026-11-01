@@ -249,3 +249,29 @@ pub fn load(record: &ExtractionRecord, path: &Path) -> io::Result<Preview> {
     preview.notices.truncate(40);
     Ok(preview)
 }
+
+pub fn source_candidate(
+    case: &crate::storage::CaseWorkspace,
+    scan: &str,
+    record: &ExtractionRecord,
+) -> io::Result<std::path::PathBuf> {
+    if record.source.path.depth() != 0 || record.source.kind != SourceKind::File {
+        return Err(io::Error::other(
+            "embedded evidence requires an independently extracted matching source",
+        ));
+    }
+    let receipt = case
+        .scan_receipt(scan, "application.session")?
+        .ok_or_else(|| io::Error::other("scan has no native source receipt"))?;
+    let root: crate::core::scan::NativePath =
+        serde_json::from_value(receipt["root"].clone()).map_err(io::Error::other)?;
+    let root = root.to_path()?;
+    if std::fs::symlink_metadata(&root)?.is_file() {
+        return Ok(root);
+    }
+    let mut path = root;
+    for component in record.source.path.root_path().as_str().split('/') {
+        path.push(component);
+    }
+    Ok(path)
+}

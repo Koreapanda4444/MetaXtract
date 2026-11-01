@@ -8,12 +8,15 @@ pub struct PreviewUi {
     pub content: Option<app::preview::Preview>,
     pub texture: Option<egui::TextureHandle>,
     pub hex: bool,
+    pub source_error: Option<String>,
+    pub verified_path: Option<PathBuf>,
 }
 impl Desktop {
     pub fn load_preview(&mut self, ctx: &egui::Context, path: PathBuf) {
         let Some((id, record)) = self.records.focused.clone() else {
             return;
         };
+        let chosen_path = path.clone();
         self.task(
             ctx,
             crate::i18n::tr("Verifying and decoding preview"),
@@ -22,9 +25,49 @@ impl Desktop {
                 if app.records.focused.as_ref().map(|r| r.0) != Some(id) {
                     return;
                 }
+                app.preview.source_error = None;
+                app.preview.verified_path = Some(chosen_path);
                 app.preview.record_id = Some(id);
                 app.preview.texture = None;
                 app.preview.content = Some(content);
+            },
+        );
+    }
+    pub fn load_linked_preview(&mut self, ctx: &egui::Context) {
+        let (Some(case), Some(scan), Some((id, record))) = (
+            self.case.clone(),
+            self.active_scan.clone(),
+            self.records.focused.clone(),
+        ) else {
+            return;
+        };
+        let hex = self.preview.hex;
+        self.preview = PreviewUi {
+            record_id: Some(id),
+            hex,
+            ..Default::default()
+        };
+        self.task(
+            ctx,
+            crate::i18n::tr("Verifying source and loading preview"),
+            move || {
+                let result =
+                    app::preview::source_candidate(&case, &scan, &record).and_then(|path| {
+                        app::preview::load(&record, &path).map(|preview| (path, preview))
+                    });
+                Ok(result)
+            },
+            move |app, result| {
+                if app.records.focused.as_ref().map(|r| r.0) != Some(id) {
+                    return;
+                }
+                match result {
+                    Ok((path, preview)) => {
+                        app.preview.verified_path = Some(path);
+                        app.preview.content = Some(preview);
+                    }
+                    Err(error) => app.preview.source_error = Some(error.to_string()),
+                }
             },
         );
     }
@@ -36,6 +79,19 @@ impl Desktop {
         if self.preview.record_id != Some(*id) {
             self.preview = Default::default();
             self.preview.record_id = Some(*id);
+        }
+        if let Some(path) = &self.preview.verified_path {
+            ui.label(format!(
+                "{}: {}",
+                crate::i18n::tr("Verified source"),
+                path.display()
+            ));
+        }
+        if let Some(error) = &self.preview.source_error {
+            ui.colored_label(egui::Color32::YELLOW, crate::i18n::tr("Original source is unavailable or changed. Choose a matching source to reconnect."));
+            ui.collapsing(crate::i18n::tr("Details"), |ui| {
+                ui.add(egui::Label::new(error).selectable(true).wrap());
+            });
         }
         ui.horizontal_wrapped(|ui| {
             if ui
