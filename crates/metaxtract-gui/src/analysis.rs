@@ -12,6 +12,7 @@ use metaxtract_app::{
 use std::{io, path::PathBuf};
 
 pub struct AnalysisUi {
+    pub(crate) findings: crate::finding_review::FindingsUi,
     pub(crate) pair: crate::duplicate_review::PairUi,
     pub(crate) timeline: crate::timeline::TimelineUi,
     pub(crate) mime_facets: Vec<metaxtract_app::storage::FacetValue>,
@@ -36,6 +37,7 @@ pub struct AnalysisUi {
 impl Default for AnalysisUi {
     fn default() -> Self {
         Self {
+            findings: Default::default(),
             pair: Default::default(),
             timeline: Default::default(),
             mime_facets: vec![],
@@ -281,63 +283,10 @@ impl Desktop {
             1 => self.timeline_view(ui),
             2 => self.location_view(ui),
             3 => self.duplicate_review(ui),
-            _ => {
-                ui.horizontal(|ui| {
-                    for (i, label) in [
-                        crate::i18n::tr("All"),
-                        crate::i18n::tr("High"),
-                        crate::i18n::tr("Medium"),
-                        crate::i18n::tr("Low"),
-                        crate::i18n::tr("Info"),
-                    ]
-                    .into_iter()
-                    .enumerate()
-                    {
-                        ui.selectable_value(&mut self.analysis.severity, i, label);
-                    }
-                });
-                let findings: Vec<_> = report
-                    .records
-                    .iter()
-                    .flat_map(|r| &r.findings)
-                    .filter(|f| {
-                        self.analysis.severity == 0
-                            || match f.severity {
-                                a::findings::Severity::High => 1,
-                                a::findings::Severity::Medium => 2,
-                                a::findings::Severity::Low => 3,
-                                a::findings::Severity::Information => 4,
-                            } == self.analysis.severity
-                    })
-                    .collect();
-                ui.label(crate::textf!(
-                    "{} findings",
-                    "발견 사항 {}개",
-                    findings.len()
-                ));
-                egui::ScrollArea::vertical()
-                    .id_salt("finding-list")
-                    .max_height(270.0)
-                    .show_rows(ui, 24.0, findings.len(), |ui, range| {
-                        for i in range {
-                            let f = findings[i];
-                            if ui
-                                .selectable_label(
-                                    self.analysis.detail == i,
-                                    format!("{:?} · {} · {}", f.severity, f.rule, f.path),
-                                )
-                                .clicked()
-                            {
-                                self.analysis.detail = i;
-                            }
-                        }
-                    });
-                if let Some(f) = findings.get(self.analysis.detail) {
-                    json_view(ui, f);
-                }
-            }
+            _ => self.finding_review(ui),
         }
     }
+
     fn location_view(&mut self, ui: &mut egui::Ui) {
         let report = self.analysis.report.as_ref().expect("analysis snapshot");
         ui.label(crate::i18n::tr("Offline coordinate plot · longitude"));

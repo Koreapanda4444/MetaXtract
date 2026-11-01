@@ -10,6 +10,7 @@ mod duplicate_review;
 mod explorer_search;
 mod file_actions;
 mod files;
+mod finding_review;
 mod formatting;
 mod i18n;
 mod ingestion;
