@@ -290,5 +290,9 @@
   "Move up": "위로",
   "Move down": "아래로",
   "Queue history": "대기열 처리 기록",
-  "Analyze again": "다시 분석"
+  "Analyze again": "다시 분석",
+  "Pending scans restored. Continue the queue when ready.": "미시작 대기열을 복구했습니다. 준비되면 대기열을 계속하세요.",
+  "Recover pending scans": "미시작 대기열 복구",
+  "Forget queue": "대기열 기록 지우기",
+  "Restoring queued analysis": "대기 중인 분석 복구 중"
 }

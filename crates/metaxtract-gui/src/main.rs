@@ -11,6 +11,7 @@ mod inspectors;
 mod notifications;
 mod preview;
 mod records;
+mod recovery;
 mod scan;
 mod search;
 mod sessions;

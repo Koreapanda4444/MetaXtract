@@ -22,7 +22,7 @@ pub struct Desktop {
     pub analysis: crate::analysis::AnalysisUi,
     pub workflows: crate::workflows::WorkflowsUi,
     pub session_ui: crate::sessions::SessionUi,
-    pub temporary_session: Option<tempfile::TempDir>,
+    pub temporary_session: Option<crate::recovery::TemporarySession>,
     pub case: Option<Arc<CaseWorkspace>>,
     pub info: Option<CaseInfo>,
     pub scans: Vec<ScanInfo>,

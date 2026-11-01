@@ -4,6 +4,7 @@ use std::{io, path::PathBuf};
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    pub pending: Vec<crate::recovery::PendingQueue>,
     pub workspace: WorkspacePreferences,
     pub recent: Vec<NativePath>,
     pub korean: bool,
@@ -83,6 +84,7 @@ fn default_scale() -> f32 {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            pending: vec![],
             workspace: WorkspacePreferences::default(),
             recent: vec![],
             korean: false,
@@ -142,4 +144,8 @@ impl Settings {
         }
         viewport
     }
+}
+
+pub fn session_directory() -> io::Result<PathBuf> {
+    Ok(path()?.parent().expect("settings parent").join("sessions"))
 }

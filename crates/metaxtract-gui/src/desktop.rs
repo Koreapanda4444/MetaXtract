@@ -16,6 +16,7 @@ impl Desktop {
             {
                 self.picker = Some(Picker::new(Purpose::Quick));
             }
+            self.recovery_view(ui);
             ui.add_space(16.0);
             ui.label(crate::i18n::tr("Create or open a local case to begin."));
             ui.label(crate::i18n::tr("Metadata stays on your computer."));
@@ -307,6 +308,7 @@ impl eframe::App for Desktop {
             }
             self.chosen_many(ctx, purpose, paths);
         }
+        self.persist_pending_queue();
         self.save_display_preferences(ctx, ctx.input(|i| i.viewport().close_requested()));
         self.notifications.show(ctx);
         if self.smoke {

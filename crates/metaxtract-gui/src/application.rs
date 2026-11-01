@@ -126,9 +126,7 @@ impl Desktop {
             ctx,
             crate::i18n::tr("Preparing quick analysis"),
             move || {
-                let directory = tempfile::Builder::new()
-                    .prefix("metaxtract-session-")
-                    .tempdir()?;
+                let directory = crate::recovery::TemporarySession::new()?;
                 let case = Arc::new(CaseWorkspace::create(
                     directory.path().join("session.mxcase"),
                     crate::i18n::tr("Quick analysis"),
@@ -225,6 +223,7 @@ impl Desktop {
         }
         self.info = Some(info);
         self.scans = history.items;
+        self.restore_pending_queue();
         self.history_next = history.next;
     }
     pub fn open(&mut self, ctx: &egui::Context, path: PathBuf, create: bool) {
