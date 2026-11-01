@@ -12,6 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 pub struct RecordsUi {
+    pending_edge: Option<bool>,
     pub action: Option<crate::file_actions::FileAction>,
     pub query: Option<SearchQuery>,
     pub headers: Vec<RecordHeader>,
@@ -34,6 +35,7 @@ pub struct RecordsUi {
 impl Default for RecordsUi {
     fn default() -> Self {
         Self {
+            pending_edge: None,
             action: None,
             query: None,
             headers: vec![],
@@ -100,6 +102,7 @@ impl Desktop {
         };
         query.records.order = self.records.order;
         self.records.refresh = false;
+        let context = ctx.clone();
         self.task(
             ctx,
             crate::i18n::tr("Loading results"),
@@ -132,6 +135,17 @@ impl Desktop {
                 app.records.total = total;
                 app.records.revision = revision;
                 app.records.loaded = Instant::now();
+                if let Some(last) = app.records.pending_edge.take() {
+                    if let Some(id) = if last {
+                        app.records.headers.last()
+                    } else {
+                        app.records.headers.first()
+                    }
+                    .map(|h| h.id)
+                    {
+                        app.focus_record(&context, id);
+                    }
+                }
                 if restarted {
                     app.status =
                         crate::i18n::tr("Case changed; results restarted at the first page.")
@@ -546,7 +560,45 @@ impl Desktop {
             }
         }
     }
+    fn step_file(&mut self, ctx: &egui::Context, forward: bool) {
+        let position = self
+            .records
+            .focused
+            .as_ref()
+            .and_then(|r| self.records.headers.iter().position(|h| h.id == r.0));
+        let target = match (position, forward) {
+            (Some(i), true) => i.checked_add(1).filter(|i| *i < self.records.headers.len()),
+            (Some(i), false) => i.checked_sub(1),
+            (None, true) => Some(0),
+            (None, false) => self.records.headers.len().checked_sub(1),
+        };
+        if let Some(id) = target
+            .and_then(|i| self.records.headers.get(i))
+            .map(|h| h.id)
+        {
+            self.focus_record(ctx, id);
+        } else if forward && self.records.next.is_some() {
+            self.records.pending_edge = Some(false);
+            self.load_records(ctx, self.records.next.clone(), 1);
+        } else if !forward && !self.records.back.is_empty() {
+            self.records.pending_edge = Some(true);
+            self.load_records(ctx, self.records.back.last().cloned().flatten(), -1);
+        }
+    }
     pub fn record_detail_view(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            for (label, forward) in [("Previous file", false), ("Next file", true)] {
+                if ui
+                    .add_enabled(
+                        !self.busy && !self.records.headers.is_empty(),
+                        crate::components::button(crate::i18n::tr(label)),
+                    )
+                    .clicked()
+                {
+                    self.step_file(ui.ctx(), forward);
+                }
+            }
+        });
         if self.records.focused.is_none() {
             ui.label(crate::i18n::tr(
                 "Select a file to inspect metadata and preview it.",

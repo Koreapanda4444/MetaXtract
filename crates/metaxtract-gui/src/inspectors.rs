@@ -87,6 +87,7 @@ impl Desktop {
         if self.inspect.record != Some(*id) {
             self.inspect = InspectUi::default();
             self.inspect.record = Some(*id);
+            self.inspect.advanced_tab = Some(InspectorTab::Raw);
             self.inspect.raw_indices = (0..record.observations.len()).collect();
             self.inspect.groups = crate::categories::groups(record);
             self.inspect.claim_indices = (0..record.claims.len()).collect();
@@ -550,5 +551,18 @@ fn copy_field(
             }
             ui.close();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn clipboard_rejects_oversized_values_without_returning_partial_json() {
+        let text = "metadata".repeat(200_000);
+        assert!(copy_json(&text).is_err());
+        let text = "한글\nmetadata";
+        let copied = copy_json(&text).unwrap();
+        assert_eq!(serde_json::from_str::<String>(&copied).unwrap(), text);
     }
 }

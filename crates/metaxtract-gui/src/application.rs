@@ -74,6 +74,7 @@ impl Desktop {
         let w = &self.settings.workspace;
         self.records.order = w.order;
         self.preview.hex = w.preview_hex;
+        self.preview.zoom = w.preview_zoom.clamp(0.1, 8.0);
         self.scan.include_hidden = w.include_hidden;
         self.scan.decode_previews = w.decode_previews;
         self.scan.workers = w.workers.clamp(1, 32);
@@ -87,6 +88,7 @@ impl Desktop {
         w.tab = self.tab;
         w.order = self.records.order;
         w.preview_hex = self.preview.hex;
+        w.preview_zoom = self.preview.zoom;
         w.include_hidden = self.scan.include_hidden;
         w.decode_previews = self.scan.decode_previews;
         w.workers = self.scan.workers;

@@ -125,3 +125,27 @@ pub fn normalized(value: &metaxtract_app::schema::NormalizedValue) -> String {
         NormalizedValue::Number(v) => v.to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn signed_epoch_and_fractional_hour_time_zones_keep_their_meaning() {
+        assert_eq!(unix_seconds(0), "1970-01-01 00:00:00 UTC");
+        assert_eq!(modified(Some("-1")), "1969-12-31 23:59:59 UTC");
+        let timestamp = metaxtract_app::schema::TimestampValue {
+            original: "2026-01-01T00:00:00-00:30".into(),
+            unix_seconds: Some(1767227400),
+            nanosecond: None,
+            utc_offset_minutes: Some(-30),
+            precision: metaxtract_app::schema::TimestampPrecision::Second,
+        };
+        assert!(
+            normalized(&metaxtract_app::schema::NormalizedValue::Timestamp(
+                timestamp
+            ))
+            .contains("UTC-00:30")
+        );
+        assert_eq!(bytes(1024), "1.00 KiB");
+    }
+}

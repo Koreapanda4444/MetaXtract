@@ -8,6 +8,8 @@ pub struct PreviewUi {
     pub content: Option<app::preview::Preview>,
     pub texture: Option<egui::TextureHandle>,
     pub hex: bool,
+    pub zoom: f32,
+    pub find: String,
     pub source_error: Option<String>,
     pub verified_path: Option<PathBuf>,
 }
@@ -46,6 +48,7 @@ impl Desktop {
         let hex = self.preview.hex;
         self.preview = PreviewUi {
             record_id: Some(id),
+            zoom: self.preview.zoom.max(0.1),
             hex,
             ..Default::default()
         };
@@ -114,10 +117,31 @@ impl Desktop {
                 self.picker = Some(crate::files::Picker::new(crate::files::Purpose::Preview));
             }
             ui.checkbox(&mut self.preview.hex, crate::i18n::tr("Hex"));
+            self.preview.zoom = self.preview.zoom.clamp(0.1, 8.0);
+            if ui.small_button("−").clicked() {
+                self.preview.zoom = (self.preview.zoom / 1.25).max(0.1);
+            }
+            if ui.small_button("+").clicked() {
+                self.preview.zoom = (self.preview.zoom * 1.25).min(8.0);
+            }
+            if ui.small_button(crate::i18n::tr("Fit")).clicked() {
+                self.preview.zoom = 1.0;
+            }
+            ui.add(
+                egui::DragValue::new(&mut self.preview.zoom)
+                    .range(0.1..=8.0)
+                    .speed(0.1)
+                    .suffix("×"),
+            );
             ui.label(crate::i18n::tr(
                 "64 MiB source · 64 KiB hex · 32 KiB text · first frame",
             ));
         });
+        ui.add(
+            egui::TextEdit::singleline(&mut self.preview.find)
+                .hint_text(crate::i18n::tr("Find in text or hex preview"))
+                .char_limit(256),
+        );
         if let Some(content) = &self.preview.content {
             for note in &content.notices {
                 ui.small(crate::i18n::bilingual(note));
@@ -134,13 +158,24 @@ impl Desktop {
                 .max_height(260.0)
                 .show(ui, |ui| {
                     if self.preview.hex {
+                        let needle = self.preview.find.to_lowercase();
+                        let lines: Vec<_> = content
+                            .hex
+                            .iter()
+                            .filter(|line| {
+                                needle.is_empty() || line.to_lowercase().contains(&needle)
+                            })
+                            .collect();
                         egui::ScrollArea::vertical().id_salt("hex-lines").show_rows(
                             ui,
                             18.0,
-                            content.hex.len(),
+                            lines.len(),
                             |ui, range| {
-                                for line in &content.hex[range] {
-                                    ui.monospace(line);
+                                for &line in &lines[range] {
+                                    ui.add(
+                                        egui::Label::new(egui::RichText::new(line).monospace())
+                                            .selectable(true),
+                                    );
                                 }
                             },
                         );
@@ -151,16 +186,37 @@ impl Desktop {
                                     egui::vec2(content.width as f32, content.height as f32)
                                         * (720.0 / content.width as f32)
                                             .min(400.0 / content.height as f32)
-                                            .min(1.0),
+                                            .min(1.0)
+                                        * self.preview.zoom,
                                 ),
                             );
                         }
                         if !content.text.is_empty() {
-                            ui.add(
-                                egui::Label::new(egui::RichText::new(&content.text).monospace())
-                                    .selectable(true)
-                                    .wrap(),
-                            );
+                            let needle = self.preview.find.to_lowercase();
+                            let lines: Vec<_> = content
+                                .text
+                                .lines()
+                                .enumerate()
+                                .filter(|(_, line)| {
+                                    needle.is_empty() || line.to_lowercase().contains(&needle)
+                                })
+                                .collect();
+                            egui::ScrollArea::vertical()
+                                .id_salt("text-lines")
+                                .show_rows(ui, 20.0, lines.len(), |ui, range| {
+                                    for &(line, text) in &lines[range] {
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(format!(
+                                                    "{:04}  {text}",
+                                                    line + 1
+                                                ))
+                                                .monospace(),
+                                            )
+                                            .selectable(true),
+                                        );
+                                    }
+                                });
                         }
                         if content.text.is_empty() && self.preview.texture.is_none() {
                             ui.label(crate::i18n::tr(

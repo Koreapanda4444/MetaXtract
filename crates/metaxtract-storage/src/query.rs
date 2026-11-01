@@ -371,3 +371,105 @@ fn prefix_end(value: &str) -> Option<String> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use metaxtract_schema::*;
+    #[test]
+    fn grouped_and_descending_keyset_pages_cover_the_entire_result_once() {
+        let directory = tempfile::tempdir().unwrap();
+        let case = CaseWorkspace::create(directory.path().join("case.mxcase"), "sorting").unwrap();
+        let scan = case.begin_scan("fixture", "unit").unwrap();
+        for i in 0..13 {
+            let source = SourceDescriptor {
+                path: EvidencePath::root(RelativePath::parse(format!("file-{i:02}")).unwrap()),
+                kind: SourceKind::File,
+                identity: FileIdentity {
+                    size_bytes: (i % 4) as u64,
+                    modified_ns: Some(0),
+                    created_ns: None,
+                    stable_id: None,
+                },
+                declared_media_type: None,
+                detected_media_type: Some(
+                    if i % 2 == 0 {
+                        "image/jpeg"
+                    } else {
+                        "text/plain"
+                    }
+                    .into(),
+                ),
+            };
+            let mut record = ExtractionRecord::new(source);
+            if i % 3 == 0 {
+                record.status = ExtractionStatus::Partial;
+            }
+            case.append_record(&scan, &record).unwrap();
+        }
+        for order in [
+            RecordOrder::PathDescending,
+            RecordOrder::SizeDescending,
+            RecordOrder::MimePath,
+            RecordOrder::MimeSize,
+            RecordOrder::StatusPath,
+            RecordOrder::StatusSize,
+        ] {
+            let mut query = RecordQuery::new(&scan);
+            query.order = order;
+            let mut cursor = None;
+            let mut records = Vec::new();
+            loop {
+                let page = case.query_records(&query, cursor.as_ref(), 2).unwrap();
+                records.extend(page.items);
+                cursor = page.next;
+                if cursor.is_none() {
+                    break;
+                }
+            }
+            assert_eq!(records.len(), 13);
+            assert_eq!(
+                records
+                    .iter()
+                    .map(|r| r.id)
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len(),
+                13
+            );
+            assert!(
+                records
+                    .iter()
+                    .all(|r| r.modified_ns.as_deref() == Some("0"))
+            );
+            let mut expected = records.clone();
+            expected.sort_by(|a, b| match order {
+                RecordOrder::PathDescending => b.path.cmp(&a.path).then(b.id.cmp(&a.id)),
+                RecordOrder::SizeDescending => {
+                    b.size_bytes.cmp(&a.size_bytes).then(b.id.cmp(&a.id))
+                }
+                RecordOrder::MimePath => a
+                    .mime
+                    .cmp(&b.mime)
+                    .then(a.path.cmp(&b.path))
+                    .then(a.id.cmp(&b.id)),
+                RecordOrder::MimeSize => a
+                    .mime
+                    .cmp(&b.mime)
+                    .then(a.size_bytes.cmp(&b.size_bytes))
+                    .then(a.path.cmp(&b.path))
+                    .then(a.id.cmp(&b.id)),
+                RecordOrder::StatusPath => format!("{:?}", a.status)
+                    .cmp(&format!("{:?}", b.status))
+                    .then(a.path.cmp(&b.path))
+                    .then(a.id.cmp(&b.id)),
+                _ => format!("{:?}", a.status)
+                    .cmp(&format!("{:?}", b.status))
+                    .then(a.size_bytes.cmp(&b.size_bytes))
+                    .then(a.path.cmp(&b.path))
+                    .then(a.id.cmp(&b.id)),
+            });
+            assert_eq!(records, expected);
+        }
+        case.verify_integrity(None).unwrap();
+    }
+}

@@ -370,5 +370,9 @@
   "Copy field name": "필드명 복사",
   "Copy value": "값 복사",
   "Copy field JSON": "필드 JSON 복사",
-  "Advanced evidence and diagnostics": "고급 근거·진단"
+  "Advanced evidence and diagnostics": "고급 근거·진단",
+  "Previous file": "이전 파일",
+  "Next file": "다음 파일",
+  "Fit": "화면에 맞춤",
+  "Find in text or hex preview": "텍스트·16진수 미리보기 검색"
 }
