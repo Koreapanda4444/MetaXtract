@@ -14,6 +14,7 @@ mod inspectors;
 mod metadata_search;
 mod notifications;
 mod preview;
+mod query_builder;
 mod quick_access;
 mod records;
 mod recovery;

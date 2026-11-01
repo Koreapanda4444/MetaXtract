@@ -45,7 +45,7 @@ pub enum SearchField {
     Conflicts,
     Text,
 }
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum SearchOperator {
     Equal,
     NotEqual,

@@ -12,6 +12,7 @@ use std::io;
 #[derive(Default)]
 pub struct SearchUi {
     pub text: String,
+    pub visual: crate::query_builder::VisualQuery,
     pub advanced: bool,
     pub json: String,
     pub name: String,
@@ -28,7 +29,7 @@ pub struct SearchUi {
     selected_field: Option<usize>,
 }
 impl Desktop {
-    fn search_query(&self) -> io::Result<SearchQuery> {
+    pub(crate) fn search_query(&self) -> io::Result<SearchQuery> {
         let scan = self
             .active_scan
             .as_ref()
@@ -42,14 +43,27 @@ impl Desktop {
             }
             serde_json::from_str::<SearchQuery>(&self.search.json).map_err(io::Error::other)?
         } else {
-            app::analysis::search::parse(scan, &self.search.text)?
+            {
+                let text = app::analysis::search::parse(scan, &self.search.text)?;
+                let mut q = SearchQuery::new(
+                    scan,
+                    s::SearchExpression::All(vec![
+                        self.search.visual.expression.clone(),
+                        text.expression,
+                    ]),
+                );
+                if let Some(base) = &self.search.visual.base {
+                    q.records = base.clone();
+                }
+                q
+            }
         };
         q.records.scan_id = scan.clone();
         q.records.order = self.records.order;
         q.validate()?;
         Ok(q)
     }
-    fn apply_search(&mut self, mut q: SearchQuery) {
+    pub(crate) fn apply_search(&mut self, mut q: SearchQuery) {
         q.records.order = self.records.order;
         self.active_scan = Some(q.records.scan_id.clone());
         self.records = Default::default();
@@ -96,7 +110,9 @@ impl Desktop {
         q.records.scan_id = scan;
         q.validate()?;
         self.search.json = serde_json::to_string_pretty(&q).map_err(io::Error::other)?;
-        self.search.advanced = true;
+        self.search.advanced = false;
+        self.search.text.clear();
+        self.search.visual.load(q.clone());
         self.apply_search(q);
         Ok(())
     }
@@ -158,7 +174,12 @@ impl Desktop {
                     .code_editor(),
             );
         } else {
-            ui.add(egui::TextEdit::singleline(&mut self.search.text).desired_width(f32::INFINITY));
+            ui.add(
+                egui::TextEdit::singleline(&mut self.search.text)
+                    .hint_text("Text or search expression")
+                    .desired_width(f32::INFINITY),
+            );
+            self.search.visual.ui(ui);
         }
         ui.horizontal(|ui| {
             if ui
