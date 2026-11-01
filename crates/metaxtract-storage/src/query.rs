@@ -84,6 +84,8 @@ pub struct RecordHeader {
     pub mime: String,
     pub size_bytes: u64,
     pub sha256: Option<String>,
+    #[serde(default)]
+    pub modified_ns: Option<String>,
 }
 
 impl CaseWorkspace {
@@ -197,6 +199,7 @@ impl CaseWorkspace {
                 mime: row.get(4).map_err(db)?,
                 size_bytes: size.parse().map_err(|_| invalid("invalid stored size"))?,
                 sha256: row.get(6).map_err(db)?,
+                modified_ns: row.get(8).map_err(db)?,
             });
         }
         let next = if has_more {
@@ -236,7 +239,7 @@ impl CaseWorkspace {
 
 pub(crate) fn selection(query: &RecordQuery) -> (String, Vec<Value>) {
     let mut sql = String::from(
-        "SELECT r.id,r.ordinal,r.path,r.status,r.mime,r.size_bytes,r.sha256,length(CAST(r.path AS BLOB))+length(CAST(r.mime AS BLOB))+coalesce(length(r.sha256),0) FROM records r WHERE r.scan_id=?",
+        "SELECT r.id,r.ordinal,r.path,r.status,r.mime,r.size_bytes,r.sha256,length(CAST(r.path AS BLOB))+length(CAST(r.mime AS BLOB))+coalesce(length(r.sha256),0),CASE WHEN length(r.data)<=4194304 THEN CAST(json_extract(CAST(r.data AS TEXT),'$.source.identity.modified_ns') AS TEXT) ELSE NULL END FROM records r WHERE r.scan_id=?",
     );
     let mut values = vec![Value::Text(query.scan_id.clone())];
     if let Some(status) = query.status {

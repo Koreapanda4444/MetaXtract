@@ -263,60 +263,40 @@ impl Desktop {
             }
         });
         let mut focus = None;
-        egui::ScrollArea::both()
-            .id_salt("records-table")
-            .max_height(290.0)
-            .show(ui, |ui| {
-                egui::Grid::new("record-rows")
-                    .striped(true)
-                    .min_row_height(27.0)
-                    .show(ui, |ui| {
-                        ui.label("✓");
-                        ui.strong(crate::i18n::tr("Path"));
-                        ui.strong("MIME");
-                        ui.strong(crate::i18n::tr("Bytes"));
-                        ui.strong(crate::i18n::tr("Status"));
-                        ui.end_row();
-                        for h in &self.records.headers {
-                            let mut selected = self.records.selected.contains(&h.id);
-                            if ui
-                                .add_enabled(
-                                    selected || self.records.selected.len() < 64,
-                                    egui::Checkbox::without_text(&mut selected),
-                                )
-                                .changed()
-                            {
-                                if selected {
-                                    self.records.selected.insert(h.id);
-                                } else {
-                                    self.records.selected.remove(&h.id);
-                                }
-                            }
-                            let row = ui.add_sized(
-                                [340.0, 24.0],
-                                egui::Button::selectable(
-                                    self.records.focused.as_ref().is_some_and(|r| r.0 == h.id),
-                                    egui::RichText::new(&h.path),
-                                )
-                                .truncate(),
-                            );
-                            if row.clicked() {
-                                focus = Some(h.id);
-                                if ui.input(|i| i.modifiers.command)
-                                    && !self.records.selected.remove(&h.id)
-                                    && self.records.selected.len() < 64
-                                {
-                                    self.records.selected.insert(h.id);
-                                }
-                            }
-                            row.on_hover_text(&h.path);
-                            ui.label(&h.mime);
-                            ui.label(h.size_bytes.to_string());
-                            ui.label(format!("{:?}", h.status));
-                            ui.end_row();
-                        }
-                    });
+        egui::ScrollArea::horizontal().id_salt("records-columns").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for (width, label) in [(24.0,"✓"),(210.0,"Filename"),(115.0,"Type"),(90.0,"Size"),(176.0,"Modified (UTC)"),(100.0,"Status")] {
+                    ui.add_sized([width, 24.0], egui::Label::new(egui::RichText::new(crate::i18n::tr(label)).strong()));
+                }
             });
+            ui.separator();
+            egui::ScrollArea::vertical().id_salt("records-table").max_height((ui.clip_rect().height() - 190.0).max(120.0)).show_rows(ui, 30.0, self.records.headers.len(), |ui, range| {
+                for index in range {
+                    let h = &self.records.headers[index];
+                    ui.push_id(h.id, |ui| {
+                        let focused = self.records.focused.as_ref().is_some_and(|r| r.0 == h.id);
+                        let fill = if focused { ui.visuals().selection.bg_fill } else if index % 2 == 0 { ui.visuals().faint_bg_color } else { egui::Color32::TRANSPARENT };
+                        egui::Frame::new().fill(fill).show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let mut selected = self.records.selected.contains(&h.id);
+                                if ui.add_enabled_ui(selected || self.records.selected.len() < 64, |ui| ui.add_sized([24.0, 24.0], egui::Checkbox::without_text(&mut selected))).inner.changed() {
+                                    if selected { self.records.selected.insert(h.id); } else { self.records.selected.remove(&h.id); }
+                                }
+                                let name = h.path.rsplit('/').next().unwrap_or(&h.path);
+                                let row = ui.add_sized([210.0,24.0], egui::Button::selectable(focused,name).truncate());
+                                if row.clicked() { focus = Some(h.id); }
+                                row.on_hover_text(&h.path);
+                                ui.add_sized([115.0,24.0],egui::Label::new(&h.mime).truncate()).on_hover_text(&h.mime);
+                                ui.add_sized([90.0,24.0],egui::Label::new(crate::formatting::bytes(h.size_bytes))).on_hover_text(h.size_bytes.to_string());
+                                ui.add_sized([176.0,24.0],egui::Label::new(crate::formatting::modified(h.modified_ns.as_deref()))).on_hover_text(crate::i18n::tr("Filesystem time; unknown dates remain blank. Full original values are in file details."));
+                                let color = match h.status { app::schema::ExtractionStatus::Complete => egui::Color32::LIGHT_GREEN, app::schema::ExtractionStatus::Failed => egui::Color32::LIGHT_RED, app::schema::ExtractionStatus::Partial => egui::Color32::YELLOW, _ => ui.visuals().weak_text_color() };
+                                ui.add_sized([100.0,24.0],egui::Label::new(egui::RichText::new(crate::i18n::tr(&format!("{:?}", h.status))).color(color)));
+                            });
+                        });
+                    });
+                }
+            });
+        });
         if let Some(id) = focus {
             self.focus_record(ui.ctx(), id);
         }
