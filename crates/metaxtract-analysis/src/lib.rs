@@ -8,6 +8,7 @@ pub mod geo;
 pub mod normalize;
 pub mod provenance;
 pub mod redaction;
+pub mod relationships;
 pub mod reporting;
 pub mod search;
 pub mod timestamp;

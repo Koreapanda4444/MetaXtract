@@ -23,6 +23,7 @@ mod query_builder;
 mod quick_access;
 mod records;
 mod recovery;
+mod relationships;
 mod scan;
 mod search;
 mod sessions;

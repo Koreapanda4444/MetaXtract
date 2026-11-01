@@ -12,6 +12,7 @@ use metaxtract_app::{
 use std::{io, path::PathBuf};
 
 pub struct AnalysisUi {
+    pub(crate) relationships: crate::relationships::RelationshipsUi,
     pub(crate) findings: crate::finding_review::FindingsUi,
     pub(crate) pair: crate::duplicate_review::PairUi,
     pub(crate) timeline: crate::timeline::TimelineUi,
@@ -37,6 +38,7 @@ pub struct AnalysisUi {
 impl Default for AnalysisUi {
     fn default() -> Self {
         Self {
+            relationships: Default::default(),
             findings: Default::default(),
             pair: Default::default(),
             timeline: Default::default(),
@@ -208,6 +210,7 @@ impl Desktop {
                 crate::i18n::tr("Locations"),
                 crate::i18n::tr("Duplicates"),
                 crate::i18n::tr("Findings"),
+                "Relationships",
             ]
             .into_iter()
             .enumerate()
@@ -250,6 +253,10 @@ impl Desktop {
                     }
                 });
             }
+        }
+        if self.analysis.view == 5 {
+            self.relationships_view(ui);
+            return;
         }
         let Some(report) = self.analysis.report.as_ref() else {
             ui.label(crate::i18n::tr("Run analysis to populate these views"));
@@ -358,6 +365,7 @@ impl Desktop {
             egui::Sense::click_and_drag(),
         );
         let rect = response.rect;
+        let painter = painter.with_clip_rect(rect);
         if response.dragged() {
             self.analysis.center += ui.input(|i| i.pointer.delta());
         }
