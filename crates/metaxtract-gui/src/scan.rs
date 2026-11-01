@@ -72,7 +72,7 @@ impl Desktop {
             return;
         }
         let Some(case) = self.case.as_ref() else {
-            self.status = "Open a case first / 먼저 케이스를 여세요".into();
+            self.status = crate::i18n::tr("Open a case first").into();
             return;
         };
         let mut request = app::scan::ScanRequest::new(source, case.path().to_owned());
@@ -113,7 +113,7 @@ impl Desktop {
                 });
                 self.scan.latest = None;
                 self.scan.outcome = None;
-                self.status = "Scanning / 스캔 중".into();
+                self.status = crate::i18n::tr("Scanning").into();
             }
             Err(e) => self.status = e.to_string(),
         }
@@ -141,9 +141,12 @@ impl Desktop {
                 Ok(out) => {
                     self.scan.held |= out.summary.stopped.is_some();
                     self.active_scan = Some(out.scan_id.clone());
-                    self.status = format!(
-                        "{} complete, {} failed · {:?} / 완료·실패·정지",
-                        out.summary.completed, out.summary.failed, out.summary.stopped
+                    self.status = crate::textf!(
+                        "{} complete, {} failed · {:?}",
+                        "완료 {}개, 실패 {}개 · {:?}",
+                        out.summary.completed,
+                        out.summary.failed,
+                        out.summary.stopped
                     );
                     self.scan.outcome = Some(out);
                     if let (Some(event), Some(outcome)) =
@@ -166,7 +169,7 @@ impl Desktop {
             if let Some(case) = self.case.clone() {
                 self.task(
                     ctx,
-                    "Refreshing case / 케이스 갱신",
+                    crate::i18n::tr("Refreshing case"),
                     move || Ok((case.info()?, case.scan_history(None, 128)?)),
                     |app, (info, history)| {
                         app.info = Some(info);
@@ -186,38 +189,40 @@ impl Desktop {
         }
     }
     pub fn scan_view(&mut self, ui: &mut egui::Ui) {
-        crate::components::heading(ui, "Scan queue / 스캔 대기열");
+        crate::components::heading(ui, crate::i18n::tr("Scan queue"));
         ui.horizontal(|ui| {
             ui.checkbox(
                 &mut self.scan.include_hidden,
-                "Include hidden names / 숨김 이름 포함",
+                crate::i18n::tr("Include hidden names"),
             );
             ui.checkbox(
                 &mut self.scan.cache_enabled,
-                "Reuse verified metadata cache / 검증한 메타데이터 캐시 사용",
+                crate::i18n::tr("Reuse verified metadata cache"),
             );
             ui.add(
                 egui::DragValue::new(&mut self.scan.max_files)
                     .range(1..=1_000_000)
-                    .prefix("File limit / 파일 수 제한 "),
+                    .prefix(crate::i18n::tr("File limit")),
             );
         });
         ui.checkbox(
             &mut self.scan.decode_previews,
-            "Decode previews for visual similarity / 시각적 유사성용 미리보기 디코딩",
+            crate::i18n::tr("Decode previews for visual similarity"),
         );
-        ui.label("Choose a file or directory. Results are saved as they arrive. / 파일·폴더를 선택하면 결과를 순서대로 저장합니다.");
+        ui.label(crate::i18n::tr(
+            "Choose a file or directory. Results are saved as they arrive.",
+        ));
         ui.horizontal(|ui| {
             if crate::components::path_input(ui, &mut self.scan.source).changed() {
                 self.scan.source_path = None;
             }
-            if ui.button("Browse / 찾기").clicked() {
+            if ui.button(crate::i18n::tr("Browse")).clicked() {
                 self.picker = Some(crate::files::Picker::new(crate::files::Purpose::Source));
             }
             ui.add(
                 egui::DragValue::new(&mut self.scan.workers)
                     .range(1..=32)
-                    .prefix("Workers / 작업자 "),
+                    .prefix(crate::i18n::tr("Workers")),
             );
         });
         ui.horizontal(|ui| {
@@ -227,7 +232,7 @@ impl Desktop {
                         && !self.readonly
                         && !self.scan.source.is_empty()
                         && self.scan.queue.len() < 64,
-                    crate::components::button("Add to queue / 대기열 추가"),
+                    crate::components::button(crate::i18n::tr("Add to queue")),
                 )
                 .clicked()
             {
@@ -242,7 +247,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     self.scan.running(),
-                    crate::components::button("Pause / 일시 정지"),
+                    crate::components::button(crate::i18n::tr("Pause")),
                 )
                 .clicked()
             {
@@ -251,7 +256,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     self.scan.running(),
-                    crate::components::button("Cancel scan / 스캔 취소"),
+                    crate::components::button(crate::i18n::tr("Cancel scan")),
                 )
                 .clicked()
             {
@@ -262,9 +267,9 @@ impl Desktop {
             }
             if ui
                 .button(if self.scan.held {
-                    "Continue queue / 대기열 계속"
+                    crate::i18n::tr("Continue queue")
                 } else {
-                    "Hold queue / 대기열 정지"
+                    crate::i18n::tr("Hold queue")
                 })
                 .clicked()
             {
@@ -291,8 +296,9 @@ impl Desktop {
             }
         }
         if let Some(active) = &self.scan.active {
-            ui.label(format!(
-                "Elapsed / 경과: {:.1}s",
+            ui.label(crate::textf!(
+                "Elapsed: {:.1}s",
+                "경과: {:.1}초",
                 active.started.elapsed().as_secs_f64()
             ));
         }
@@ -303,7 +309,7 @@ impl Desktop {
                 let mut remove = None;
                 for (i, path) in self.scan.queue.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        if ui.small_button("Remove / 제거").clicked() {
+                        if ui.small_button(crate::i18n::tr("Remove")).clicked() {
                             remove = Some(i);
                         }
                         ui.label(path.display().to_string());
@@ -314,8 +320,10 @@ impl Desktop {
                 }
             });
         ui.separator();
-        crate::components::heading(ui, "Resume checkpoint / 체크포인트 재개");
-        ui.label("Paused or interrupted scans keep their original journal and source. / 정지·중단된 스캔은 원래 저널과 원본 경로가 필요합니다.");
+        crate::components::heading(ui, crate::i18n::tr("Resume checkpoint"));
+        ui.label(crate::i18n::tr(
+            "Paused or interrupted scans keep their original journal and source.",
+        ));
         let resumable: Vec<_> = self
             .scans
             .iter()
@@ -326,7 +334,10 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.scan.running() && !self.busy && !self.readonly,
-                    crate::components::button(format!("Resume / 재개 · {id} · {source}")),
+                    crate::components::button(crate::textf!(
+                        "Resume · {id} · {source}",
+                        "재개 · {id} · {source}"
+                    )),
                 )
                 .clicked()
             {
@@ -335,13 +346,11 @@ impl Desktop {
                         .case
                         .as_ref()
                         .ok_or_else(|| io::Error::other("no case"))?;
-                    let receipt = case.scan_receipt(&id, "application.session")?.ok_or_else(
-                        || {
-                            io::Error::other(
-                                "This scan has no checkpoint / 이 스캔에는 체크포인트가 없습니다",
-                            )
-                        },
-                    )?;
+                    let receipt =
+                        case.scan_receipt(&id, "application.session")?
+                            .ok_or_else(|| {
+                                io::Error::other(crate::i18n::tr("This scan has no checkpoint"))
+                            })?;
                     let run = receipt["run"]
                         .as_u64()
                         .ok_or_else(|| io::Error::other("invalid checkpoint run"))?;

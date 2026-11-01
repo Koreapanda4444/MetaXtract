@@ -52,7 +52,7 @@ impl Desktop {
         let scan = self
             .active_scan
             .as_deref()
-            .ok_or_else(|| io::Error::other("Select a scan / 스캔을 선택하세요"))?;
+            .ok_or_else(|| io::Error::other(crate::i18n::tr("Select a scan")))?;
         if selected {
             app::workflows::selected_query(scan, &self.records.selected)
         } else if let Some(q) = self
@@ -81,7 +81,7 @@ impl Desktop {
         self.analysis.scan_id = scan.clone();
         self.task(
             ctx,
-            "Loading case totals / 케이스 통계 읽기",
+            crate::i18n::tr("Loading case totals"),
             move || {
                 let before = case.info()?.revision;
                 let totals = case.totals()?;
@@ -91,9 +91,9 @@ impl Desktop {
                     .transpose()?
                     .flatten();
                 if before != case.info()?.revision {
-                    return Err(io::Error::other(
-                        "Case changed; refresh statistics / 통계를 새로 고치세요",
-                    ));
+                    return Err(io::Error::other(crate::i18n::tr(
+                        "Case changed; refresh statistics",
+                    )));
                 }
                 Ok((totals, before, statistics))
             },
@@ -105,16 +105,16 @@ impl Desktop {
         );
     }
     pub fn analysis_view(&mut self, ui: &mut egui::Ui) {
-        crate::components::heading(ui, "Case analysis / 케이스 분석");
+        crate::components::heading(ui, crate::i18n::tr("Case analysis"));
         if self.case.is_none() {
-            ui.label("Open a case first / 먼저 케이스를 여세요");
+            ui.label(crate::i18n::tr("Open a case first"));
             return;
         }
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(
                     !self.busy,
-                    crate::components::button("Refresh totals / 통계 갱신"),
+                    crate::components::button(crate::i18n::tr("Refresh totals")),
                 )
                 .clicked()
             {
@@ -122,12 +122,12 @@ impl Desktop {
             }
             ui.checkbox(
                 &mut self.analysis.selected,
-                "Selected records only / 선택 레코드만",
+                crate::i18n::tr("Selected records only"),
             );
             if ui
                 .add_enabled(
                     !self.busy && !self.scan.running(),
-                    crate::components::button("Build analysis / 분석 실행"),
+                    crate::components::button(crate::i18n::tr("Build analysis")),
                 )
                 .clicked()
             {
@@ -137,7 +137,7 @@ impl Desktop {
                         return Err(io::Error::other("Track groups exceed 64 KiB"));
                     }
                     let mut options =
-                        app::workflows::report_options("Case analysis / 케이스 분석", "")?;
+                        app::workflows::report_options(crate::i18n::tr("Case analysis"), "")?;
                     options.cluster_radius_meters = self.analysis.radius;
                     options.track_groups =
                         serde_json::from_str(&self.analysis.groups).map_err(io::Error::other)?;
@@ -148,7 +148,7 @@ impl Desktop {
                         let case = self.case.clone().expect("open case");
                         self.task(
                             ui.ctx(),
-                            "Analyzing metadata / 메타데이터 분석 중",
+                            crate::i18n::tr("Analyzing metadata"),
                             move || {
                                 a::reporting::build_report(
                                     &case,
@@ -170,19 +170,19 @@ impl Desktop {
                 }
             }
         });
-        ui.label("Scope uses the current record filter or selected IDs. Analysis is a revision-bound snapshot. / 현재 필터 또는 선택 ID를 분석하며 결과는 해당 시점의 스냅샷입니다.");
-        ui.collapsing("Geographic options / 위치 분석 설정",|ui| {
-            ui.horizontal(|ui| { ui.label("Cluster radius (m) / 군집 반경"); ui.add(egui::DragValue::new(&mut self.analysis.radius).range(0.0..=1_000_000.0)); });
-            ui.label("Track groups: explicit {evidence path: group} JSON. Unassigned points stay unresolved. / 이동 경로는 {근거 경로: 그룹} JSON으로 지정하세요. 미지정 위치는 연결하지 않습니다.");
+        ui.label(crate::i18n::tr("Scope uses the current record filter or selected IDs. Analysis is a revision-bound snapshot."));
+        ui.collapsing(crate::i18n::tr("Geographic options"),|ui| {
+            ui.horizontal(|ui| { ui.label(crate::i18n::tr("Cluster radius (m)")); ui.add(egui::DragValue::new(&mut self.analysis.radius).range(0.0..=1_000_000.0)); });
+            ui.label(crate::i18n::tr("Track groups: explicit {evidence path: group} JSON. Unassigned points stay unresolved."));
             ui.add(egui::TextEdit::multiline(&mut self.analysis.groups).desired_rows(2).desired_width(f32::INFINITY));
         });
         ui.horizontal_wrapped(|ui| {
             for (i, label) in [
-                "Dashboard / 요약",
-                "Timeline / 타임라인",
-                "Locations / 위치",
-                "Duplicates / 중복",
-                "Findings / 발견 사항",
+                crate::i18n::tr("Dashboard"),
+                crate::i18n::tr("Timeline"),
+                crate::i18n::tr("Locations"),
+                crate::i18n::tr("Duplicates"),
+                crate::i18n::tr("Findings"),
             ]
             .into_iter()
             .enumerate()
@@ -198,29 +198,36 @@ impl Desktop {
         ui.separator();
         if self.analysis.view == 0 {
             if let Some(t) = &self.analysis.totals {
-                ui.label(format!(
-                    "Whole case · revision {} / 전체 케이스",
+                ui.label(crate::textf!(
+                    "Whole case · revision {}",
+                    "전체 케이스 · 수정 {}",
                     self.analysis.revision
                 ));
                 egui::Grid::new("case-totals").striped(true).show(ui, |ui| {
                     for (label, v) in [
-                        ("Scans / 스캔", t.scans),
-                        ("Records / 레코드", t.records),
-                        ("Raw fields / 원본 필드", t.observations),
-                        ("Claims / 정규화 값", t.claims),
-                        ("Conflicts / 충돌", t.conflicts),
-                        ("Diagnostics / 진단", t.diagnostics),
+                        (crate::i18n::tr("Scans"), t.scans),
+                        (crate::i18n::tr("Records"), t.records),
+                        (crate::i18n::tr("Raw fields"), t.observations),
+                        (crate::i18n::tr("Claims"), t.claims),
+                        (crate::i18n::tr("Conflicts"), t.conflicts),
+                        (crate::i18n::tr("Diagnostics"), t.diagnostics),
                     ] {
                         ui.label(label);
                         ui.strong(v.to_string());
                         ui.end_row();
                     }
                 });
-                ui.collapsing("Persisted file statistics / 저장된 파일 통계",|ui| { if let Some(s)=&self.analysis.statistics { json_view(ui,s); } else { ui.label("Unavailable for older/imported scans / 이전·가져온 스캔에는 통계가 없습니다"); } });
+                ui.collapsing(crate::i18n::tr("Persisted file statistics"), |ui| {
+                    if let Some(s) = &self.analysis.statistics {
+                        json_view(ui, s);
+                    } else {
+                        ui.label(crate::i18n::tr("Unavailable for older/imported scans"));
+                    }
+                });
             }
         }
         let Some(report) = self.analysis.report.as_ref() else {
-            ui.label("Run analysis to populate these views / 분석을 실행하면 결과가 표시됩니다");
+            ui.label(crate::i18n::tr("Run analysis to populate these views"));
             return;
         };
         ui.label(format!(
@@ -236,7 +243,10 @@ impl Desktop {
                 .as_ref()
                 .is_some_and(|i| i.revision != report.case_revision)
         {
-            ui.colored_label(egui::Color32::YELLOW,"Older snapshot; run analysis again for the current selection / 이전 분석 결과입니다. 현재 선택으로 다시 분석하세요.");
+            ui.colored_label(
+                egui::Color32::YELLOW,
+                crate::i18n::tr("Older snapshot; run analysis again for the current selection"),
+            );
         }
         match self.analysis.view {
             0 => {
@@ -246,7 +256,7 @@ impl Desktop {
                 }
             }
             1 => {
-                ui.label("Unknown time zones remain unresolved; claims retain their original provenance. / 시간대가 없는 시각은 미확정으로 보존합니다.");
+                ui.label(crate::i18n::tr("Unknown time zones remain unresolved; claims retain their original provenance."));
                 egui::ScrollArea::vertical()
                     .id_salt("timeline-list")
                     .max_height(270.0)
@@ -270,10 +280,11 @@ impl Desktop {
             }
             2 => self.location_view(ui),
             3 => {
-                ui.label("Visual similarity is a heuristic. Enable Decode previews for a new scan to supply image fingerprints. / 시각적 유사성은 추정입니다. 새 스캔에서 미리보기 디코딩을 켜야 비교할 수 있습니다.");
+                ui.label(crate::i18n::tr("Visual similarity is a heuristic. Enable Decode previews for a new scan to supply image fingerprints."));
                 ui.collapsing(
-                    format!(
-                        "Exact duplicate groups / 해시 중복 그룹 ({})",
+                    crate::textf!(
+                        "Exact duplicate groups ({})",
+                        "해시 중복 그룹 ({})",
                         report.exact_duplicates.len()
                     ),
                     |ui| {
@@ -305,8 +316,9 @@ impl Desktop {
                     },
                 );
                 ui.collapsing(
-                    format!(
-                        "Visual matches / 시각적 유사 ({})",
+                    crate::textf!(
+                        "Visual matches ({})",
+                        "시각적 유사 ({})",
                         report.visually_similar.len()
                     ),
                     |ui| {
@@ -322,12 +334,13 @@ impl Desktop {
                         );
                     },
                 );
-                ui.label(format!(
-                    "Images with fingerprints: {}; missing previews: {} / 지문 확보·미리보기 누락",
+                ui.label(crate::textf!(
+                    "Images with fingerprints: {}; missing previews: {}",
+                    "지문 확보 이미지: {}; 미리보기 누락: {}",
                     report.coverage.visual_records_with_previews,
                     report.coverage.visual_unavailable.len()
                 ));
-                ui.collapsing("Missing coverage / 분석 누락", |ui| {
+                ui.collapsing(crate::i18n::tr("Missing coverage"), |ui| {
                     egui::ScrollArea::vertical().max_height(180.0).show_rows(
                         ui,
                         22.0,
@@ -343,11 +356,11 @@ impl Desktop {
             _ => {
                 ui.horizontal(|ui| {
                     for (i, label) in [
-                        "All / 전체",
-                        "High / 높음",
-                        "Medium / 중간",
-                        "Low / 낮음",
-                        "Info / 정보",
+                        crate::i18n::tr("All"),
+                        crate::i18n::tr("High"),
+                        crate::i18n::tr("Medium"),
+                        crate::i18n::tr("Low"),
+                        crate::i18n::tr("Info"),
                     ]
                     .into_iter()
                     .enumerate()
@@ -369,7 +382,11 @@ impl Desktop {
                             } == self.analysis.severity
                     })
                     .collect();
-                ui.label(format!("{} findings / 발견 사항", findings.len()));
+                ui.label(crate::textf!(
+                    "{} findings",
+                    "발견 사항 {}개",
+                    findings.len()
+                ));
                 egui::ScrollArea::vertical()
                     .id_salt("finding-list")
                     .max_height(270.0)
@@ -395,14 +412,14 @@ impl Desktop {
     }
     fn location_view(&mut self, ui: &mut egui::Ui) {
         let report = self.analysis.report.as_ref().expect("analysis snapshot");
-        ui.label("Offline coordinate plot · longitude / latitude · no network tiles / 오프라인 경도·위도 도표");
+        ui.label(crate::i18n::tr("Offline coordinate plot · longitude"));
         ui.horizontal(|ui| {
             ui.add(
                 egui::Slider::new(&mut self.analysis.zoom, 1.0..=64.0)
                     .logarithmic(true)
-                    .text("Zoom / 확대"),
+                    .text(crate::i18n::tr("Zoom")),
             );
-            if ui.button("Reset / 초기화").clicked() {
+            if ui.button(crate::i18n::tr("Reset")).clicked() {
                 self.analysis.zoom = 1.0;
                 self.analysis.center = egui::Vec2::ZERO;
             }
@@ -478,9 +495,18 @@ impl Desktop {
                 }
             }
         }
-        ui.label(format!("{} valid locations · {} invalid · {} clusters · {} unresolved track samples / 유효·무효·군집·이동 경로 미확정",report.locations.len(),report.coverage.invalid_locations.len(),report.clusters.len(),report.tracks.unresolved.len()));
+        ui.label(crate::textf!(
+            "{} valid locations · {} invalid · {} clusters · {} unresolved track samples",
+            "유효 위치 {} · 무효 {} · 군집 {} · 이동 경로 미확정 {}",
+            report.locations.len(),
+            report.coverage.invalid_locations.len(),
+            report.clusters.len(),
+            report.tracks.unresolved.len()
+        ));
         if report.locations.len() > 5000 {
-            ui.label("Plot shows first 5,000; list and exports include every location / 도표는 처음 5,000개, 목록·내보내기는 전체 위치를 포함합니다.");
+            ui.label(crate::i18n::tr(
+                "Plot shows first 5,000; list and exports include every location",
+            ));
         }
         egui::ScrollArea::vertical()
             .id_salt("locations-list")
@@ -505,14 +531,11 @@ impl Desktop {
         if let Some(s) = report.locations.get(self.analysis.detail) {
             json_view(ui, s);
         }
-        ui.collapsing(
-            "Clusters and track diagnostics / 군집·경로 진단",
-            |ui| {
-                json_view(ui, &report.clusters);
-                json_view(ui, &report.tracks);
-                json_view(ui, &report.coverage.invalid_locations);
-            },
-        );
+        ui.collapsing(crate::i18n::tr("Clusters and track diagnostics"), |ui| {
+            json_view(ui, &report.clusters);
+            json_view(ui, &report.tracks);
+            json_view(ui, &report.coverage.invalid_locations);
+        });
     }
     pub fn export_geo(&mut self, ctx: &egui::Context, path: PathBuf, kml: bool) {
         let Some(report) = &self.analysis.report else {
@@ -521,7 +544,7 @@ impl Desktop {
         let samples = report.locations.clone();
         self.task(
             ctx,
-            "Exporting locations / 위치 내보내기",
+            crate::i18n::tr("Exporting locations"),
             move || {
                 if kml {
                     app::workflows::write_bytes(

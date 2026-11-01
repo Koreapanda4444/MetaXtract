@@ -4,15 +4,13 @@ use eframe::egui;
 use metaxtract_app::{self as app, storage};
 impl Desktop {
     fn case_view(&mut self, ui: &mut egui::Ui) {
-        crate::components::heading(ui, "Case workspace / 케이스 작업 공간");
+        crate::components::heading(ui, crate::i18n::tr("Case workspace"));
         let Some(case) = self.case.clone() else {
             ui.add_space(28.0);
-            ui.label(
-                "Create or open a local case to begin. / 로컬 케이스를 만들거나 열어 시작하세요.",
-            );
-            ui.label("Metadata stays on your computer. / 메타데이터는 컴퓨터 안에서 처리됩니다.");
+            ui.label(crate::i18n::tr("Create or open a local case to begin."));
+            ui.label(crate::i18n::tr("Metadata stays on your computer."));
             ui.add_space(20.0);
-            crate::components::heading(ui, "Recent cases / 최근 케이스");
+            crate::components::heading(ui, crate::i18n::tr("Recent cases"));
             let mut selected = None;
             for path in &self.settings.recent {
                 if let Ok(p) = path.to_path() {
@@ -31,9 +29,9 @@ impl Desktop {
         }
         ui.label(case.path().display().to_string());
         ui.separator();
-        ui.label("Title / 제목");
+        ui.label(crate::i18n::tr("Title"));
         ui.text_edit_singleline(&mut self.title);
-        ui.label("Case notes / 케이스 노트");
+        ui.label(crate::i18n::tr("Case notes"));
         ui.add(
             egui::TextEdit::multiline(&mut self.notes)
                 .desired_rows(7)
@@ -42,7 +40,7 @@ impl Desktop {
         if ui
             .add_enabled(
                 !self.busy && !self.readonly,
-                crate::components::button("Save notes and title / 노트·제목 저장"),
+                crate::components::button(crate::i18n::tr("Save notes and title")),
             )
             .clicked()
         {
@@ -50,7 +48,7 @@ impl Desktop {
             let title = self.title.clone();
             self.task(
                 ui.ctx(),
-                "Saving case / 케이스 저장",
+                crate::i18n::tr("Saving case"),
                 move || {
                     case.set_title(&title)?;
                     case.set_notes(&notes)?;
@@ -64,8 +62,8 @@ impl Desktop {
             .as_ref()
             .is_some_and(|i| i.notes != self.notes || i.title != self.title)
         {
-            ui.label("Unsaved case edits / 저장하지 않은 수정");
-            if ui.button("Revert edits / 수정 되돌리기").clicked() {
+            ui.label(crate::i18n::tr("Unsaved case edits"));
+            if ui.button(crate::i18n::tr("Revert edits")).clicked() {
                 if let Some(info) = &self.info {
                     self.title = info.title.clone();
                     self.notes = info.notes.clone();
@@ -73,9 +71,12 @@ impl Desktop {
             }
         }
         ui.add_space(16.0);
-        crate::components::heading(ui, "Scan history / 스캔 기록");
+        crate::components::heading(ui, crate::i18n::tr("Scan history"));
         ui.horizontal(|ui| {
-            for (label, next) in [("Latest / 최근", false), ("Older / 이전", true)] {
+            for (label, next) in [
+                (crate::i18n::tr("Latest"), false),
+                (crate::i18n::tr("Older"), true),
+            ] {
                 if ui
                     .add_enabled(
                         !self.busy && (!next || self.history_next.is_some()),
@@ -91,7 +92,7 @@ impl Desktop {
                     };
                     self.task(
                         ui.ctx(),
-                        "Loading history / 기록 읽기",
+                        crate::i18n::tr("Loading history"),
                         move || case.scan_history(cursor.as_ref(), 128),
                         |app, page| {
                             app.scans = page.items;
@@ -127,7 +128,7 @@ impl eframe::App for Desktop {
             self.scan.pause();
             self.scan.close_when_idle = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.status = "Saving checkpoint before closing / 체크포인트 저장 후 종료".into();
+            self.status = crate::i18n::tr("Saving checkpoint before closing").into();
         }
         while let Ok(callback) = self.receiver.try_recv() {
             self.busy = false;
@@ -143,10 +144,28 @@ impl eframe::App for Desktop {
                     egui::RichText::new("MetaXtract").color(egui::Color32::from_rgb(99, 195, 255)),
                 );
                 ui.separator();
+                let mut language = crate::i18n::language();
+                egui::ComboBox::from_id_salt("language")
+                    .selected_text(language.label())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut language, crate::i18n::Language::Korean, "한국어");
+                        ui.selectable_value(
+                            &mut language,
+                            crate::i18n::Language::English,
+                            "English",
+                        );
+                    });
+                if language != crate::i18n::language() {
+                    crate::i18n::set(language);
+                    self.settings.language = Some(language);
+                    if let Err(error) = self.settings.save() {
+                        self.status = error.to_string();
+                    }
+                }
                 for (label, purpose) in [
-                    ("New case / 새 케이스", Purpose::New),
-                    ("Open / 열기", Purpose::Open),
-                    ("Save copy / 복사 저장", Purpose::Copy),
+                    (crate::i18n::tr("New case"), Purpose::New),
+                    (crate::i18n::tr("Open"), Purpose::Open),
+                    (crate::i18n::tr("Save copy"), Purpose::Copy),
                 ] {
                     if ui
                         .add_enabled(
@@ -164,7 +183,7 @@ impl eframe::App for Desktop {
                     }
                 }
                 if self.case.is_none() {
-                    ui.checkbox(&mut self.readonly, "Read only / 읽기 전용");
+                    ui.checkbox(&mut self.readonly, crate::i18n::tr("Read only"));
                 }
                 if self.busy {
                     ui.spinner();
@@ -175,7 +194,7 @@ impl eframe::App for Desktop {
             ui.horizontal_wrapped(|ui| {
                 crate::components::status(ui, &self.status, self.busy || self.scan.running());
                 if self.readonly {
-                    ui.strong("READ ONLY / 읽기 전용");
+                    ui.strong(crate::i18n::tr("READ ONLY"));
                 }
             });
         });
@@ -184,20 +203,24 @@ impl eframe::App for Desktop {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.add_space(12.0);
-                ui.label("WORKSPACE / 작업 공간");
-                ui.selectable_value(&mut self.tab, Tab::Case, "Case / 케이스");
-                ui.selectable_value(&mut self.tab, Tab::Scan, "Scan queue / 스캔 대기열");
-                ui.selectable_value(&mut self.tab, Tab::Records, "Records / 레코드");
-                ui.selectable_value(&mut self.tab, Tab::Search, "Search & compare / 검색·비교");
-                ui.selectable_value(&mut self.tab, Tab::Analysis, "Analysis / 분석");
+                ui.label(crate::i18n::tr("WORKSPACE"));
+                ui.selectable_value(&mut self.tab, Tab::Case, crate::i18n::tr("Case"));
+                ui.selectable_value(&mut self.tab, Tab::Scan, crate::i18n::tr("Scan queue"));
+                ui.selectable_value(&mut self.tab, Tab::Records, crate::i18n::tr("Records"));
+                ui.selectable_value(
+                    &mut self.tab,
+                    Tab::Search,
+                    crate::i18n::tr("Search & compare"),
+                );
+                ui.selectable_value(&mut self.tab, Tab::Analysis, crate::i18n::tr("Analysis"));
                 ui.selectable_value(
                     &mut self.tab,
                     Tab::Workflows,
-                    "Export & tools / 내보내기·도구",
+                    crate::i18n::tr("Export & tools"),
                 );
                 if let Some(scan) = &self.active_scan {
                     ui.separator();
-                    ui.label("Selected scan / 선택 스캔");
+                    ui.label(crate::i18n::tr("Selected scan"));
                     ui.label(scan);
                 }
             });

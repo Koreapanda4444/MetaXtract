@@ -5,6 +5,7 @@ mod application;
 mod components;
 mod desktop;
 mod files;
+mod i18n;
 mod inspectors;
 mod preview;
 mod records;

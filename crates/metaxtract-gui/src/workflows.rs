@@ -36,9 +36,9 @@ impl PathEntry {
             return Ok(p.clone());
         }
         if self.text.trim().is_empty() {
-            return Err(io::Error::other(
-                "Choose every required path / 필요한 경로를 모두 선택하세요",
-            ));
+            return Err(io::Error::other(crate::i18n::tr(
+                "Choose every required path",
+            )));
         }
         Ok(PathBuf::from(&self.text))
     }
@@ -70,7 +70,7 @@ impl Default for WorkflowsUi {
             profile: serde_json::to_string_pretty(&RedactionProfile::privacy())
                 .expect("built-in profile"),
             format: 0,
-            title: "Metadata investigation / 메타데이터 조사".into(),
+            title: crate::i18n::tr("Metadata investigation").into(),
             analyst: String::new(),
             baseline: String::new(),
             signing: false,
@@ -113,32 +113,32 @@ impl Desktop {
             {
                 p.native = None;
             }
-            if ui.button("Browse / 찾아보기").clicked() {
+            if ui.button(crate::i18n::tr("Browse")).clicked() {
                 self.picker = Some(Picker::new(Purpose::Workflow(field)));
             }
         });
     }
     pub fn workflows_view(&mut self, ui: &mut egui::Ui) {
-        crate::components::heading(ui, "Export and tools / 내보내기·도구");
+        crate::components::heading(ui, crate::i18n::tr("Export and tools"));
         const ACTIONS: [&str; 18] = [
-            "Export records / 레코드 내보내기",
-            "Redaction profile / 비식별화 프로필",
-            "Report / 보고서",
-            "Generate encrypted keys / 암호화 키 생성",
-            "Sign file / 파일 서명",
-            "Verify file signature / 파일 서명 검증",
-            "Export complete case bundle / 전체 케이스 번들",
-            "Verify bundle / 번들 검증",
-            "Open bundle as new case / 번들을 새 케이스로 열기",
-            "Import into case / 케이스로 가져오기",
-            "Verify audit / 감사 검증",
-            "Parser diagnostics / 파서 진단",
-            "Register public identity / 공개 서명자 등록",
-            "Verify report receipt / 보고서 영수증 검증",
-            "Verify original files / 원본 파일 검증",
-            "Export original evidence ZIP / 원본 근거 ZIP 내보내기",
-            "Verify evidence ZIP / 근거 ZIP 검증",
-            "Purge metadata cache / 메타데이터 캐시 비우기",
+            crate::i18n::tr("Export records"),
+            crate::i18n::tr("Redaction profile"),
+            crate::i18n::tr("Report"),
+            crate::i18n::tr("Generate encrypted keys"),
+            crate::i18n::tr("Sign file"),
+            crate::i18n::tr("Verify file signature"),
+            crate::i18n::tr("Export complete case bundle"),
+            crate::i18n::tr("Verify bundle"),
+            crate::i18n::tr("Open bundle as new case"),
+            crate::i18n::tr("Import into case"),
+            crate::i18n::tr("Verify audit"),
+            crate::i18n::tr("Parser diagnostics"),
+            crate::i18n::tr("Register public identity"),
+            crate::i18n::tr("Verify report receipt"),
+            crate::i18n::tr("Verify original files"),
+            crate::i18n::tr("Export original evidence ZIP"),
+            crate::i18n::tr("Verify evidence ZIP"),
+            crate::i18n::tr("Purge metadata cache"),
         ];
         let previous = self.workflows.action;
         egui::ComboBox::from_id_salt("workflow-action")
@@ -158,26 +158,28 @@ impl Desktop {
         if matches!(action, 14 | 15) {
             ui.checkbox(
                 &mut self.workflows.selected,
-                "Selected records only / 선택 레코드만",
+                crate::i18n::tr("Selected records only"),
             );
-            ui.label("Uses the selected scan and current filter. Virtual members are not reopened as disk paths. / 선택 스캔과 현재 필터를 사용합니다. 가상 하위 항목을 디스크 경로로 열지 않습니다.");
+            ui.label(crate::i18n::tr("Uses the selected scan and current filter. Virtual members are not reopened as disk paths."));
         }
         if matches!(action, 0..=2) {
             if action != 1 {
                 ui.checkbox(
                     &mut self.workflows.selected,
-                    "Selected records only / 선택 레코드만",
+                    crate::i18n::tr("Selected records only"),
                 );
-                ui.label("Uses the current record filter for the selected scan / 선택 스캔의 현재 레코드 필터를 사용합니다");
+                ui.label(crate::i18n::tr(
+                    "Uses the current record filter for the selected scan",
+                ));
                 ui.checkbox(
                     &mut self.workflows.redact,
-                    "Apply redaction profile / 비식별화 프로필 적용",
+                    crate::i18n::tr("Apply redaction profile"),
                 );
             }
-            ui.collapsing("Custom profile JSON / 사용자 프로필 JSON",|ui| {
+            ui.collapsing(crate::i18n::tr("Custom profile JSON"),|ui| {
                 ui.add(egui::TextEdit::multiline(&mut self.workflows.profile).code_editor().desired_rows(10).desired_width(f32::INFINITY));
-                if ui.button("Privacy preset / 개인정보 프리셋").clicked(){self.workflows.profile=serde_json::to_string_pretty(&RedactionProfile::privacy()).expect("built-in profile");}
-                ui.label("Remove/Mask rules select claim prefixes, raw namespaces/names, Privacy or AllMetadata. / 정규화 키·원본 네임스페이스·태그명·개인정보·전체 메타데이터에 제거·마스킹 규칙을 적용합니다.");
+                if ui.button(crate::i18n::tr("Privacy preset")).clicked(){self.workflows.profile=serde_json::to_string_pretty(&RedactionProfile::privacy()).expect("built-in profile");}
+                ui.label(crate::i18n::tr("Remove/Mask rules select claim prefixes, raw namespaces/names, Privacy or AllMetadata."));
             });
         }
         match action {
@@ -186,14 +188,14 @@ impl Desktop {
                     ui.selectable_value(&mut self.workflows.format, 0, "JSONL");
                     ui.selectable_value(&mut self.workflows.format, 1, "CSV");
                 });
-                self.workflow_path_row(ui, Field::Output, "Output / 출력");
+                self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Output"));
             }
             1 => {
-                ui.label("Preview uses the focused record in Records. Save writes the profile JSON. Source metadata is retained. / 레코드 화면의 선택 항목을 미리 봅니다. 저장하면 프로필 JSON이 생성되며 원본 메타데이터는 보존됩니다.");
+                ui.label(crate::i18n::tr("Preview uses the focused record in Records. Save writes the profile JSON. Source metadata is retained."));
                 if ui
                     .add_enabled(
                         !self.busy && self.records.focused.is_some(),
-                        crate::components::button("Preview changes / 변경 미리보기"),
+                        crate::components::button(crate::i18n::tr("Preview changes")),
                     )
                     .clicked()
                 {
@@ -204,7 +206,7 @@ impl Desktop {
                             let case = self.case.clone().expect("open case");
                             self.task(
                                 ui.ctx(),
-                                "Previewing redaction / 비식별화 미리보기",
+                                crate::i18n::tr("Previewing redaction"),
                                 move || {
                                     let record = case.record(id)?.ok_or_else(|| {
                                         io::Error::other("record no longer exists")
@@ -228,82 +230,92 @@ impl Desktop {
                         Err(e) => self.status = e.to_string(),
                     }
                 }
-                self.workflow_path_row(ui, Field::Output, "Save profile / 프로필 저장");
+                self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Save profile"));
             }
             2 => {
                 ui.horizontal(|ui| {
-                    ui.label("Title / 제목");
+                    ui.label(crate::i18n::tr("Title"));
                     ui.text_edit_singleline(&mut self.workflows.title);
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Analyst / 분석자");
+                    ui.label(crate::i18n::tr("Analyst"));
                     ui.text_edit_singleline(&mut self.workflows.analyst);
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Baseline scan (optional) / 비교 기준 스캔(선택)");
+                    ui.label(crate::i18n::tr("Baseline scan (optional)"));
                     ui.text_edit_singleline(&mut self.workflows.baseline);
                 });
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut self.workflows.format, 0, "HTML · EN/KR");
                     ui.selectable_value(&mut self.workflows.format, 1, "JSON");
                 });
-                self.workflow_path_row(ui, Field::Output, "Report / 보고서");
+                self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Report"));
                 ui.checkbox(
                     &mut self.workflows.signing,
-                    "Sign report with encrypted key / 암호화 키로 보고서 서명",
+                    crate::i18n::tr("Sign report with encrypted key"),
                 );
                 if self.workflows.signing {
-                    self.workflow_path_row(ui, Field::Receipt, "Signature receipt / 서명 영수증");
+                    self.workflow_path_row(
+                        ui,
+                        Field::Receipt,
+                        crate::i18n::tr("Signature receipt"),
+                    );
                 }
             }
             3 => {
-                self.workflow_path_row(ui, Field::Key, "New private key / 새 비공개 키");
-                self.workflow_path_row(ui, Field::Public, "New public key / 새 공개 키");
+                self.workflow_path_row(ui, Field::Key, crate::i18n::tr("New private key"));
+                self.workflow_path_row(ui, Field::Public, crate::i18n::tr("New public key"));
             }
             4 => {
-                self.workflow_path_row(ui, Field::Input, "File / 파일");
-                self.workflow_path_row(ui, Field::Output, "Signature JSON / 서명 JSON");
+                self.workflow_path_row(ui, Field::Input, crate::i18n::tr("File"));
+                self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Signature JSON"));
             }
             5 | 13 => {
-                self.workflow_path_row(ui, Field::Input, "Original file / 원본 파일");
-                self.workflow_path_row(ui, Field::Receipt, "Signature JSON / 서명 JSON");
-                self.workflow_path_row(ui, Field::Public, "Trusted public key / 신뢰하는 공개 키");
+                self.workflow_path_row(ui, Field::Input, crate::i18n::tr("Original file"));
+                self.workflow_path_row(ui, Field::Receipt, crate::i18n::tr("Signature JSON"));
+                self.workflow_path_row(ui, Field::Public, crate::i18n::tr("Trusted public key"));
                 ui.label(if action == 5 {
-                    "Detached signature from Sign file / 파일 서명에서 만든 분리 서명"
+                    crate::i18n::tr("Detached signature from Sign file")
                 } else {
-                    "Receipt from a signed Report / 서명된 보고서에서 만든 영수증"
+                    crate::i18n::tr("Receipt from a signed Report")
                 });
             }
             6 => {
-                ui.label("Complete bundle includes original metadata and annotations. Redaction/filter settings do not apply. Original evidence files are not included. / 전체 번들은 원본 메타데이터·주석을 포함하며 비식별화·필터는 적용하지 않습니다. 원본 근거 파일은 포함하지 않습니다.");
-                self.workflow_path_row(ui, Field::Output, "Bundle ZIP / 번들 ZIP");
-                ui.checkbox(&mut self.workflows.signing, "Sign bundle / 번들 서명");
+                ui.label(crate::i18n::tr("Complete bundle includes original metadata and annotations. Redaction/filter settings do not apply. Original evidence files are not included."));
+                self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Bundle ZIP"));
+                ui.checkbox(&mut self.workflows.signing, crate::i18n::tr("Sign bundle"));
             }
             7 | 8 => {
-                self.workflow_path_row(ui, Field::Input, "Bundle ZIP / 번들 ZIP");
+                self.workflow_path_row(ui, Field::Input, crate::i18n::tr("Bundle ZIP"));
                 ui.checkbox(
                     &mut self.workflows.trusted,
-                    "Require trusted signer / 신뢰하는 서명자 필수",
+                    crate::i18n::tr("Require trusted signer"),
                 );
                 if self.workflows.trusted {
                     self.workflow_path_row(
                         ui,
                         Field::Public,
-                        "Trusted public key / 신뢰하는 공개 키",
+                        crate::i18n::tr("Trusted public key"),
                     );
                 } else {
-                    ui.label("Checks internal consistency only; signer identity is untrusted / 내부 무결성만 검사하며 서명자는 신뢰하지 않습니다");
+                    ui.label(crate::i18n::tr(
+                        "Checks internal consistency only; signer identity is untrusted",
+                    ));
                 }
                 if action == 8 {
-                    self.workflow_path_row(ui, Field::Output, "New case path / 새 케이스 경로");
+                    self.workflow_path_row(ui, Field::Output, crate::i18n::tr("New case path"));
                 }
             }
             9 => {
-                self.workflow_path_row(ui, Field::Input, "Import source / 가져올 파일");
+                self.workflow_path_row(ui, Field::Input, crate::i18n::tr("Import source"));
                 ui.horizontal(|ui| {
-                    for (i, label) in ["JSONL", "Python case / 케이스", "Python bundle / 번들"]
-                        .iter()
-                        .enumerate()
+                    for (i, label) in [
+                        "JSONL",
+                        crate::i18n::tr("Python case"),
+                        crate::i18n::tr("Python bundle"),
+                    ]
+                    .iter()
+                    .enumerate()
                     {
                         ui.selectable_value(&mut self.workflows.format, i, *label);
                     }
@@ -311,74 +323,82 @@ impl Desktop {
                 if self.workflows.format == 2 {
                     ui.checkbox(
                         &mut self.workflows.trusted,
-                        "Require trusted signer / 신뢰하는 서명자 필수",
+                        crate::i18n::tr("Require trusted signer"),
                     );
                     if self.workflows.trusted {
                         self.workflow_path_row(
                             ui,
                             Field::Public,
-                            "Trusted public key / 신뢰하는 공개 키",
+                            crate::i18n::tr("Trusted public key"),
                         );
                     }
                 }
-                ui.label("Imports append records; existing scans remain available / 기존 스캔을 보존하고 레코드를 추가합니다");
+                ui.label(crate::i18n::tr(
+                    "Imports append records; existing scans remain available",
+                ));
             }
             10 => {
-                ui.label("Verification checks current case state and hash-chained activity. An independently retained anchor detects removed history prefixes. / 현재 상태와 해시 연결 감사 기록을 검사합니다. 별도로 보관한 앵커를 사용하면 과거 기록 잘림도 확인합니다.");
+                ui.label(crate::i18n::tr("Verification checks current case state and hash-chained activity. An independently retained anchor detects removed history prefixes."));
                 ui.checkbox(
                     &mut self.workflows.trusted,
-                    "Use retained anchor / 보관한 앵커 사용",
+                    crate::i18n::tr("Use retained anchor"),
                 );
                 if self.workflows.trusted {
-                    self.workflow_path_row(ui, Field::Input, "Anchor JSON / 앵커 JSON");
+                    self.workflow_path_row(ui, Field::Input, crate::i18n::tr("Anchor JSON"));
                 }
                 self.workflow_path_row(
                     ui,
                     Field::Output,
-                    "Save current anchor (optional) / 현재 앵커 저장(선택)",
+                    crate::i18n::tr("Save current anchor (optional)"),
                 );
                 ui.horizontal(|ui| {
-                    ui.label("Activity after sequence / 이후 활동 번호");
+                    ui.label(crate::i18n::tr("Activity after sequence"));
                     ui.add(egui::DragValue::new(&mut self.workflows.after).range(0..=i64::MAX));
                 });
             }
             11 => {
-                ui.label("Shows the current build, parser registry, bundled worker and stored scan engine. Record diagnostics remain in the inspector. / 현재 빌드·파서 목록·동봉 워커·저장된 스캔 엔진을 확인합니다. 레코드별 진단은 검사 화면에서 볼 수 있습니다.");
+                ui.label(crate::i18n::tr("Shows the current build, parser registry, bundled worker and stored scan engine. Record diagnostics remain in the inspector."));
             }
             14 | 15 => {
-                self.workflow_path_row(ui, Field::Input, "Original evidence root / 원본 근거 루트");
+                self.workflow_path_row(ui, Field::Input, crate::i18n::tr("Original evidence root"));
                 if action == 15 {
-                    self.workflow_path_row(ui, Field::Output, "Evidence ZIP / 근거 ZIP");
-                    ui.label("Original files retain their embedded metadata. Export root files only. / 원본 파일 내부의 메타데이터를 유지합니다. 루트 파일을 선택하세요.");
+                    self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Evidence ZIP"));
+                    ui.label(crate::i18n::tr(
+                        "Original files retain their embedded metadata. Export root files only.",
+                    ));
                 }
             }
             16 => {
-                self.workflow_path_row(ui, Field::Input, "Evidence ZIP / 근거 ZIP");
+                self.workflow_path_row(ui, Field::Input, crate::i18n::tr("Evidence ZIP"));
             }
             17 => {
-                ui.label("Clears cached rows only. Case, evidence and scan checkpoints are retained. / 캐시 행만 비우고 케이스·근거·체크포인트는 유지합니다.");
+                ui.label(crate::i18n::tr(
+                    "Clears cached rows only. Case, evidence and scan checkpoints are retained.",
+                ));
             }
             _ => {
-                self.workflow_path_row(ui, Field::Public, "Public key / 공개 키");
+                self.workflow_path_row(ui, Field::Public, crate::i18n::tr("Public key"));
             }
         }
         let uses_key = matches!(action, 3 | 4) || matches!(action, 2 | 6) && self.workflows.signing;
         if uses_key {
             if action != 3 {
-                self.workflow_path_row(ui, Field::Key, "Encrypted private key / 암호화 비공개 키");
+                self.workflow_path_row(ui, Field::Key, crate::i18n::tr("Encrypted private key"));
             }
             ui.horizontal(|ui| {
-                ui.label("Identity name / 서명자 이름");
+                ui.label(crate::i18n::tr("Identity name"));
                 ui.text_edit_singleline(&mut self.workflows.name);
             });
             ui.horizontal(|ui| {
-                ui.label("Key password / 키 암호");
+                ui.label(crate::i18n::tr("Key password"));
                 ui.add(egui::TextEdit::singleline(&mut *self.workflows.password).password(true));
             });
-            ui.label("Password is cleared after starting the operation / 작업 시작 후 암호 입력을 지웁니다");
+            ui.label(crate::i18n::tr(
+                "Password is cleared after starting the operation",
+            ));
         } else if action == 12 {
             ui.horizontal(|ui| {
-                ui.label("Identity name / 서명자 이름");
+                ui.label(crate::i18n::tr("Identity name"));
                 ui.text_edit_singleline(&mut self.workflows.name);
             });
         }
@@ -395,13 +415,15 @@ impl Desktop {
                     && (!requires_case || self.case.is_some())
                     && (!writable || !self.readonly)
                     && (action != 8 || switch_allowed),
-                crate::components::button("Run / 실행"),
+                crate::components::button(crate::i18n::tr("Run")),
             )
             .clicked()
         {
             self.run_workflow(ui.ctx());
         }
-        ui.label("Outputs use new paths and never overwrite existing files / 출력은 새 경로를 사용하며 기존 파일을 덮어쓰지 않습니다");
+        ui.label(crate::i18n::tr(
+            "Outputs use new paths and never overwrite existing files",
+        ));
         if let Some(result) = &self.workflows.result {
             ui.separator();
             json_view(ui, result);
@@ -463,9 +485,9 @@ impl Desktop {
         let after = self.workflows.after;
         let password = std::mem::take(&mut self.workflows.password);
         self.workflows.result = None;
-        self.task(ctx,"Running workflow / 작업 실행 중",move || {
-            let path=|f:Field|paths.get(&f.index()).ok_or_else(||io::Error::other("Required path is missing / 필요한 경로가 없습니다"));
-            let case=||workspace.as_ref().ok_or_else(||io::Error::other("Open a case / 케이스를 여세요"));
+        self.task(ctx,crate::i18n::tr("Running workflow"),move || {
+            let path=|f:Field|paths.get(&f.index()).ok_or_else(||io::Error::other(crate::i18n::tr("Required path is missing")));
+            let case=||workspace.as_ref().ok_or_else(||io::Error::other(crate::i18n::tr("Open a case")));
             let identity=||w::identity(path(Field::Key)?,&name,&password);
             let public=||if trusted {w::read_text(path(Field::Public)?,16384).map(Some)}else{Ok(None)};
             match action {
@@ -475,14 +497,14 @@ impl Desktop {
                     let case=case()?;let mut options=w::report_options(&title,&analyst)?;options.redaction=profile;
                     let baseline=if baseline.trim().is_empty(){None}else{Some(app::collect(case,&a::search::parse(&baseline,"")?)?)};
                     let signer=if signing{Some(identity()?)}else{None};
-                    if signing {let receipt=path(Field::Receipt)?;if receipt.exists() || receipt==path(Field::Output)? {return Err(io::Error::other("Use a separate new receipt path / 별도의 새 영수증 경로를 선택하세요"));}}
+                    if signing {let receipt=path(Field::Receipt)?;if receipt.exists() || receipt==path(Field::Output)? {return Err(io::Error::other(crate::i18n::tr("Use a separate new receipt path")));}}
                     let report=a::reporting::build_report(case,query.as_ref().expect("prepared query"),&options,baseline.as_deref(),None,Default::default())?;
                     let output=a::reporting::write_report(&report,path(Field::Output)?,if format==0 {a::reporting::ReportFormat::Html}else{a::reporting::ReportFormat::Json},signer.as_ref(),Default::default())?;
                     if signing {w::write_json(path(Field::Receipt)?,&output)?;}value(output)
                 },
                 3=> {
                     let key=path(Field::Key)?;let public=path(Field::Public)?;
-                    if key==public || public.exists(){return Err(io::Error::other("Use separate new key paths / 서로 다른 새 키 경로를 선택하세요"));}
+                    if key==public || public.exists(){return Err(io::Error::other(crate::i18n::tr("Use separate new key paths")));}
                     let id=s::SigningIdentity::generate(&name)?;id.save_encrypted(key,&password)?;w::write_bytes(public,id.public_pem()?.as_bytes())?;
                     value(serde_json::json!({"name":id.name(),"fingerprint":id.fingerprint(),"encrypted_private_key_saved":true}))
                 },

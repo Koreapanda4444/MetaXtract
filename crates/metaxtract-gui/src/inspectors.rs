@@ -29,7 +29,7 @@ pub struct InspectUi {
 fn shortened(s: &str, max: usize) -> String {
     let mut out = s.chars().take(max).collect::<String>();
     if s.chars().nth(max).is_some() {
-        out.push_str(" … [view truncated / 화면 생략]");
+        out.push_str(crate::i18n::tr(" … [view truncated"));
     }
     out
 }
@@ -85,7 +85,9 @@ pub fn json_view(ui: &mut egui::Ui, value: &impl serde::Serialize) {
     let truncated = serde_json::to_writer_pretty(&mut output, value).is_err();
     let mut text = String::from_utf8_lossy(&output.bytes).into_owned();
     if truncated {
-        text.push_str("\n[View truncated; complete data remains in exports / 화면 생략; 전체 값은 내보내기에 보존]");
+        text.push_str(crate::i18n::tr(
+            "\n[View truncated; complete data remains in exports",
+        ));
     }
     ui.add(
         egui::Label::new(egui::RichText::new(text).monospace())
@@ -105,12 +107,12 @@ impl Desktop {
         }
         ui.horizontal_wrapped(|ui| {
             for (label, tab) in [
-                ("Preview / 미리보기", InspectorTab::Preview),
-                ("Raw / 원본", InspectorTab::Raw),
-                ("Normalized / 정규화", InspectorTab::Normalized),
-                ("Provenance / 출처", InspectorTab::Provenance),
-                ("Conflicts / 충돌", InspectorTab::Conflicts),
-                ("Diagnostics / 진단", InspectorTab::Diagnostics),
+                (crate::i18n::tr("Preview"), InspectorTab::Preview),
+                (crate::i18n::tr("Raw"), InspectorTab::Raw),
+                (crate::i18n::tr("Normalized"), InspectorTab::Normalized),
+                (crate::i18n::tr("Provenance"), InspectorTab::Provenance),
+                (crate::i18n::tr("Conflicts"), InspectorTab::Conflicts),
+                (crate::i18n::tr("Diagnostics"), InspectorTab::Diagnostics),
             ] {
                 ui.selectable_value(&mut self.inspect.tab, tab, label);
             }
@@ -124,7 +126,7 @@ impl Desktop {
             InspectorTab::Preview => {}
             InspectorTab::Raw => {
                 ui.horizontal(|ui| {
-                    ui.label("Find namespace or tag / 네임스페이스·태그 찾기");
+                    ui.label(crate::i18n::tr("Find namespace or tag"));
                     ui.text_edit_singleline(&mut self.inspect.filter);
                 });
                 if self.inspect.filter != self.inspect.cached_filter {
@@ -181,7 +183,7 @@ impl Desktop {
                     .and_then(|i| record.observations.get(i))
                 {
                     ui.separator();
-                    ui.strong("Original value and decoding / 원본 값과 디코딩");
+                    ui.strong(crate::i18n::tr("Original value and decoding"));
                     match &o.raw_value {
                         RawValue::Bytes(bytes) => {
                             ui.monospace(format!(
@@ -197,15 +199,17 @@ impl Desktop {
                         v => json_view(ui, v),
                     }
                     if let Some(value) = &o.interpreted_value {
-                        ui.label("Interpreted alongside original / 원본과 함께 보존한 해석");
+                        ui.label(crate::i18n::tr("Interpreted alongside original"));
                         json_view(ui, value);
                     }
-                    ui.label("Provenance / 출처");
+                    ui.label(crate::i18n::tr("Provenance"));
                     json_view(ui, &o.provenance);
                 }
             }
             InspectorTab::Normalized => {
-                ui.label("Derived claims retain confidence, alternatives and raw observation links. / 정규화한 해석에도 신뢰도·대안·원본 관측 연결을 보존합니다.");
+                ui.label(crate::i18n::tr(
+                    "Derived claims retain confidence, alternatives and raw observation links.",
+                ));
                 egui::ScrollArea::vertical()
                     .id_salt("normalized-fields")
                     .max_height(240.0)
@@ -239,13 +243,13 @@ impl Desktop {
                 }
             }
             InspectorTab::Provenance => {
-                ui.label("Source identity / 원본 식별 정보");
+                ui.label(crate::i18n::tr("Source identity"));
                 json_view(ui, &record.source);
                 json_view(ui, &record.digests);
                 if ui
                     .add_enabled(
                         !self.busy,
-                        crate::components::button("Resolve field lineage / 필드 출처 연결"),
+                        crate::components::button(crate::i18n::tr("Resolve field lineage")),
                     )
                     .clicked()
                 {
@@ -253,7 +257,7 @@ impl Desktop {
                     let id = self.records.focused.as_ref().expect("focused record").0;
                     self.task(
                         ui.ctx(),
-                        "Resolving provenance / 출처 연결",
+                        crate::i18n::tr("Resolving provenance"),
                         move || {
                             app::analysis::provenance::field_lineage(&record, Default::default())
                         },
@@ -295,7 +299,7 @@ impl Desktop {
             }
             InspectorTab::Conflicts => {
                 if record.conflicts.is_empty() {
-                    ui.label("No recorded claim conflicts. / 기록된 해석 충돌이 없습니다.");
+                    ui.label(crate::i18n::tr("No recorded claim conflicts."));
                 }
                 egui::ScrollArea::vertical()
                     .id_salt("claim-conflicts")
@@ -327,7 +331,7 @@ impl Desktop {
                     ui.horizontal_wrapped(|ui| {
                         for id in conflict.alternatives.iter().take(64) {
                             if ui
-                                .small_button(format!("Claim / 해석 #{}", id.get()))
+                                .small_button(crate::textf!("Claim #{}", "해석 #{}", id.get()))
                                 .clicked()
                             {
                                 self.inspect.selected_claim =
@@ -339,9 +343,13 @@ impl Desktop {
                 }
             }
             InspectorTab::Diagnostics => {
-                ui.label(format!("Record status / 레코드 상태: {:?}", record.status));
+                ui.label(crate::textf!(
+                    "Record status: {:?}",
+                    "레코드 상태: {:?}",
+                    record.status
+                ));
                 if record.diagnostics.is_empty() {
-                    ui.label("No retained diagnostics. / 보존된 진단이 없습니다.");
+                    ui.label(crate::i18n::tr("No retained diagnostics."));
                 }
                 egui::ScrollArea::vertical()
                     .id_salt("record-diagnostics")

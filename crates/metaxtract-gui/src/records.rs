@@ -83,25 +83,51 @@ impl Desktop {
         };
         query.records.order = self.records.order;
         self.records.refresh = false;
-        self.task(ctx,"Loading results / 결과 읽기",move||{
-            let (page,restarted)=match case.search_records(&query,cursor.as_ref(),64){
-                Ok(page)=>(page,false),Err(e)if cursor.is_some()&&e.kind()==io::ErrorKind::InvalidData=>(case.search_records(&query,None,64)?,true),Err(e)=>return Err(e),
-            };
-            let total=case.count_search(&query)?;let revision=case.info()?.revision;
-            Ok((page,total,revision,query,cursor,restarted))
-        },move|app,(page,total,revision,query,cursor,restarted)|{
-            if restarted||direction==0{app.records.back.clear();app.records.cursor=None;}
-            else if direction>0{app.records.back.push(app.records.cursor.take());app.records.cursor=cursor;}
-            else{app.records.back.pop();app.records.cursor=cursor;}
-            app.records.query=Some(query);app.records.headers=page.items;app.records.next=page.next;app.records.total=total;app.records.revision=revision;app.records.loaded=Instant::now();
-            if restarted{app.status="Case changed; results restarted at the first page. / 케이스가 변경되어 첫 페이지로 돌아왔습니다.".into();}
-        });
+        self.task(
+            ctx,
+            crate::i18n::tr("Loading results"),
+            move || {
+                let (page, restarted) = match case.search_records(&query, cursor.as_ref(), 64) {
+                    Ok(page) => (page, false),
+                    Err(e) if cursor.is_some() && e.kind() == io::ErrorKind::InvalidData => {
+                        (case.search_records(&query, None, 64)?, true)
+                    }
+                    Err(e) => return Err(e),
+                };
+                let total = case.count_search(&query)?;
+                let revision = case.info()?.revision;
+                Ok((page, total, revision, query, cursor, restarted))
+            },
+            move |app, (page, total, revision, query, cursor, restarted)| {
+                if restarted || direction == 0 {
+                    app.records.back.clear();
+                    app.records.cursor = None;
+                } else if direction > 0 {
+                    app.records.back.push(app.records.cursor.take());
+                    app.records.cursor = cursor;
+                } else {
+                    app.records.back.pop();
+                    app.records.cursor = cursor;
+                }
+                app.records.query = Some(query);
+                app.records.headers = page.items;
+                app.records.next = page.next;
+                app.records.total = total;
+                app.records.revision = revision;
+                app.records.loaded = Instant::now();
+                if restarted {
+                    app.status =
+                        crate::i18n::tr("Case changed; results restarted at the first page.")
+                            .into();
+                }
+            },
+        );
     }
     fn focus_record(&mut self, ctx: &egui::Context, id: i64) {
         if let Some(case) = self.case.clone() {
             self.task(
                 ctx,
-                "Loading record / 레코드 읽기",
+                crate::i18n::tr("Loading record"),
                 move || {
                     let r = case
                         .record(id)?
@@ -144,7 +170,7 @@ impl Desktop {
         match app::workflows::selected_query(&scan, &self.records.selected) {
             Ok(q) => self.task(
                 ctx,
-                "Exporting selection / 선택 내보내기",
+                crate::i18n::tr("Exporting selection"),
                 move || {
                     app::analysis::export::export_records(
                         &case,
@@ -160,34 +186,32 @@ impl Desktop {
                     )
                 },
                 |app, r| {
-                    app.status = format!(
-                        "Exported {} records / {}개 레코드 내보냄",
-                        r.records, r.records
-                    )
+                    app.status =
+                        crate::textf!("Exported {} records", "{}개 레코드 내보냄", r.records)
                 },
             ),
             Err(e) => self.status = e.to_string(),
         }
     }
     pub fn records_view(&mut self, ui: &mut egui::Ui) {
-        crate::components::heading(ui, "Evidence records / 증거 레코드");
+        crate::components::heading(ui, crate::i18n::tr("Evidence records"));
         if self.active_scan.is_none() {
-            ui.label("Choose a scan in Case history. / 케이스 기록에서 스캔을 선택하세요.");
+            ui.label(crate::i18n::tr("Choose a scan in Case history."));
             return;
         }
         ui.horizontal_wrapped(|ui| {
             let before = self.records.order;
             for (label, order) in [
-                ("Path ↑ / 경로", RecordOrder::Path),
-                ("Size ↑ / 크기", RecordOrder::Size),
-                ("Discovery ↑ / 발견 순", RecordOrder::Insertion),
+                (crate::i18n::tr("Path ↑"), RecordOrder::Path),
+                (crate::i18n::tr("Size ↑"), RecordOrder::Size),
+                (crate::i18n::tr("Discovery ↑"), RecordOrder::Insertion),
             ] {
                 ui.selectable_value(&mut self.records.order, order, label);
             }
             if before != self.records.order {
                 self.records.refresh = true;
             }
-            if ui.button("Refresh / 새로 고침").clicked() {
+            if ui.button(crate::i18n::tr("Refresh")).clicked() {
                 self.records.refresh = true;
             }
             ui.label(format!(
@@ -201,7 +225,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy && !self.records.back.is_empty(),
-                    crate::components::button("Previous / 이전"),
+                    crate::components::button(crate::i18n::tr("Previous")),
                 )
                 .clicked()
             {
@@ -210,13 +234,13 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy && self.records.next.is_some(),
-                    crate::components::button("Next / 다음"),
+                    crate::components::button(crate::i18n::tr("Next")),
                 )
                 .clicked()
             {
                 self.load_records(ui.ctx(), self.records.next.clone(), 1);
             }
-            if ui.button("Select page / 페이지 선택").clicked() {
+            if ui.button(crate::i18n::tr("Select page")).clicked() {
                 for h in &self.records.headers {
                     if self.records.selected.len() == 64 {
                         break;
@@ -224,7 +248,7 @@ impl Desktop {
                     self.records.selected.insert(h.id);
                 }
             }
-            if ui.button("Clear selection / 선택 해제").clicked() {
+            if ui.button(crate::i18n::tr("Clear selection")).clicked() {
                 self.records.selected.clear();
             }
         });
@@ -238,10 +262,10 @@ impl Desktop {
                     .min_row_height(27.0)
                     .show(ui, |ui| {
                         ui.label("✓");
-                        ui.strong("Path / 경로");
+                        ui.strong(crate::i18n::tr("Path"));
                         ui.strong("MIME");
-                        ui.strong("Bytes / 크기");
-                        ui.strong("Status / 상태");
+                        ui.strong(crate::i18n::tr("Bytes"));
+                        ui.strong(crate::i18n::tr("Status"));
                         ui.end_row();
                         for h in &self.records.headers {
                             let mut selected = self.records.selected.contains(&h.id);
@@ -289,8 +313,11 @@ impl Desktop {
         ui.separator();
         ui.horizontal_wrapped(|ui| {
             for (label, purpose) in [
-                ("Selected CSV / 선택 CSV", crate::files::Purpose::Csv),
-                ("Selected JSONL / 선택 JSONL", crate::files::Purpose::Jsonl),
+                (crate::i18n::tr("Selected CSV"), crate::files::Purpose::Csv),
+                (
+                    crate::i18n::tr("Selected JSONL"),
+                    crate::files::Purpose::Jsonl,
+                ),
             ] {
                 if ui
                     .add_enabled(
@@ -302,16 +329,18 @@ impl Desktop {
                     self.picker = Some(crate::files::Picker::new(purpose));
                 }
             }
-            ui.label("Selection limit: 64 · checkboxes or Ctrl/Cmd+click / 최대 64개 선택");
+            ui.label(crate::i18n::tr(
+                "Selection limit: 64 · checkboxes or Ctrl/Cmd+click",
+            ));
         });
-        ui.collapsing("Annotations / 주석", |ui| {
-            ui.label("Note and comma-separated tags / 노트와 쉼표로 구분한 태그");
+        ui.collapsing(crate::i18n::tr("Annotations"), |ui| {
+            ui.label(crate::i18n::tr("Note and comma-separated tags"));
             ui.text_edit_singleline(&mut self.records.note);
             ui.text_edit_singleline(&mut self.records.tags);
             if ui
                 .add_enabled(
                     !self.busy && !self.readonly && !self.records.selected.is_empty(),
-                    crate::components::button("Replace selected annotations / 선택 주석 교체"),
+                    crate::components::button(crate::i18n::tr("Replace selected annotations")),
                 )
                 .clicked()
             {
@@ -328,11 +357,12 @@ impl Desktop {
                         .collect::<Vec<_>>();
                     self.task(
                         ui.ctx(),
-                        "Saving annotations / 주석 저장",
+                        crate::i18n::tr("Saving annotations"),
                         move || case.annotate_many(&ids, &note, &tags),
                         |app, n| {
                             app.records.refresh = true;
-                            app.status = format!("Updated {n} annotations / 주석 {n}개 저장");
+                            app.status =
+                                crate::textf!("Updated {n} annotations", "주석 {n}개 저장");
                         },
                     );
                 }

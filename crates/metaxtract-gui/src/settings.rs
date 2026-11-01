@@ -2,9 +2,11 @@ use metaxtract_app::{self as app, core::scan::NativePath};
 use serde::{Deserialize, Serialize};
 use std::{io, path::PathBuf};
 #[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub recent: Vec<NativePath>,
     pub korean: bool,
+    pub language: Option<crate::i18n::Language>,
 }
 fn path() -> io::Result<PathBuf> {
     let base = if cfg!(target_os = "windows") {

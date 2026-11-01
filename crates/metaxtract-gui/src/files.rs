@@ -54,7 +54,10 @@ impl Picker {
                 .sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
             if self.entries.len() > 1000 {
                 self.entries.truncate(1000);
-                self.error="Showing the first 1,000 entries. Enter a path to reach other items. / 처음 1,000개만 표시합니다. 다른 항목은 경로를 입력하세요.".into();
+                self.error = crate::i18n::tr(
+                    "Showing the first 1,000 entries. Enter a path to reach other items.",
+                )
+                .into();
             } else {
                 self.error.clear();
             }
@@ -67,21 +70,21 @@ impl Picker {
     pub fn show(&mut self, ctx: &egui::Context) -> (bool, Option<PathBuf>) {
         let mut open = true;
         let mut chosen = None;
-        crate::components::modal("Choose path / 경로 선택")
+        crate::components::modal(crate::i18n::tr("Choose path"))
             .id(egui::Id::new("path-picker"))
             .default_size([720.0, 490.0])
             .collapsible(false)
             .open(&mut open)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    if ui.button("Parent / 상위").clicked() {
+                    if ui.button(crate::i18n::tr("Parent")).clicked() {
                         if let Some(p) = self.current.parent() {
                             self.current = p.to_owned();
                             self.reload();
                         }
                     }
                     ui.text_edit_singleline(&mut self.location);
-                    if ui.button("Go / 이동").clicked() {
+                    if ui.button(crate::i18n::tr("Go")).clicked() {
                         self.current = PathBuf::from(&self.location);
                         self.reload();
                     }
@@ -110,19 +113,19 @@ impl Picker {
                     self.name.clear();
                     self.reload();
                 }
-                ui.label("Name or full path / 이름 또는 전체 경로");
+                ui.label(crate::i18n::tr("Name or full path"));
                 if ui.text_edit_singleline(&mut self.name).changed() {
                     self.selected = None;
                 }
                 ui.colored_label(egui::Color32::LIGHT_RED, &self.error);
                 if matches!(self.purpose, Purpose::Source)
                     && ui
-                        .button("Select this directory / 현재 폴더 선택")
+                        .button(crate::i18n::tr("Select this directory"))
                         .clicked()
                 {
                     chosen = Some(self.current.clone());
                 }
-                if ui.button("Choose / 선택").clicked() {
+                if ui.button(crate::i18n::tr("Choose")).clicked() {
                     let path = self
                         .selected
                         .clone()

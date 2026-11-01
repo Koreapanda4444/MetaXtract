@@ -109,7 +109,7 @@ impl Desktop {
             };
             self.task(
                 ctx,
-                "Loading filters / 필터 읽기",
+                crate::i18n::tr("Loading filters"),
                 move || case.filters(after.as_deref(), 128),
                 |app, filters| app.search.filters = filters,
             );
@@ -117,25 +117,27 @@ impl Desktop {
     }
     pub fn search_view(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.search.compare, false, "Search / 검색");
-            ui.selectable_value(&mut self.search.compare, true, "Compare scans / 스캔 비교");
+            ui.selectable_value(&mut self.search.compare, false, crate::i18n::tr("Search"));
+            ui.selectable_value(
+                &mut self.search.compare,
+                true,
+                crate::i18n::tr("Compare scans"),
+            );
         });
         ui.separator();
         if self.search.compare {
             self.comparison_view(ui);
             return;
         }
-        crate::components::heading(ui, "Structured metadata search / 구조화 메타데이터 검색");
+        crate::components::heading(ui, crate::i18n::tr("Structured metadata search"));
         if self.active_scan.is_none() {
-            ui.label("Select a scan first. / 스캔을 먼저 선택하세요.");
+            ui.label(crate::i18n::tr("Select a scan first."));
             return;
         }
-        ui.label(
-            "Examples / 예: mime:png size>1000 -status=Failed claim.image.width>=1920 tag:review",
-        );
+        ui.label(crate::i18n::tr("Examples"));
         let toggle = ui.checkbox(
             &mut self.search.advanced,
-            "Typed query JSON (AND/OR/NOT) / 구조화 쿼리 JSON",
+            crate::i18n::tr("Typed query JSON (AND/OR/NOT)"),
         );
         if toggle.changed() && self.search.advanced {
             match app::analysis::search::parse(
@@ -160,7 +162,10 @@ impl Desktop {
         }
         ui.horizontal(|ui| {
             if ui
-                .add_enabled(!self.busy, crate::components::button("Apply / 적용"))
+                .add_enabled(
+                    !self.busy,
+                    crate::components::button(crate::i18n::tr("Apply")),
+                )
                 .clicked()
             {
                 match self.search_query() {
@@ -171,14 +176,14 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy,
-                    crate::components::button("Summarize matches / 검색 집계"),
+                    crate::components::button(crate::i18n::tr("Summarize matches")),
                 )
                 .clicked()
             {
                 match (self.case.clone(), self.search_query()) {
                     (Some(case), Ok(q)) => self.task(
                         ui.ctx(),
-                        "Counting search facets / 검색 집계",
+                        crate::i18n::tr("Counting search facets"),
                         move || {
                             let revision = case.info()?.revision;
                             let mut facets = vec![];
@@ -221,13 +226,13 @@ impl Desktop {
             );
         }
         ui.separator();
-        crate::components::heading(ui, "Saved filters / 저장 필터");
+        crate::components::heading(ui, crate::i18n::tr("Saved filters"));
         ui.horizontal(|ui| {
             ui.text_edit_singleline(&mut self.search.name);
             if ui
                 .add_enabled(
                     !self.busy && !self.readonly && !self.search.name.is_empty(),
-                    crate::components::button("Save current / 현재 필터 저장"),
+                    crate::components::button(crate::i18n::tr("Save current")),
                 )
                 .clicked()
             {
@@ -236,7 +241,7 @@ impl Desktop {
                         let name = self.search.name.clone();
                         self.task(
                             ui.ctx(),
-                            "Saving filter / 필터 저장",
+                            crate::i18n::tr("Saving filter"),
                             move || {
                                 case.save_filter(&name, &FilterQuery::Structured(q))?;
                                 Ok((case.info()?, case.filters(None, 128)?))
@@ -252,7 +257,10 @@ impl Desktop {
                 }
             }
             if ui
-                .add_enabled(!self.busy, crate::components::button("Reload / 다시 읽기"))
+                .add_enabled(
+                    !self.busy,
+                    crate::components::button(crate::i18n::tr("Reload")),
+                )
                 .clicked()
             {
                 self.refresh_filters(ui.ctx(), false);
@@ -260,7 +268,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy && self.search.filters.len() == 128,
-                    crate::components::button("More / 더 보기"),
+                    crate::components::button(crate::i18n::tr("More")),
                 )
                 .clicked()
             {
@@ -281,7 +289,7 @@ impl Desktop {
                     if ui
                         .add_enabled(
                             !self.busy && !self.readonly,
-                            crate::components::button("Delete / 삭제"),
+                            crate::components::button(crate::i18n::tr("Delete")),
                         )
                         .clicked()
                     {
@@ -298,7 +306,7 @@ impl Desktop {
         for filter in &self.search.filters {
             if matches!(filter.query, FilterQuery::Legacy { .. }) {
                 ui.collapsing(
-                    format!("Legacy criteria / 이전 조건 · {}", filter.name),
+                    crate::textf!("Legacy criteria · {}", "이전 조건 · {}", filter.name),
                     |ui| json_view(ui, &filter.query),
                 );
             }
@@ -306,7 +314,7 @@ impl Desktop {
         if let (Some(name), Some(case)) = (remove, self.case.clone()) {
             self.task(
                 ui.ctx(),
-                "Removing filter / 필터 삭제",
+                crate::i18n::tr("Removing filter"),
                 move || {
                     case.remove_filter(&name)?;
                     Ok((case.info()?, case.filters(None, 128)?))
@@ -319,7 +327,7 @@ impl Desktop {
         }
     }
     fn comparison_view(&mut self, ui: &mut egui::Ui) {
-        crate::components::heading(ui, "Scan comparison / 스캔 비교");
+        crate::components::heading(ui, crate::i18n::tr("Scan comparison"));
         if self.search.before.is_empty() {
             self.search.before = self
                 .scans
@@ -331,19 +339,19 @@ impl Desktop {
         if self.search.after.is_empty() {
             self.search.after = self.active_scan.clone().unwrap_or_default();
         }
-        ui.label("Scan IDs (available in Case history) / 케이스 기록의 스캔 ID");
+        ui.label(crate::i18n::tr("Scan IDs (available in Case history)"));
         ui.horizontal(|ui| {
-            ui.label("Before / 이전");
+            ui.label(crate::i18n::tr("Before"));
             ui.text_edit_singleline(&mut self.search.before);
-            ui.label("After / 이후");
+            ui.label(crate::i18n::tr("After"));
             ui.text_edit_singleline(&mut self.search.after);
         });
-        ui.label("Optional shared search restriction / 두 스캔에 공통으로 적용할 검색 조건");
+        ui.label(crate::i18n::tr("Optional shared search restriction"));
         ui.text_edit_singleline(&mut self.search.text);
         if ui
             .add_enabled(
                 !self.busy && !self.scan.running(),
-                crate::components::button("Compare / 비교"),
+                crate::components::button(crate::i18n::tr("Compare")),
             )
             .clicked()
         {
@@ -354,7 +362,7 @@ impl Desktop {
                 let scope = (before.clone(), after.clone(), text.clone());
                 self.task(
                     ui.ctx(),
-                    "Comparing scans / 스캔 비교",
+                    crate::i18n::tr("Comparing scans"),
                     move || {
                         let revision = case.info()?.revision;
                         if case.scan_info(&before)?.is_none() || case.scan_info(&after)?.is_none() {
@@ -388,11 +396,14 @@ impl Desktop {
             }
         }
         if self.scan.running() {
-            ui.label("Pause the active scan for a stable comparison. / 일관된 비교를 위해 진행 중인 스캔을 정지하세요.");
+            ui.label(crate::i18n::tr(
+                "Pause the active scan for a stable comparison.",
+            ));
         }
         if let Some(diff) = &self.search.comparison {
-            ui.label(format!(
-                "Compared / 비교한 스캔: {} → {} · query {:?}",
+            ui.label(crate::textf!(
+                "Compared: {} → {} · query {:?}",
+                "비교한 스캔: {} → {} · 조건 {:?}",
                 self.search.comparison_scope.0,
                 self.search.comparison_scope.1,
                 self.search.comparison_scope.2
@@ -407,10 +418,10 @@ impl Desktop {
             ));
             ui.horizontal(|ui| {
                 for (i, label) in [
-                    "Changed / 변경",
-                    "Added / 추가",
-                    "Removed / 삭제",
-                    "Moved / 이동",
+                    crate::i18n::tr("Changed"),
+                    crate::i18n::tr("Added"),
+                    crate::i18n::tr("Removed"),
+                    crate::i18n::tr("Moved"),
                 ]
                 .iter()
                 .enumerate()
@@ -476,16 +487,15 @@ impl Desktop {
                             .and_then(|i| record.fields.get(i))
                         {
                             ui.columns(2, |columns| {
-                                columns[0].strong("Before / 이전");
+                                columns[0].strong(crate::i18n::tr("Before"));
                                 json_view(&mut columns[0], &field.before);
-                                columns[1].strong("After / 이후");
+                                columns[1].strong(crate::i18n::tr("After"));
                                 json_view(&mut columns[1], &field.after);
                             });
                         }
-                        ui.collapsing(
-                            "Semantic claim changes / 의미 단위 해석 변경",
-                            |ui| json_view(ui, &record.claims),
-                        );
+                        ui.collapsing(crate::i18n::tr("Semantic claim changes"), |ui| {
+                            json_view(ui, &record.claims)
+                        });
                     }
                 }
                 1 | 2 => {

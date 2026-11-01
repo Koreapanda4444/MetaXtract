@@ -17,6 +17,12 @@ impl Desktop {
         smoke: bool,
         korean: bool,
     ) -> Self {
+        let settings = Settings::load();
+        crate::i18n::set(
+            settings
+                .language
+                .unwrap_or_else(crate::i18n::system_language),
+        );
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         crate::components::apply(&cc.egui_ctx);
         let (sender, receiver) = tasks::channel();
@@ -35,11 +41,11 @@ impl Desktop {
             history_next: None,
             active_scan: None,
             notes: String::new(),
-            title: "Investigation / 조사".into(),
+            title: crate::i18n::tr("Investigation").into(),
             picker: None,
-            settings: Settings::load(),
+            settings,
             status: if korean {
-                "Ready / 준비됨".into()
+                crate::i18n::tr("Ready").into()
             } else {
                 "Ready. Korean font not found; install Noto Sans CJK or set METAXTRACT_FONT_PATH."
                     .into()
@@ -64,8 +70,7 @@ impl Desktop {
         apply: impl FnOnce(&mut Desktop, T) + Send + 'static,
     ) {
         if self.busy {
-            self.status =
-                "Finish the current operation first. / 현재 작업이 끝난 후 실행하세요.".into();
+            self.status = crate::i18n::tr("Finish the current operation first.").into();
             return;
         }
         self.busy = true;
@@ -79,7 +84,7 @@ impl Desktop {
                     .unwrap_or_else(|_| Err(io::Error::other("background operation panicked")));
                 let _ = sender.send(Box::new(move |app| match result {
                     Ok(v) => {
-                        app.status = "Completed / 완료".into();
+                        app.status = crate::i18n::tr("Completed").into();
                         apply(app, v);
                     }
                     Err(e) => app.status = e.to_string(),
@@ -123,7 +128,7 @@ impl Desktop {
         let title = self.title.clone();
         self.task(
             ctx,
-            "Opening case / 케이스 열기",
+            crate::i18n::tr("Opening case"),
             move || {
                 let case = Arc::new(if create {
                     CaseWorkspace::create(&path, &title)?
@@ -155,7 +160,7 @@ impl Desktop {
                 if let Some(case) = self.case.clone() {
                     self.task(
                         ctx,
-                        "Copying case / 케이스 복사",
+                        crate::i18n::tr("Copying case"),
                         move || {
                             let temporary = tempfile::tempdir()?;
                             let bundle = temporary.path().join("copy.zip");

@@ -32,7 +32,7 @@ pub fn status(ui: &mut egui::Ui, text: &str, busy: bool) {
         if busy {
             ui.spinner();
         }
-        ui.label(text);
+        ui.label(crate::i18n::bilingual(text));
     });
 }
 
