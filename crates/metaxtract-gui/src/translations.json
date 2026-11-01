@@ -354,5 +354,13 @@
   "Height": "세로",
   "Duration": "재생 시간",
   "Missing metadata is not inferred. Conflicting values remain available with their evidence.": "없는 메타데이터를 추정해 채우지 않습니다. 서로 다른 값은 근거와 함께 보존합니다.",
-  "Select a file to inspect metadata and preview it.": "파일을 선택하면 메타데이터와 미리보기를 확인할 수 있습니다."
+  "Select a file to inspect metadata and preview it.": "파일을 선택하면 메타데이터와 미리보기를 확인할 수 있습니다.",
+  "Audio": "오디오",
+  "Video and media": "영상·미디어",
+  "Document": "문서",
+  "Archive": "압축파일",
+  "Image": "이미지",
+  "Font": "글꼴",
+  "Executable": "실행파일",
+  "General": "일반"
 }

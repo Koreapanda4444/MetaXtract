@@ -20,6 +20,7 @@ pub struct InspectUi {
     filter: String,
     cached_filter: String,
     raw_indices: Vec<usize>,
+    groups: Vec<(String, Vec<usize>)>,
     selected_raw: Option<usize>,
     selected_claim: Option<usize>,
     selected_conflict: Option<usize>,
@@ -34,7 +35,7 @@ fn shortened(s: &str, max: usize) -> String {
     }
     out
 }
-fn raw_brief(v: &RawValue) -> String {
+pub(crate) fn raw_brief(v: &RawValue) -> String {
     match v {
         RawValue::Null => "null".into(),
         RawValue::Bool(v) => v.to_string(),
@@ -105,6 +106,7 @@ impl Desktop {
             self.inspect = InspectUi::default();
             self.inspect.record = Some(*id);
             self.inspect.raw_indices = (0..record.observations.len()).collect();
+            self.inspect.groups = crate::categories::groups(record);
         }
         ui.horizontal_wrapped(|ui| {
             for (label, tab) in [
@@ -125,7 +127,49 @@ impl Desktop {
         }
         let (_, record) = self.records.focused.as_ref().expect("focused record");
         match self.inspect.tab {
-            InspectorTab::Summary => crate::summary::overview(ui, record),
+            InspectorTab::Summary => {
+                crate::summary::overview(ui, record);
+                ui.separator();
+                for (category, indices) in &self.inspect.groups {
+                    egui::CollapsingHeader::new(format!(
+                        "{} · {}",
+                        crate::i18n::tr(category),
+                        indices.len()
+                    ))
+                    .id_salt(("semantic-group", category))
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt(category)
+                            .max_height(240.0)
+                            .show_rows(ui, 26.0, indices.len(), |ui, range| {
+                                for &index in &indices[range] {
+                                    let observation = &record.observations[index];
+                                    let name =
+                                        observation.tag.name.clone().unwrap_or_else(|| {
+                                            format!("{:?}", observation.tag.code)
+                                        });
+                                    let text =
+                                        format!("{} = {}", name, raw_brief(&observation.raw_value));
+                                    if ui
+                                        .add_sized(
+                                            [ui.available_width(), 24.0],
+                                            egui::Button::selectable(
+                                                self.inspect.selected_raw == Some(index),
+                                                text,
+                                            )
+                                            .truncate(),
+                                        )
+                                        .on_hover_text(&observation.tag.namespace)
+                                        .clicked()
+                                    {
+                                        self.inspect.selected_raw = Some(index);
+                                        self.inspect.tab = InspectorTab::Raw;
+                                    }
+                                }
+                            });
+                    });
+                }
+            }
             InspectorTab::Preview => {}
             InspectorTab::Raw => {
                 ui.horizontal(|ui| {
