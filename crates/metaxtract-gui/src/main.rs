@@ -4,6 +4,7 @@ mod analysis;
 mod application;
 mod components;
 mod desktop;
+mod file_actions;
 mod files;
 mod formatting;
 mod i18n;

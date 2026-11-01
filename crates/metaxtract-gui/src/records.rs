@@ -12,6 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 pub struct RecordsUi {
+    pub action: Option<crate::file_actions::FileAction>,
     pub query: Option<SearchQuery>,
     pub headers: Vec<RecordHeader>,
     pub next: Option<PageCursor>,
@@ -33,6 +34,7 @@ pub struct RecordsUi {
 impl Default for RecordsUi {
     fn default() -> Self {
         Self {
+            action: None,
             query: None,
             headers: vec![],
             next: None,
@@ -360,6 +362,9 @@ impl Desktop {
                         });
                 }
             });
+        if let Some(action) = self.records.action.take() {
+            self.file_action(ui.ctx(), action);
+        }
         if let Some(id) = focus {
             self.focus_record(ui.ctx(), id);
         }
@@ -437,6 +442,17 @@ impl Desktop {
                                 let name = h.path.rsplit('/').next().unwrap_or(&h.path);
                                 let row = ui.add_sized([210.0,24.0], egui::Button::selectable(focused,name).truncate());
                                 if row.clicked() { focus = Some(h.id); }
+                                row.clone().context_menu(|ui| {
+                                    ui.add_enabled_ui(!self.busy, |ui| {
+                                        for (label,action) in [("Show file details",crate::file_actions::FileAction::Inspect(h.id)),("Copy path",crate::file_actions::FileAction::CopyPath(h.path.clone())),("Export CSV",crate::file_actions::FileAction::Export(h.id,true)),("Export JSONL",crate::file_actions::FileAction::Export(h.id,false))] {
+                                            if ui.button(crate::i18n::tr(label)).clicked() {self.records.action=Some(action); ui.close();}
+                                        }
+                                        if !self.readonly && ui.button(crate::i18n::tr("Analyze selected again")).clicked() {
+                                            let ids=if self.records.selected.contains(&h.id) {self.records.selected.iter().copied().collect()} else {vec![h.id]};
+                                            self.records.action=Some(crate::file_actions::FileAction::Reanalyze(ids)); ui.close();
+                                        }
+                                    });
+                                });
                                 row.on_hover_text(&h.path);
                                 ui.add_sized([115.0,24.0],egui::Label::new(&h.mime).truncate()).on_hover_text(&h.mime);
                                 ui.add_sized([90.0,24.0],egui::Label::new(crate::formatting::bytes(h.size_bytes))).on_hover_text(h.size_bytes.to_string());

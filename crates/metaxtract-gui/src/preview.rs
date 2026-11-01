@@ -56,10 +56,8 @@ impl Desktop {
                 let result =
                     app::preview::source_candidate(&case, &scan, &record).and_then(|path| {
                         let path = path.canonicalize()?;
-                        let authorized = authorized_sources
-                            .iter()
-                            .filter_map(|root| root.to_path().ok())
-                            .any(|root| path == root || (root.is_dir() && path.starts_with(root)));
+                        let authorized =
+                            crate::file_actions::authorized(&path, &authorized_sources);
                         if !authorized {
                             return Err(std::io::Error::other(crate::i18n::tr(
                                 "Select this source once to authorize automatic previews.",

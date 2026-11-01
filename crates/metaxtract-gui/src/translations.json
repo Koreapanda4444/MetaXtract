@@ -338,5 +338,10 @@
   "No grouping": "그룹 없음",
   "Group by type": "유형별 그룹",
   "Group by status": "상태별 그룹",
-  "Groups contain the current page; sorting applies to the entire result.": "그룹은 현재 페이지 항목을 표시하며 정렬은 전체 결과에 적용합니다."
+  "Groups contain the current page; sorting applies to the entire result.": "그룹은 현재 페이지 항목을 표시하며 정렬은 전체 결과에 적용합니다.",
+  "Copy path": "경로 복사",
+  "Export CSV": "CSV 내보내기",
+  "Export JSONL": "JSONL 내보내기",
+  "Analyze selected again": "선택 파일 다시 분석",
+  "Resolving original sources": "원본 경로 확인 중"
 }
