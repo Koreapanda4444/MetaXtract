@@ -308,5 +308,6 @@
   "Favorites": "즐겨찾기",
   "Recent files and folders": "최근 파일·폴더",
   "Select this source once to authorize automatic previews.": "이 원본을 한 번 선택하면 이후 자동 미리보기를 허용합니다.",
-  "Too many inputs; only the first 1024 were processed.": "입력이 너무 많아 처음 1,024개만 처리했습니다."
+  "Too many inputs; only the first 1024 were processed.": "입력이 너무 많아 처음 1,024개만 처리했습니다.",
+  "Working": "작업 중"
 }

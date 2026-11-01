@@ -180,6 +180,12 @@ impl eframe::App for Desktop {
                     });
                 if language != crate::i18n::language() {
                     crate::i18n::set(language);
+                    self.status = crate::i18n::tr(if self.busy || self.scan.running() {
+                        "Working"
+                    } else {
+                        "Ready"
+                    })
+                    .into();
                     self.settings.language = Some(language);
                     if let Err(error) = self.settings.save() {
                         self.status = error.to_string();
@@ -249,11 +255,11 @@ impl eframe::App for Desktop {
                 }
             });
         });
-        egui::SidePanel::left("navigation")
+        let navigation = egui::SidePanel::left("navigation")
             .default_width(self.settings.workspace.navigation_width.clamp(150.0, 360.0))
+            .width_range(150.0..=360.0)
             .resizable(true)
             .show(ctx, |ui| {
-                self.settings.workspace.navigation_width = ui.available_width();
                 ui.add_space(12.0);
                 ui.label(crate::i18n::tr("WORKSPACE"));
                 ui.selectable_value(&mut self.tab, Tab::Case, crate::i18n::tr("Case"));
@@ -277,6 +283,7 @@ impl eframe::App for Desktop {
                     ui.label(scan);
                 }
             });
+        self.settings.workspace.navigation_width = navigation.response.rect.width();
         egui::CentralPanel::default().show(ctx, |ui| match self.tab {
             Tab::Case => self.case_view(ui),
             Tab::Scan => self.scan_view(ui),
