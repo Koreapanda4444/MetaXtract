@@ -1,6 +1,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 #![forbid(unsafe_code)]
 mod analysis;
+mod application;
 mod desktop;
 mod files;
 mod inspectors;
@@ -9,6 +10,8 @@ mod records;
 mod scan;
 mod search;
 mod settings;
+mod state;
+mod tasks;
 mod workflows;
 use eframe::egui;
 use std::path::PathBuf;
