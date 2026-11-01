@@ -20,6 +20,7 @@ mod settings;
 mod state;
 mod tasks;
 mod workflows;
+mod workspace;
 use eframe::egui;
 use std::path::PathBuf;
 

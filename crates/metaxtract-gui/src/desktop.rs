@@ -244,6 +244,20 @@ impl eframe::App for Desktop {
                 }
             });
         });
+        egui::TopBottomPanel::top("workspace-tools").show(ctx, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                for (tab, label) in [
+                    (Tab::Records, "Files"),
+                    (Tab::Case, "Case"),
+                    (Tab::Scan, "Scan queue"),
+                    (Tab::Search, "Search & compare"),
+                    (Tab::Analysis, "Analysis"),
+                    (Tab::Workflows, "Export & tools"),
+                ] {
+                    ui.selectable_value(&mut self.tab, tab, crate::i18n::tr(label));
+                }
+            });
+        });
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 crate::components::status(ui, &self.status, self.busy || self.scan.running());
@@ -260,28 +274,7 @@ impl eframe::App for Desktop {
             .width_range(150.0..=360.0)
             .resizable(true)
             .show(ctx, |ui| {
-                ui.add_space(12.0);
-                ui.label(crate::i18n::tr("WORKSPACE"));
-                ui.selectable_value(&mut self.tab, Tab::Case, crate::i18n::tr("Case"));
-                ui.selectable_value(&mut self.tab, Tab::Scan, crate::i18n::tr("Scan queue"));
-                ui.selectable_value(&mut self.tab, Tab::Records, crate::i18n::tr("Records"));
-                ui.selectable_value(
-                    &mut self.tab,
-                    Tab::Search,
-                    crate::i18n::tr("Search & compare"),
-                );
-                ui.selectable_value(&mut self.tab, Tab::Analysis, crate::i18n::tr("Analysis"));
-                ui.selectable_value(
-                    &mut self.tab,
-                    Tab::Workflows,
-                    crate::i18n::tr("Export & tools"),
-                );
-                self.quick_access_view(ui);
-                if let Some(scan) = &self.active_scan {
-                    ui.separator();
-                    ui.label(crate::i18n::tr("Selected scan"));
-                    ui.label(scan);
-                }
+                self.explorer_view(ui);
             });
         self.settings.workspace.navigation_width = navigation.response.rect.width();
         egui::CentralPanel::default().show(ctx, |ui| match self.tab {
@@ -302,11 +295,7 @@ impl eframe::App for Desktop {
                     .id_salt("search-content")
                     .show(ui, |ui| self.search_view(ui));
             }
-            Tab::Records => {
-                egui::ScrollArea::vertical()
-                    .id_salt("record-content")
-                    .show(ui, |ui| self.records_view(ui));
-            }
+            Tab::Records => self.workspace_view(ui),
         });
         if let Some(picker) = &mut self.picker {
             let purpose = picker.purpose;

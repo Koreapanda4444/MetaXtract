@@ -130,7 +130,7 @@ impl Desktop {
             },
         );
     }
-    fn focus_record(&mut self, ctx: &egui::Context, id: i64) {
+    pub(crate) fn focus_record(&mut self, ctx: &egui::Context, id: i64) {
         if let Some(case) = self.case.clone() {
             let context = ctx.clone();
             self.task(
@@ -378,6 +378,8 @@ impl Desktop {
                 }
             }
         });
+    }
+    pub fn record_detail_view(&mut self, ui: &mut egui::Ui) {
         if let Some((id, record)) = &self.records.focused {
             ui.separator();
             ui.label(crate::textf!(
