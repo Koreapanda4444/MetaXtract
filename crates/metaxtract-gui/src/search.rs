@@ -364,18 +364,33 @@ impl Desktop {
         if self.search.after.is_empty() {
             self.search.after = self.active_scan.clone().unwrap_or_default();
         }
-        ui.label(crate::i18n::tr("Scan IDs (available in Case history)"));
-        ui.horizontal(|ui| {
-            ui.label(crate::i18n::tr("Before"));
-            ui.text_edit_singleline(&mut self.search.before);
-            ui.label(crate::i18n::tr("After"));
-            ui.text_edit_singleline(&mut self.search.after);
+        ui.horizontal_wrapped(|ui| {
+            scan_picker(
+                ui,
+                "before-scan",
+                "Before",
+                &mut self.search.before,
+                &self.scans,
+            );
+            scan_picker(
+                ui,
+                "after-scan",
+                "After",
+                &mut self.search.after,
+                &self.scans,
+            );
         });
+        if self.search.before == self.search.after {
+            ui.colored_label(egui::Color32::YELLOW, "Choose two different scans.");
+        }
         ui.label(crate::i18n::tr("Optional shared search restriction"));
         ui.text_edit_singleline(&mut self.search.text);
+        ui.collapsing("Shared metadata conditions", |ui| {
+            self.search.visual.ui(ui);
+        });
         if ui
             .add_enabled(
-                !self.busy && !self.scan.running(),
+                !self.busy && !self.scan.running() && self.search.before != self.search.after,
                 crate::components::button(crate::i18n::tr("Compare")),
             )
             .clicked()
@@ -383,7 +398,14 @@ impl Desktop {
             if let Some(case) = self.case.clone() {
                 let before = self.search.before.clone();
                 let after = self.search.after.clone();
-                let text = self.search.text.clone();
+                let query = match self.search_query() {
+                    Ok(q) => q,
+                    Err(e) => {
+                        self.report_error(e);
+                        return;
+                    }
+                };
+                let text = serde_json::to_string(&query).unwrap_or_default();
                 let scope = (before.clone(), after.clone(), text.clone());
                 self.task(
                     ui.ctx(),
@@ -396,10 +418,12 @@ impl Desktop {
                                 "unknown comparison scan",
                             ));
                         }
-                        let before =
-                            app::collect(&case, &app::analysis::search::parse(&before, &text)?)?;
-                        let after =
-                            app::collect(&case, &app::analysis::search::parse(&after, &text)?)?;
+                        let mut before_query = query.clone();
+                        before_query.records.scan_id = before.clone();
+                        let mut after_query = query;
+                        after_query.records.scan_id = after.clone();
+                        let before = app::collect(&case, &before_query)?;
+                        let after = app::collect(&case, &after_query)?;
                         let diff = app::analysis::diff::compare_scans(
                             &before,
                             &after,
@@ -425,7 +449,18 @@ impl Desktop {
                 "Pause the active scan for a stable comparison.",
             ));
         }
+        let mut open = None;
         if let Some(diff) = &self.search.comparison {
+            if self
+                .info
+                .as_ref()
+                .is_some_and(|i| i.revision != self.search.comparison_revision)
+            {
+                ui.colored_label(
+                    egui::Color32::YELLOW,
+                    "Older comparison snapshot; compare again after changes.",
+                );
+            }
             ui.label(crate::textf!(
                 "Compared: {} → {} · query {:?}",
                 "비교한 스캔: {} → {} · 조건 {:?}",
@@ -490,6 +525,26 @@ impl Desktop {
                         .selected_record
                         .and_then(|i| diff.changed.get(i))
                     {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add_enabled(!self.busy, egui::Button::new("Open before file"))
+                                .clicked()
+                            {
+                                open = Some((
+                                    self.search.comparison_scope.0.clone(),
+                                    record.before_path.clone(),
+                                ));
+                            }
+                            if ui
+                                .add_enabled(!self.busy, egui::Button::new("Open after file"))
+                                .clicked()
+                            {
+                                open = Some((
+                                    self.search.comparison_scope.1.clone(),
+                                    record.after_path.clone(),
+                                ));
+                            }
+                        });
                         egui::ScrollArea::vertical()
                             .id_salt("diff-fields")
                             .max_height(160.0)
@@ -512,9 +567,15 @@ impl Desktop {
                             .and_then(|i| record.fields.get(i))
                         {
                             ui.columns(2, |columns| {
-                                columns[0].strong(crate::i18n::tr("Before"));
+                                columns[0].colored_label(
+                                    egui::Color32::LIGHT_RED,
+                                    crate::i18n::tr("Before"),
+                                );
                                 json_view(&mut columns[0], &field.before);
-                                columns[1].strong(crate::i18n::tr("After"));
+                                columns[1].colored_label(
+                                    egui::Color32::LIGHT_GREEN,
+                                    crate::i18n::tr("After"),
+                                );
                                 json_view(&mut columns[1], &field.after);
                             });
                         }
@@ -534,7 +595,14 @@ impl Desktop {
                         .max_height(300.0)
                         .show_rows(ui, 26.0, paths.len(), |ui, range| {
                             for path in &paths[range] {
-                                ui.label(path.to_string());
+                                if ui.link(path.to_string()).clicked() {
+                                    let scan = if self.search.view == 1 {
+                                        self.search.comparison_scope.1.clone()
+                                    } else {
+                                        self.search.comparison_scope.0.clone()
+                                    };
+                                    open = Some((scan, path.clone()));
+                                }
                             }
                         });
                 }
@@ -550,5 +618,40 @@ impl Desktop {
                 }
             }
         }
+        if let Some((scan, path)) = open {
+            self.navigate_to_path(ui.ctx(), scan, path);
+        }
     }
+}
+
+pub(crate) fn scan_picker(
+    ui: &mut egui::Ui,
+    id: &str,
+    label: &str,
+    value: &mut String,
+    scans: &[s::ScanInfo],
+) {
+    let title = scans
+        .iter()
+        .find(|s| &s.id == value)
+        .map(scan_label)
+        .unwrap_or_else(|| "Select scan".into());
+    egui::ComboBox::from_id_salt(id)
+        .selected_text(format!("{label}: {title}"))
+        .width(290.0)
+        .show_ui(ui, |ui| {
+            for scan in scans {
+                ui.selectable_value(value, scan.id.clone(), scan_label(scan))
+                    .on_hover_text(&scan.id);
+            }
+        });
+}
+fn scan_label(scan: &s::ScanInfo) -> String {
+    format!(
+        "{} · {} · {} files · {:?}",
+        crate::formatting::unix_seconds(i128::from(scan.started_ms) / 1000),
+        scan.source,
+        scan.record_count,
+        scan.status
+    )
 }
