@@ -11,6 +11,12 @@ pub enum RecordOrder {
     Insertion,
     Path,
     Size,
+    PathDescending,
+    SizeDescending,
+    MimePath,
+    MimeSize,
+    StatusPath,
+    StatusSize,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordQuery {
@@ -62,6 +68,7 @@ enum Position {
     Insertion(i64),
     Path(String, i64),
     Size(Vec<u8>, i64),
+    Group(String, Vec<u8>, String, i64),
 }
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct PageCursor {
@@ -150,6 +157,54 @@ impl CaseWorkspace {
                     sql.push_str(" AND (r.size_key,r.id)>(?,?)");
                     values.extend([Value::Blob(bytes.clone()), Value::Integer(*id)]);
                 }
+                (Position::Path(path, id), RecordOrder::PathDescending)
+                    if *id > 0 && path.len() <= PAGE_BYTES =>
+                {
+                    sql.push_str(" AND (r.path,r.id)<(?,?)");
+                    values.extend([Value::Text(path.clone()), Value::Integer(*id)]);
+                }
+                (Position::Size(bytes, id), RecordOrder::SizeDescending)
+                    if bytes.len() == 8 && *id > 0 =>
+                {
+                    sql.push_str(" AND (r.size_key,r.id)<(?,?)");
+                    values.extend([Value::Blob(bytes.clone()), Value::Integer(*id)]);
+                }
+                (Position::Group(group, bytes, path, id), order)
+                    if *id > 0
+                        && group.len() + path.len() <= PAGE_BYTES
+                        && matches!(
+                            order,
+                            RecordOrder::MimePath
+                                | RecordOrder::MimeSize
+                                | RecordOrder::StatusPath
+                                | RecordOrder::StatusSize
+                        ) =>
+                {
+                    let column = if matches!(order, RecordOrder::MimePath | RecordOrder::MimeSize) {
+                        "r.mime"
+                    } else {
+                        "r.status"
+                    };
+                    if matches!(order, RecordOrder::MimeSize | RecordOrder::StatusSize) {
+                        if bytes.len() != 8 {
+                            return Err(invalid("invalid size cursor"));
+                        }
+                        sql.push_str(&format!(" AND ({column},r.size_key,r.path,r.id)>(?,?,?,?)"));
+                        values.extend([
+                            Value::Text(group.clone()),
+                            Value::Blob(bytes.clone()),
+                            Value::Text(path.clone()),
+                            Value::Integer(*id),
+                        ]);
+                    } else {
+                        sql.push_str(&format!(" AND ({column},r.path,r.id)>(?,?,?)"));
+                        values.extend([
+                            Value::Text(group.clone()),
+                            Value::Text(path.clone()),
+                            Value::Integer(*id),
+                        ]);
+                    }
+                }
                 _ => return Err(invalid("invalid page cursor")),
             }
         }
@@ -157,6 +212,12 @@ impl CaseWorkspace {
             RecordOrder::Insertion => " ORDER BY r.ordinal",
             RecordOrder::Path => " ORDER BY r.path,r.id",
             RecordOrder::Size => " ORDER BY r.size_key,r.id",
+            RecordOrder::PathDescending => " ORDER BY r.path DESC,r.id DESC",
+            RecordOrder::SizeDescending => " ORDER BY r.size_key DESC,r.id DESC",
+            RecordOrder::MimePath => " ORDER BY r.mime,r.path,r.id",
+            RecordOrder::MimeSize => " ORDER BY r.mime,r.size_key,r.path,r.id",
+            RecordOrder::StatusPath => " ORDER BY r.status,r.path,r.id",
+            RecordOrder::StatusSize => " ORDER BY r.status,r.size_key,r.path,r.id",
         });
         sql.push_str(" LIMIT ?");
         values.push(Value::Integer((limit + 1) as i64));
@@ -209,10 +270,22 @@ impl CaseWorkspace {
                 query: fingerprint,
                 position: match query.order {
                     RecordOrder::Insertion => Position::Insertion(last.ordinal as i64),
-                    RecordOrder::Path => Position::Path(last.path.clone(), last.id),
-                    RecordOrder::Size => {
+                    RecordOrder::Path | RecordOrder::PathDescending => {
+                        Position::Path(last.path.clone(), last.id)
+                    }
+                    RecordOrder::Size | RecordOrder::SizeDescending => {
                         Position::Size(last.size_bytes.to_be_bytes().to_vec(), last.id)
                     }
+                    order => Position::Group(
+                        if matches!(order, RecordOrder::MimePath | RecordOrder::MimeSize) {
+                            last.mime.clone()
+                        } else {
+                            format!("{:?}", last.status)
+                        },
+                        last.size_bytes.to_be_bytes().to_vec(),
+                        last.path.clone(),
+                        last.id,
+                    ),
                 },
             })
         } else {

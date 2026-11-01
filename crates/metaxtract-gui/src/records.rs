@@ -20,6 +20,9 @@ pub struct RecordsUi {
     pub total: u64,
     pub revision: u64,
     pub order: RecordOrder,
+    pub group_by: usize,
+    pub mime_filter: String,
+    pub status_filter: Option<app::schema::ExtractionStatus>,
     pub selected: BTreeSet<i64>,
     pub focused: Option<(i64, ExtractionRecord)>,
     pub note: String,
@@ -38,6 +41,9 @@ impl Default for RecordsUi {
             total: 0,
             revision: 0,
             order: RecordOrder::Path,
+            group_by: 0,
+            mime_filter: String::new(),
+            status_filter: None,
             selected: BTreeSet::new(),
             focused: None,
             note: String::new(),
@@ -62,8 +68,10 @@ impl Desktop {
             .is_none_or(|q| q.records.scan_id != scan)
         {
             let order = self.records.order;
+            let group_by = self.records.group_by;
             self.records = RecordsUi::default();
             self.records.order = order;
+            self.records.group_by = group_by;
             let mut q = app::analysis::search::parse(&scan, "").expect("empty query");
             q.records.order = self.records.order;
             self.records.query = Some(q);
@@ -210,13 +218,33 @@ impl Desktop {
         }
         ui.horizontal_wrapped(|ui| {
             let before = self.records.order;
-            for (label, order) in [
-                (crate::i18n::tr("Path ↑"), RecordOrder::Path),
-                (crate::i18n::tr("Size ↑"), RecordOrder::Size),
-                (crate::i18n::tr("Discovery ↑"), RecordOrder::Insertion),
-            ] {
-                ui.selectable_value(&mut self.records.order, order, label);
-            }
+            egui::ComboBox::from_id_salt("record-order")
+                .selected_text(crate::i18n::tr(match self.records.order {
+                    RecordOrder::Path => "Name ascending",
+                    RecordOrder::PathDescending => "Name descending",
+                    RecordOrder::Size => "Size ascending",
+                    RecordOrder::SizeDescending => "Size descending",
+                    RecordOrder::MimePath => "Type then name",
+                    RecordOrder::MimeSize => "Type then size",
+                    RecordOrder::StatusPath => "Status then name",
+                    RecordOrder::StatusSize => "Status then size",
+                    _ => "Discovery order",
+                }))
+                .show_ui(ui, |ui| {
+                    for (label, order) in [
+                        ("Name ascending", RecordOrder::Path),
+                        ("Name descending", RecordOrder::PathDescending),
+                        ("Size ascending", RecordOrder::Size),
+                        ("Size descending", RecordOrder::SizeDescending),
+                        ("Type then name", RecordOrder::MimePath),
+                        ("Type then size", RecordOrder::MimeSize),
+                        ("Status then name", RecordOrder::StatusPath),
+                        ("Status then size", RecordOrder::StatusSize),
+                        ("Discovery order", RecordOrder::Insertion),
+                    ] {
+                        ui.selectable_value(&mut self.records.order, order, crate::i18n::tr(label));
+                    }
+                });
             if before != self.records.order {
                 self.records.refresh = true;
             }
@@ -231,6 +259,7 @@ impl Desktop {
                 self.records.selected.len()
             ));
         });
+        self.file_filters_view(ui);
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(
@@ -263,40 +292,74 @@ impl Desktop {
             }
         });
         let mut focus = None;
-        egui::ScrollArea::horizontal().id_salt("records-columns").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                for (width, label) in [(24.0,"✓"),(210.0,"Filename"),(115.0,"Type"),(90.0,"Size"),(176.0,"Modified (UTC)"),(100.0,"Status")] {
-                    ui.add_sized([width, 24.0], egui::Label::new(egui::RichText::new(crate::i18n::tr(label)).strong()));
-                }
-            });
-            ui.separator();
-            egui::ScrollArea::vertical().id_salt("records-table").max_height((ui.clip_rect().height() - 190.0).max(120.0)).show_rows(ui, 30.0, self.records.headers.len(), |ui, range| {
-                for index in range {
-                    let h = &self.records.headers[index];
-                    ui.push_id(h.id, |ui| {
-                        let focused = self.records.focused.as_ref().is_some_and(|r| r.0 == h.id);
-                        let fill = if focused { ui.visuals().selection.bg_fill } else if index % 2 == 0 { ui.visuals().faint_bg_color } else { egui::Color32::TRANSPARENT };
-                        egui::Frame::new().fill(fill).show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                let mut selected = self.records.selected.contains(&h.id);
-                                if ui.add_enabled_ui(selected || self.records.selected.len() < 64, |ui| ui.add_sized([24.0, 24.0], egui::Checkbox::without_text(&mut selected))).inner.changed() {
-                                    if selected { self.records.selected.insert(h.id); } else { self.records.selected.remove(&h.id); }
+        egui::ScrollArea::horizontal()
+            .id_salt("records-columns")
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (width, label) in [
+                        (24.0, "✓"),
+                        (210.0, "Filename"),
+                        (115.0, "Type"),
+                        (90.0, "Size"),
+                        (176.0, "Modified (UTC)"),
+                        (100.0, "Status"),
+                    ] {
+                        ui.add_sized(
+                            [width, 24.0],
+                            egui::Label::new(egui::RichText::new(crate::i18n::tr(label)).strong()),
+                        );
+                    }
+                });
+                ui.separator();
+                if self.records.group_by == 0 {
+                    egui::ScrollArea::vertical()
+                        .id_salt("records-table")
+                        .max_height((ui.clip_rect().height() - 190.0).max(120.0))
+                        .show_rows(ui, 30.0, self.records.headers.len(), |ui, range| {
+                            for index in range {
+                                if let Some(id) = self.file_row(ui, index) {
+                                    focus = Some(id);
                                 }
-                                let name = h.path.rsplit('/').next().unwrap_or(&h.path);
-                                let row = ui.add_sized([210.0,24.0], egui::Button::selectable(focused,name).truncate());
-                                if row.clicked() { focus = Some(h.id); }
-                                row.on_hover_text(&h.path);
-                                ui.add_sized([115.0,24.0],egui::Label::new(&h.mime).truncate()).on_hover_text(&h.mime);
-                                ui.add_sized([90.0,24.0],egui::Label::new(crate::formatting::bytes(h.size_bytes))).on_hover_text(h.size_bytes.to_string());
-                                ui.add_sized([176.0,24.0],egui::Label::new(crate::formatting::modified(h.modified_ns.as_deref()))).on_hover_text(crate::i18n::tr("Filesystem time; unknown dates remain blank. Full original values are in file details."));
-                                let color = match h.status { app::schema::ExtractionStatus::Complete => egui::Color32::LIGHT_GREEN, app::schema::ExtractionStatus::Failed => egui::Color32::LIGHT_RED, app::schema::ExtractionStatus::Partial => egui::Color32::YELLOW, _ => ui.visuals().weak_text_color() };
-                                ui.add_sized([100.0,24.0],egui::Label::new(egui::RichText::new(crate::i18n::tr(&format!("{:?}", h.status))).color(color)));
-                            });
+                            }
                         });
-                    });
+                } else {
+                    let mut groups = std::collections::BTreeMap::<String, Vec<usize>>::new();
+                    for (i, h) in self.records.headers.iter().enumerate() {
+                        groups
+                            .entry(if self.records.group_by == 1 {
+                                h.mime.clone()
+                            } else {
+                                format!("{:?}", h.status)
+                            })
+                            .or_default()
+                            .push(i);
+                    }
+                    ui.small(crate::i18n::tr(
+                        "Groups contain the current page; sorting applies to the entire result.",
+                    ));
+                    egui::ScrollArea::vertical()
+                        .id_salt("grouped-files")
+                        .max_height((ui.clip_rect().height() - 190.0).max(120.0))
+                        .show(ui, |ui| {
+                            for (name, indices) in groups {
+                                egui::CollapsingHeader::new(format!(
+                                    "{} · {}",
+                                    crate::i18n::tr(&name),
+                                    indices.len()
+                                ))
+                                .id_salt(("file-group", &name))
+                                .default_open(true)
+                                .show(ui, |ui| {
+                                    for index in indices {
+                                        if let Some(id) = self.file_row(ui, index) {
+                                            focus = Some(id);
+                                        }
+                                    }
+                                });
+                            }
+                        });
                 }
             });
-        });
         if let Some(id) = focus {
             self.focus_record(ui.ctx(), id);
         }
@@ -358,6 +421,114 @@ impl Desktop {
                 }
             }
         });
+    }
+    fn file_row(&mut self, ui: &mut egui::Ui, index: usize) -> Option<i64> {
+        let mut focus = None;
+        let h = &self.records.headers[index];
+        ui.push_id(h.id, |ui| {
+                        let focused = self.records.focused.as_ref().is_some_and(|r| r.0 == h.id);
+                        let fill = if focused { ui.visuals().selection.bg_fill } else if index % 2 == 0 { ui.visuals().faint_bg_color } else { egui::Color32::TRANSPARENT };
+                        egui::Frame::new().fill(fill).show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let mut selected = self.records.selected.contains(&h.id);
+                                if ui.add_enabled_ui(selected || self.records.selected.len() < 64, |ui| ui.add_sized([24.0, 24.0], egui::Checkbox::without_text(&mut selected))).inner.changed() {
+                                    if selected { self.records.selected.insert(h.id); } else { self.records.selected.remove(&h.id); }
+                                }
+                                let name = h.path.rsplit('/').next().unwrap_or(&h.path);
+                                let row = ui.add_sized([210.0,24.0], egui::Button::selectable(focused,name).truncate());
+                                if row.clicked() { focus = Some(h.id); }
+                                row.on_hover_text(&h.path);
+                                ui.add_sized([115.0,24.0],egui::Label::new(&h.mime).truncate()).on_hover_text(&h.mime);
+                                ui.add_sized([90.0,24.0],egui::Label::new(crate::formatting::bytes(h.size_bytes))).on_hover_text(h.size_bytes.to_string());
+                                ui.add_sized([176.0,24.0],egui::Label::new(crate::formatting::modified(h.modified_ns.as_deref()))).on_hover_text(crate::i18n::tr("Filesystem time; unknown dates remain blank. Full original values are in file details."));
+                                let color = match h.status { app::schema::ExtractionStatus::Complete => egui::Color32::LIGHT_GREEN, app::schema::ExtractionStatus::Failed => egui::Color32::LIGHT_RED, app::schema::ExtractionStatus::Partial => egui::Color32::YELLOW, _ => ui.visuals().weak_text_color() };
+                                ui.add_sized([100.0,24.0],egui::Label::new(egui::RichText::new(crate::i18n::tr(&format!("{:?}", h.status))).color(color)));
+                            });
+                        });
+                    });
+        focus
+    }
+    fn file_filters_view(&mut self, ui: &mut egui::Ui) {
+        let mut apply = false;
+        ui.add_enabled_ui(!self.busy, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.records.mime_filter)
+                        .desired_width(150.0)
+                        .hint_text(crate::i18n::tr("MIME type (all if empty)")),
+                );
+                egui::ComboBox::from_id_salt("file-status-filter")
+                    .selected_text(
+                        self.records
+                            .status_filter
+                            .map(|s| crate::i18n::tr(&format!("{s:?}")).to_owned())
+                            .unwrap_or_else(|| crate::i18n::tr("All statuses").into()),
+                    )
+                    .show_ui(ui, |ui| {
+                        apply |= ui
+                            .selectable_value(
+                                &mut self.records.status_filter,
+                                None,
+                                crate::i18n::tr("All statuses"),
+                            )
+                            .changed();
+                        for status in [
+                            app::schema::ExtractionStatus::Complete,
+                            app::schema::ExtractionStatus::Partial,
+                            app::schema::ExtractionStatus::Failed,
+                            app::schema::ExtractionStatus::Unsupported,
+                        ] {
+                            apply |= ui
+                                .selectable_value(
+                                    &mut self.records.status_filter,
+                                    Some(status),
+                                    crate::i18n::tr(&format!("{status:?}")),
+                                )
+                                .changed();
+                        }
+                    });
+                apply |= ui.button(crate::i18n::tr("Apply filters")).clicked();
+                egui::ComboBox::from_id_salt("file-grouping")
+                    .selected_text(crate::i18n::tr(
+                        ["No grouping", "Group by type", "Group by status"][self.records.group_by],
+                    ))
+                    .show_ui(ui, |ui| {
+                        for (i, label) in ["No grouping", "Group by type", "Group by status"]
+                            .iter()
+                            .enumerate()
+                        {
+                            if ui
+                                .selectable_value(
+                                    &mut self.records.group_by,
+                                    i,
+                                    crate::i18n::tr(label),
+                                )
+                                .changed()
+                            {
+                                self.records.order = match i {
+                                    1 => RecordOrder::MimePath,
+                                    2 => RecordOrder::StatusPath,
+                                    _ => RecordOrder::Path,
+                                };
+                                apply = true;
+                            }
+                        }
+                    });
+            });
+        });
+        if apply {
+            if let Some(q) = &mut self.records.query {
+                q.records.mime = if self.records.mime_filter.trim().is_empty() {
+                    None
+                } else {
+                    Some(self.records.mime_filter.trim().to_ascii_lowercase())
+                };
+                q.records.status = self.records.status_filter;
+                self.records.refresh = true;
+                self.records.selected.clear();
+                self.records.focused = None;
+            }
+        }
     }
     pub fn record_detail_view(&mut self, ui: &mut egui::Ui) {
         if let Some((id, record)) = &self.records.focused {
