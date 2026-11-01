@@ -362,5 +362,7 @@
   "Image": "이미지",
   "Font": "글꼴",
   "Executable": "실행파일",
-  "General": "일반"
+  "General": "일반",
+  "Interpreted": "해석값",
+  "Time zone unknown": "시간대 미확정"
 }

@@ -40,3 +40,88 @@ pub fn modified(ns: Option<&str>) -> String {
         .map(|n| unix_seconds(n.div_euclid(1_000_000_000)))
         .unwrap_or_else(|| "—".into())
 }
+
+pub fn raw(value: &metaxtract_app::schema::RawValue, unit: Option<&str>) -> String {
+    use metaxtract_app::schema::RawValue;
+    let number = match value {
+        RawValue::Unsigned(n) => Some(*n as f64),
+        RawValue::Signed(n) => Some(*n as f64),
+        RawValue::Float(n) => Some(*n),
+        RawValue::Rational(n) if n.denominator != 0 => {
+            Some(n.numerator as f64 / n.denominator as f64)
+        }
+        _ => None,
+    };
+    if let (Some(number), Some(unit)) = (number.filter(|n| n.is_finite()), unit) {
+        if matches!(unit, "bit/s" | "bits/s" | "bps") {
+            return if number.abs() >= 1_000_000.0 {
+                format!("{:.3} Mbps", number / 1_000_000.0)
+            } else {
+                format!("{number} bps")
+            };
+        }
+        if matches!(unit, "bytes" | "B" | "byte") {
+            if let RawValue::Unsigned(n) = value {
+                return bytes(*n);
+            }
+        }
+        return format!("{number} {unit}");
+    }
+    match value {
+        RawValue::Text(t) => t
+            .text
+            .chars()
+            .take(200)
+            .map(|c| if c.is_control() { ' ' } else { c })
+            .collect(),
+        RawValue::Bytes(v) => bytes(v.len() as u64),
+        RawValue::Sequence(v) => crate::textf!("{} values", "{}개 값", v.len()),
+        RawValue::Structure(v) => crate::textf!("{} fields", "{}개 필드", v.len()),
+        RawValue::Null => "—".into(),
+        RawValue::Bool(v) => v.to_string(),
+        RawValue::Signed(v) => v.to_string(),
+        RawValue::Unsigned(v) => v.to_string(),
+        RawValue::Float(v) => v.to_string(),
+        RawValue::Rational(v) => format!("{}/{}", v.numerator, v.denominator),
+    }
+}
+pub fn normalized(value: &metaxtract_app::schema::NormalizedValue) -> String {
+    use metaxtract_app::schema::NormalizedValue;
+    match value {
+        NormalizedValue::Timestamp(t) => {
+            let zone = t
+                .utc_offset_minutes
+                .map(|minutes| {
+                    format!(
+                        "UTC{}{:02}:{:02}",
+                        if minutes < 0 { "-" } else { "+" },
+                        minutes.unsigned_abs() / 60,
+                        minutes.unsigned_abs() % 60
+                    )
+                })
+                .unwrap_or_else(|| crate::i18n::tr("Time zone unknown").into());
+            format!("{} · {zone}", t.original)
+        }
+        NormalizedValue::GeoPoint(point) => format!(
+            "{:.7}°, {:.7}°{}",
+            point.latitude,
+            point.longitude,
+            point
+                .altitude_meters
+                .map(|v| format!(" · {v} m"))
+                .unwrap_or_default()
+        ),
+        NormalizedValue::DurationNanoseconds(n) => format!("{:.3} s", *n as f64 / 1_000_000_000.0),
+        NormalizedValue::Sequence(v) => crate::textf!("{} values", "{}개 값", v.len()),
+        NormalizedValue::Text(v) => v
+            .chars()
+            .take(200)
+            .map(|c| if c.is_control() { ' ' } else { c })
+            .collect(),
+        NormalizedValue::Null => "—".into(),
+        NormalizedValue::Bool(v) => v.to_string(),
+        NormalizedValue::Signed(v) => v.to_string(),
+        NormalizedValue::Unsigned(v) => v.to_string(),
+        NormalizedValue::Number(v) => v.to_string(),
+    }
+}

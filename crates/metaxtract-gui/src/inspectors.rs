@@ -35,36 +35,11 @@ fn shortened(s: &str, max: usize) -> String {
     }
     out
 }
-pub(crate) fn raw_brief(v: &RawValue) -> String {
-    match v {
-        RawValue::Null => "null".into(),
-        RawValue::Bool(v) => v.to_string(),
-        RawValue::Signed(v) => v.to_string(),
-        RawValue::Unsigned(v) => v.to_string(),
-        RawValue::Float(v) => format!("{v:?}"),
-        RawValue::Rational(v) => format!("{}/{}", v.numerator, v.denominator),
-        RawValue::Text(v) => shortened(&v.text, 160),
-        RawValue::Bytes(v) => format!("{} bytes", v.len()),
-        RawValue::Sequence(v) => format!("{} values", v.len()),
-        RawValue::Structure(v) => format!("{} fields", v.len()),
-    }
+pub(crate) fn raw_brief(value: &RawValue) -> String {
+    crate::formatting::raw(value, None)
 }
-pub(crate) fn claim_brief(v: &NormalizedValue) -> String {
-    match v {
-        NormalizedValue::Text(s) => shortened(s, 160),
-        NormalizedValue::Sequence(v) => format!("{} values", v.len()),
-        NormalizedValue::Timestamp(v) => format!(
-            "{} · zone {:?} · {:?}",
-            shortened(&v.original, 160),
-            v.utc_offset_minutes,
-            v.precision
-        ),
-        NormalizedValue::GeoPoint(v) => format!(
-            "{}, {} · altitude {:?}",
-            v.latitude, v.longitude, v.altitude_meters
-        ),
-        _ => format!("{v:?}"),
-    }
+pub(crate) fn claim_brief(value: &NormalizedValue) -> String {
+    crate::formatting::normalized(value)
 }
 struct Bounded {
     bytes: Vec<u8>,
@@ -148,8 +123,26 @@ impl Desktop {
                                         observation.tag.name.clone().unwrap_or_else(|| {
                                             format!("{:?}", observation.tag.code)
                                         });
-                                    let text =
-                                        format!("{} = {}", name, raw_brief(&observation.raw_value));
+                                    let original = crate::formatting::raw(
+                                        &observation.raw_value,
+                                        observation.unit.as_deref(),
+                                    );
+                                    let interpreted = observation
+                                        .interpreted_value
+                                        .as_ref()
+                                        .filter(|v| **v != observation.raw_value)
+                                        .map(|v| {
+                                            format!(
+                                                " · {}: {}",
+                                                crate::i18n::tr("Interpreted"),
+                                                crate::formatting::raw(
+                                                    v,
+                                                    observation.unit.as_deref()
+                                                )
+                                            )
+                                        })
+                                        .unwrap_or_default();
+                                    let text = format!("{name} = {original}{interpreted}");
                                     if ui
                                         .add_sized(
                                             [ui.available_width(), 24.0],
