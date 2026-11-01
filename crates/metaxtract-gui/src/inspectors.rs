@@ -16,6 +16,8 @@ pub enum InspectorTab {
 #[derive(Default)]
 pub struct InspectUi {
     pub tab: InspectorTab,
+    advanced_tab: Option<InspectorTab>,
+    open_evidence: bool,
     record: Option<i64>,
     filter: String,
     cached_filter: String,
@@ -139,24 +141,53 @@ impl Desktop {
             self.inspect.cached_filter = self.inspect.filter.clone();
         }
         ui.horizontal_wrapped(|ui| {
-            for (label, tab) in [
-                (crate::i18n::tr("Summary"), InspectorTab::Summary),
-                (crate::i18n::tr("Preview"), InspectorTab::Preview),
-                (crate::i18n::tr("Raw"), InspectorTab::Raw),
-                (crate::i18n::tr("Normalized"), InspectorTab::Normalized),
-                (crate::i18n::tr("Provenance"), InspectorTab::Provenance),
-                (crate::i18n::tr("Conflicts"), InspectorTab::Conflicts),
-                (crate::i18n::tr("Diagnostics"), InspectorTab::Diagnostics),
-            ] {
-                ui.selectable_value(&mut self.inspect.tab, tab, label);
-            }
+            ui.selectable_value(
+                &mut self.inspect.tab,
+                InspectorTab::Summary,
+                crate::i18n::tr("Summary"),
+            );
+            ui.selectable_value(
+                &mut self.inspect.tab,
+                InspectorTab::Preview,
+                crate::i18n::tr("Preview"),
+            );
         });
-        if self.inspect.tab == InspectorTab::Preview {
+        self.render_inspector_tab(ui, self.inspect.tab);
+        ui.separator();
+        let force_open = self.inspect.open_evidence.then_some(true);
+        self.inspect.open_evidence = false;
+        egui::CollapsingHeader::new(crate::i18n::tr("Advanced evidence and diagnostics"))
+            .id_salt("advanced-evidence")
+            .open(force_open)
+            .show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for (label, tab) in [
+                        ("Raw", InspectorTab::Raw),
+                        ("Normalized", InspectorTab::Normalized),
+                        ("Provenance", InspectorTab::Provenance),
+                        ("Conflicts", InspectorTab::Conflicts),
+                        ("Diagnostics", InspectorTab::Diagnostics),
+                    ] {
+                        ui.selectable_value(
+                            &mut self.inspect.advanced_tab,
+                            Some(tab),
+                            crate::i18n::tr(label),
+                        );
+                    }
+                });
+                self.render_inspector_tab(
+                    ui,
+                    self.inspect.advanced_tab.unwrap_or(InspectorTab::Raw),
+                );
+            });
+    }
+    fn render_inspector_tab(&mut self, ui: &mut egui::Ui, tab: InspectorTab) {
+        if tab == InspectorTab::Preview {
             self.preview_view(ui);
             return;
         }
         let (_, record) = self.records.focused.as_ref().expect("focused record");
-        match self.inspect.tab {
+        match tab {
             InspectorTab::Summary => {
                 crate::summary::overview(ui, record);
                 ui.separator();
@@ -223,7 +254,8 @@ impl Desktop {
                                     });
                                     if response.clicked() {
                                         self.inspect.selected_raw = Some(index);
-                                        self.inspect.tab = InspectorTab::Raw;
+                                        self.inspect.advanced_tab = Some(InspectorTab::Raw);
+                                        self.inspect.open_evidence = true;
                                     }
                                 }
                             });
@@ -432,7 +464,8 @@ impl Desktop {
                             {
                                 self.inspect.selected_claim =
                                     record.claims.iter().position(|c| c.id == *id);
-                                self.inspect.tab = InspectorTab::Normalized;
+                                self.inspect.advanced_tab = Some(InspectorTab::Normalized);
+                                self.inspect.open_evidence = true;
                             }
                         }
                     });
