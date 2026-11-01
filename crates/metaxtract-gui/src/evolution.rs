@@ -108,6 +108,7 @@ impl Desktop {
                     move || {
                         let revision = case.info()?.revision;
                         let mut snapshots = vec![];
+                        let mut retained=0usize;
                         let mut evidence_path = None;
                         for scan in scans {
                             let q = SearchQuery::new(
@@ -129,6 +130,8 @@ impl Desktop {
                                 .transpose()?
                                 .flatten();
                             if let Some(r) = &record {
+                                retained=retained.saturating_add(serde_json::to_vec(r).map_err(std::io::Error::other)?.len());
+                                if retained>app::analysis::AnalysisLimits::default().max_bytes{return Err(std::io::Error::other("History input exceeds the memory budget; choose fewer scans"));}
                                 evidence_path = Some(r.source.path.clone());
                             }
                             snapshots.push(ScanSnapshot {
@@ -223,7 +226,13 @@ impl Desktop {
             );
             p.text(
                 point + egui::vec2(0.0, 18.0),
-                egui::Align2::CENTER_TOP,
+                if i == 0 {
+                    egui::Align2::LEFT_TOP
+                } else if i + 1 == history.scans.len() {
+                    egui::Align2::RIGHT_TOP
+                } else {
+                    egui::Align2::CENTER_TOP
+                },
                 format!(
                     "{}\n{}",
                     i + 1,

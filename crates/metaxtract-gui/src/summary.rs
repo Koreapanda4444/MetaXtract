@@ -50,6 +50,9 @@ pub fn overview(ui: &mut egui::Ui, record: &ExtractionRecord) {
                     continue;
                 }
                 let key = claim.key.as_str();
+                if key.starts_with("raw.") {
+                    continue;
+                }
                 let name = if key.contains("captured") {
                     Some("Captured")
                 } else if key.contains("location.gps") {
@@ -58,9 +61,9 @@ pub fn overview(ui: &mut egui::Ui, record: &ExtractionRecord) {
                     Some("Title")
                 } else if key.contains("author") {
                     Some("Author")
-                } else if key.contains("camera.make") {
+                } else if key.ends_with("metadata.device_make") || key.contains("camera.make") {
                     Some("Camera make")
-                } else if key.contains("camera.model") {
+                } else if key.ends_with("metadata.device_model") || key.contains("camera.model") {
                     Some("Camera model")
                 } else if key.ends_with("width") {
                     Some("Width")
@@ -82,7 +85,8 @@ pub fn overview(ui: &mut egui::Ui, record: &ExtractionRecord) {
                     {
                         continue;
                     }
-                    let signature = format!("{name}:{:?}", claim.value);
+                    let signature =
+                        format!("{name}:{}", crate::inspectors::claim_brief(&claim.value));
                     if shown.insert(signature) && shown.len() <= 16 {
                         ui.label(crate::i18n::tr(name));
                         ui.add(

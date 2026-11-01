@@ -41,6 +41,10 @@ pub fn build(
     let mut bytes = 0usize;
     for (i, r) in sorted.iter().enumerate() {
         check_record(r, limits)?;
+        bytes = bytes.saturating_add(crate::encoded_size(r, limits.max_bytes)?);
+        if bytes > limits.max_bytes {
+            return Err(invalid("relationship input byte budget exceeded"));
+        }
         if !paths.insert(r.source.path.to_string()) {
             return Err(invalid(
                 "relationship graph requires unique paths in one scan",

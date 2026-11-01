@@ -39,7 +39,11 @@ pub fn graph(ui: &mut egui::Ui, field: &FieldLineage) -> Option<ObservationId> {
             p.text(
                 claim.center(),
                 egui::Align2::CENTER_CENTER,
-                format!("{}\nclaim #{}", field.key, field.claim.get()),
+                format!(
+                    "{}\nclaim #{}",
+                    field.key.as_str().chars().take(23).collect::<String>(),
+                    field.claim.get()
+                ),
                 egui::FontId::proportional(12.0),
                 egui::Color32::WHITE,
             );

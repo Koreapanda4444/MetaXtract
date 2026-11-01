@@ -40,11 +40,12 @@ impl Desktop {
                         let total = case.count_search(&q)?;
                         let page = case.search_records(&q, None, 200)?;
                         let mut records = vec![];
+                        let mut retained = 0usize;
                         for h in page.items {
-                            records.push(
-                                case.record(h.id)?
-                                    .ok_or_else(|| std::io::Error::other("Record disappeared"))?,
-                            );
+                            let record=case.record(h.id)?.ok_or_else(||std::io::Error::other("Record disappeared"))?;
+                            retained=retained.saturating_add(serde_json::to_vec(&record).map_err(std::io::Error::other)?.len());
+                            if retained>AnalysisLimits::default().max_bytes{return Err(std::io::Error::other("Relationship input exceeds the memory budget; narrow the filter"));}
+                            records.push(record);
                         }
                         let graph = app::analysis::relationships::build(
                             &records,

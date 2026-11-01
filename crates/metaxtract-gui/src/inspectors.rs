@@ -391,9 +391,10 @@ impl Desktop {
                     .enumerate()
                     .map(|(i, o)| (o.id, i))
                     .collect();
-                ui.label(crate::i18n::tr("Source identity"));
-                json_view(ui, &record.source);
-                json_view(ui, &record.digests);
+                ui.collapsing(crate::i18n::tr("Source identity"), |ui| {
+                    json_view(ui, &record.source);
+                    json_view(ui, &record.digests);
+                });
                 if ui
                     .add_enabled(
                         !self.busy,
