@@ -43,6 +43,10 @@ pub struct AppScanEvent {
     pub path: Option<String>,
     pub summary: ScanSummary,
     pub error: Option<String>,
+    #[serde(default)]
+    pub notice_code: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ScanOutcome {
@@ -412,6 +416,10 @@ pub fn run(
                 });
             }
         }
+        let (notice_code, message) = match &event {
+            ScanEvent::Notice { code, message, .. } => (Some(code.clone()), Some(message.clone())),
+            _ => (None, None),
+        };
         let (kind, path) = match &mut event {
             ScanEvent::Discovered(t) => {
                 progress.discovered += 1;
@@ -428,9 +436,14 @@ pub fn run(
                 progress.bytes_hashed += file.hashes.as_ref().map_or(0, |h| h.bytes_read);
                 ("completed", Some(file.task.evidence_path.to_string()))
             }
-            ScanEvent::Notice { message, .. } => {
+            ScanEvent::Notice { path, .. } => {
                 progress.notices += 1;
-                ("notice", Some(message.clone()))
+                (
+                    "notice",
+                    path.as_ref()
+                        .and_then(|p| p.to_path().ok())
+                        .map(|p| p.to_string_lossy().into_owned()),
+                )
             }
             ScanEvent::DiscoveryFinished => ("discovery_finished", None),
             ScanEvent::Finished(summary) => {
@@ -445,6 +458,8 @@ pub fn run(
             path,
             summary: progress.clone(),
             error,
+            notice_code,
+            message,
         })
     };
     let result = if let Some((run, _)) = &request.resume {

@@ -43,6 +43,10 @@ pub struct ScanUi {
     pub queue: VecDeque<PathBuf>,
     pub selected_queue: std::collections::BTreeSet<PathBuf>,
     pub queue_history: VecDeque<(PathBuf, QueueState)>,
+    pub recent_files: VecDeque<app::scan::AppScanEvent>,
+    pub skipped: u64,
+    pub discovery_complete: bool,
+    pub elapsed: Duration,
     pub history_filter: Option<QueueState>,
     active: Option<Active>,
     pub latest: Option<app::scan::AppScanEvent>,
@@ -65,6 +69,10 @@ impl Default for ScanUi {
             queue: VecDeque::new(),
             selected_queue: Default::default(),
             queue_history: VecDeque::new(),
+            recent_files: VecDeque::new(),
+            skipped: 0,
+            discovery_complete: false,
+            elapsed: Duration::ZERO,
             history_filter: None,
             active: None,
             latest: None,
@@ -140,9 +148,10 @@ impl Desktop {
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     app::scan::run(&request, worker_control, |event| {
-                        let _ = sender.try_send(event);
                         context.request_repaint();
-                        Ok(())
+                        sender
+                            .send(event)
+                            .map_err(|_| io::Error::other("scan window disconnected"))
                     })
                 }))
                 .unwrap_or_else(|_| Err(io::Error::other("scan task panicked")));
@@ -157,6 +166,10 @@ impl Desktop {
                     started: Instant::now(),
                 });
                 self.scan.latest = None;
+                self.scan.recent_files.clear();
+                self.scan.skipped = 0;
+                self.scan.discovery_complete = false;
+                self.scan.elapsed = Duration::ZERO;
                 self.scan.outcome = None;
                 self.status = crate::i18n::tr("Scanning").into();
             }
@@ -168,6 +181,16 @@ impl Desktop {
         if let Some(active) = &self.scan.active {
             while let Ok(event) = active.events.try_recv() {
                 self.active_scan = Some(event.scan_id.clone());
+                self.scan.discovery_complete |=
+                    event.kind == "discovery_finished" || event.kind == "finished";
+                self.scan.skipped += u64::from(event.notice_code.as_deref().is_some_and(|code| {
+                    matches!(code, "walk.symlink" | "walk.cycle" | "walk.special")
+                }));
+                if event.path.is_some() || event.message.is_some() {
+                    self.scan.recent_files.retain(|old| old.path != event.path);
+                    self.scan.recent_files.push_front(event.clone());
+                    self.scan.recent_files.truncate(256);
+                }
                 self.scan.latest = Some(event);
             }
             match active.result.try_recv() {
@@ -177,9 +200,11 @@ impl Desktop {
                 }
                 Err(mpsc::TryRecvError::Empty) => {}
             }
+            self.scan.elapsed = active.started.elapsed();
             ctx.request_repaint_after(Duration::from_millis(100));
         }
         if let Some(result) = finished {
+            self.scan.discovery_complete = true;
             self.scan.active = None;
             let completed_source = self.scan.active_source.take();
             self.analysis.metrics_loaded = false;
@@ -353,23 +378,67 @@ impl Desktop {
                 } else {
                     s.completed as f32 / s.discovered as f32
                 })
-                .show_percentage(),
+                .show_percentage()
+                .animate(!self.scan.discovery_complete),
             );
             ui.label(format!(
                 "{} / {} files · {} failures · {} bytes hashed",
                 s.completed, s.discovered, s.failed, s.bytes_hashed
             ));
+            ui.label(crate::textf!(
+                "{} notices · {} skipped · {} unstable files",
+                "안내 {} · 건너뜀 {} · 변경 감지 파일 {}",
+                s.notices,
+                self.scan.skipped,
+                s.unstable
+            ));
+            ui.label(crate::i18n::tr(if self.scan.discovery_complete {
+                "Discovery finished"
+            } else {
+                "Discovering files; progress may change"
+            }));
             ui.label(event.path.as_deref().unwrap_or(&event.kind));
             if let Some(error) = &event.error {
                 ui.colored_label(egui::Color32::LIGHT_RED, error);
             }
         }
-        if let Some(active) = &self.scan.active {
-            ui.label(crate::textf!(
-                "Elapsed: {:.1}s",
-                "경과: {:.1}초",
-                active.started.elapsed().as_secs_f64()
-            ));
+        ui.label(crate::textf!(
+            "Elapsed: {:.1}s",
+            "경과: {:.1}초",
+            self.scan.elapsed.as_secs_f64()
+        ));
+        ui.collapsing(crate::i18n::tr("Per-file progress (latest 256)"), |ui| {
+            egui::ScrollArea::vertical()
+                .max_height(220.0)
+                .show(ui, |ui| {
+                    for event in &self.scan.recent_files {
+                        let state = if event.error.is_some() {
+                            "Failed"
+                        } else {
+                            match event.kind.as_str() {
+                                "discovered" => "Pending",
+                                "started" => "Running",
+                                "completed" => "Completed",
+                                "resumed" => "Resumed",
+                                _ => "Notice",
+                            }
+                        };
+                        ui.horizontal_wrapped(|ui| {
+                            ui.strong(crate::i18n::tr(state));
+                            ui.label(event.path.as_deref().unwrap_or(""));
+                            if let Some(detail) = event.error.as_ref().or(event.message.as_ref()) {
+                                ui.add(egui::Label::new(detail).selectable(true).wrap());
+                            }
+                        });
+                    }
+                });
+        });
+        if let Some(outcome) = &self.scan.outcome {
+            ui.collapsing(crate::i18n::tr("Scan failures"), |ui| {
+                for error in &outcome.errors {
+                    ui.label(format!("{}: {}", error.path, error.message));
+                }
+            });
         }
         ui.horizontal_wrapped(|ui| {
             if ui.button(crate::i18n::tr("Select all queued")).clicked() {
