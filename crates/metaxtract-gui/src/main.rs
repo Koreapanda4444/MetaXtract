@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 mod analysis;
 mod application;
+mod components;
 mod desktop;
 mod files;
 mod inspectors;

@@ -245,7 +245,7 @@ impl Desktop {
                 if ui
                     .add_enabled(
                         !self.busy,
-                        egui::Button::new("Resolve field lineage / 필드 출처 연결"),
+                        crate::components::button("Resolve field lineage / 필드 출처 연결"),
                     )
                     .clicked()
                 {

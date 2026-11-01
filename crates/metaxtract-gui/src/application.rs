@@ -18,10 +18,7 @@ impl Desktop {
         korean: bool,
     ) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
-        let mut style = (*cc.egui_ctx.style()).clone();
-        style.spacing.item_spacing = egui::vec2(10.0, 8.0);
-        style.spacing.button_padding = egui::vec2(12.0, 7.0);
-        cc.egui_ctx.set_style(style);
+        crate::components::apply(&cc.egui_ctx);
         let (sender, receiver) = tasks::channel();
         let mut app = Self {
             tab: Tab::Case,

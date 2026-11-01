@@ -125,7 +125,7 @@ impl Desktop {
             self.comparison_view(ui);
             return;
         }
-        ui.heading("Structured metadata search / 구조화 메타데이터 검색");
+        crate::components::heading(ui, "Structured metadata search / 구조화 메타데이터 검색");
         if self.active_scan.is_none() {
             ui.label("Select a scan first. / 스캔을 먼저 선택하세요.");
             return;
@@ -160,7 +160,7 @@ impl Desktop {
         }
         ui.horizontal(|ui| {
             if ui
-                .add_enabled(!self.busy, egui::Button::new("Apply / 적용"))
+                .add_enabled(!self.busy, crate::components::button("Apply / 적용"))
                 .clicked()
             {
                 match self.search_query() {
@@ -171,7 +171,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy,
-                    egui::Button::new("Summarize matches / 검색 집계"),
+                    crate::components::button("Summarize matches / 검색 집계"),
                 )
                 .clicked()
             {
@@ -221,13 +221,13 @@ impl Desktop {
             );
         }
         ui.separator();
-        ui.heading("Saved filters / 저장 필터");
+        crate::components::heading(ui, "Saved filters / 저장 필터");
         ui.horizontal(|ui| {
             ui.text_edit_singleline(&mut self.search.name);
             if ui
                 .add_enabled(
                     !self.busy && !self.readonly && !self.search.name.is_empty(),
-                    egui::Button::new("Save current / 현재 필터 저장"),
+                    crate::components::button("Save current / 현재 필터 저장"),
                 )
                 .clicked()
             {
@@ -252,7 +252,7 @@ impl Desktop {
                 }
             }
             if ui
-                .add_enabled(!self.busy, egui::Button::new("Reload / 다시 읽기"))
+                .add_enabled(!self.busy, crate::components::button("Reload / 다시 읽기"))
                 .clicked()
             {
                 self.refresh_filters(ui.ctx(), false);
@@ -260,7 +260,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy && self.search.filters.len() == 128,
-                    egui::Button::new("More / 더 보기"),
+                    crate::components::button("More / 더 보기"),
                 )
                 .clicked()
             {
@@ -273,7 +273,7 @@ impl Desktop {
             ui.push_id(i, |ui| {
                 ui.horizontal(|ui| {
                     if ui
-                        .add_enabled(!self.busy, egui::Button::new(&filter.name))
+                        .add_enabled(!self.busy, crate::components::button(&filter.name))
                         .clicked()
                     {
                         load = Some(filter.query.clone());
@@ -281,7 +281,7 @@ impl Desktop {
                     if ui
                         .add_enabled(
                             !self.busy && !self.readonly,
-                            egui::Button::new("Delete / 삭제"),
+                            crate::components::button("Delete / 삭제"),
                         )
                         .clicked()
                     {
@@ -319,7 +319,7 @@ impl Desktop {
         }
     }
     fn comparison_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Scan comparison / 스캔 비교");
+        crate::components::heading(ui, "Scan comparison / 스캔 비교");
         if self.search.before.is_empty() {
             self.search.before = self
                 .scans
@@ -343,7 +343,7 @@ impl Desktop {
         if ui
             .add_enabled(
                 !self.busy && !self.scan.running(),
-                egui::Button::new("Compare / 비교"),
+                crate::components::button("Compare / 비교"),
             )
             .clicked()
         {

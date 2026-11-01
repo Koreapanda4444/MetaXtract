@@ -170,7 +170,7 @@ impl Desktop {
         }
     }
     pub fn records_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Evidence records / 증거 레코드");
+        crate::components::heading(ui, "Evidence records / 증거 레코드");
         if self.active_scan.is_none() {
             ui.label("Choose a scan in Case history. / 케이스 기록에서 스캔을 선택하세요.");
             return;
@@ -201,7 +201,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy && !self.records.back.is_empty(),
-                    egui::Button::new("Previous / 이전"),
+                    crate::components::button("Previous / 이전"),
                 )
                 .clicked()
             {
@@ -210,7 +210,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy && self.records.next.is_some(),
-                    egui::Button::new("Next / 다음"),
+                    crate::components::button("Next / 다음"),
                 )
                 .clicked()
             {
@@ -295,7 +295,7 @@ impl Desktop {
                 if ui
                     .add_enabled(
                         !self.busy && !self.records.selected.is_empty(),
-                        egui::Button::new(label),
+                        crate::components::button(label),
                     )
                     .clicked()
                 {
@@ -311,7 +311,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy && !self.readonly && !self.records.selected.is_empty(),
-                    egui::Button::new("Replace selected annotations / 선택 주석 교체"),
+                    crate::components::button("Replace selected annotations / 선택 주석 교체"),
                 )
                 .clicked()
             {

@@ -119,7 +119,7 @@ impl Desktop {
         });
     }
     pub fn workflows_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Export and tools / 내보내기·도구");
+        crate::components::heading(ui, "Export and tools / 내보내기·도구");
         const ACTIONS: [&str; 18] = [
             "Export records / 레코드 내보내기",
             "Redaction profile / 비식별화 프로필",
@@ -193,7 +193,7 @@ impl Desktop {
                 if ui
                     .add_enabled(
                         !self.busy && self.records.focused.is_some(),
-                        egui::Button::new("Preview changes / 변경 미리보기"),
+                        crate::components::button("Preview changes / 변경 미리보기"),
                     )
                     .clicked()
                 {
@@ -395,7 +395,7 @@ impl Desktop {
                     && (!requires_case || self.case.is_some())
                     && (!writable || !self.readonly)
                     && (action != 8 || switch_allowed),
-                egui::Button::new("Run / 실행"),
+                crate::components::button("Run / 실행"),
             )
             .clicked()
         {

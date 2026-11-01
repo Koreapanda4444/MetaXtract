@@ -41,7 +41,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy,
-                    egui::Button::new("Choose matching source / 일치하는 원본 선택"),
+                    crate::components::button("Choose matching source / 일치하는 원본 선택"),
                 )
                 .clicked()
             {

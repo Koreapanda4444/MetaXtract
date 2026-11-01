@@ -186,7 +186,7 @@ impl Desktop {
         }
     }
     pub fn scan_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Scan queue / 스캔 대기열");
+        crate::components::heading(ui, "Scan queue / 스캔 대기열");
         ui.horizontal(|ui| {
             ui.checkbox(
                 &mut self.scan.include_hidden,
@@ -208,7 +208,7 @@ impl Desktop {
         );
         ui.label("Choose a file or directory. Results are saved as they arrive. / 파일·폴더를 선택하면 결과를 순서대로 저장합니다.");
         ui.horizontal(|ui| {
-            if ui.text_edit_singleline(&mut self.scan.source).changed() {
+            if crate::components::path_input(ui, &mut self.scan.source).changed() {
                 self.scan.source_path = None;
             }
             if ui.button("Browse / 찾기").clicked() {
@@ -227,7 +227,7 @@ impl Desktop {
                         && !self.readonly
                         && !self.scan.source.is_empty()
                         && self.scan.queue.len() < 64,
-                    egui::Button::new("Add to queue / 대기열 추가"),
+                    crate::components::button("Add to queue / 대기열 추가"),
                 )
                 .clicked()
             {
@@ -240,7 +240,10 @@ impl Desktop {
                 self.scan.held = false;
             }
             if ui
-                .add_enabled(self.scan.running(), egui::Button::new("Pause / 일시 정지"))
+                .add_enabled(
+                    self.scan.running(),
+                    crate::components::button("Pause / 일시 정지"),
+                )
                 .clicked()
             {
                 self.scan.pause();
@@ -248,7 +251,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     self.scan.running(),
-                    egui::Button::new("Cancel scan / 스캔 취소"),
+                    crate::components::button("Cancel scan / 스캔 취소"),
                 )
                 .clicked()
             {
@@ -311,7 +314,7 @@ impl Desktop {
                 }
             });
         ui.separator();
-        ui.heading("Resume checkpoint / 체크포인트 재개");
+        crate::components::heading(ui, "Resume checkpoint / 체크포인트 재개");
         ui.label("Paused or interrupted scans keep their original journal and source. / 정지·중단된 스캔은 원래 저널과 원본 경로가 필요합니다.");
         let resumable: Vec<_> = self
             .scans
@@ -323,7 +326,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.scan.running() && !self.busy && !self.readonly,
-                    egui::Button::new(format!("Resume / 재개 · {id} · {source}")),
+                    crate::components::button(format!("Resume / 재개 · {id} · {source}")),
                 )
                 .clicked()
             {

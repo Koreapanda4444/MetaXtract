@@ -105,14 +105,17 @@ impl Desktop {
         );
     }
     pub fn analysis_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Case analysis / 케이스 분석");
+        crate::components::heading(ui, "Case analysis / 케이스 분석");
         if self.case.is_none() {
             ui.label("Open a case first / 먼저 케이스를 여세요");
             return;
         }
         ui.horizontal(|ui| {
             if ui
-                .add_enabled(!self.busy, egui::Button::new("Refresh totals / 통계 갱신"))
+                .add_enabled(
+                    !self.busy,
+                    crate::components::button("Refresh totals / 통계 갱신"),
+                )
                 .clicked()
             {
                 self.analysis.metrics_loaded = false;
@@ -124,7 +127,7 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy && !self.scan.running(),
-                    egui::Button::new("Build analysis / 분석 실행"),
+                    crate::components::button("Build analysis / 분석 실행"),
                 )
                 .clicked()
             {
@@ -405,7 +408,7 @@ impl Desktop {
             }
             for (label, p) in [("GeoJSON", Purpose::GeoJson), ("KML", Purpose::Kml)] {
                 if ui
-                    .add_enabled(!self.busy, egui::Button::new(label))
+                    .add_enabled(!self.busy, crate::components::button(label))
                     .clicked()
                 {
                     self.picker = Some(Picker::new(p));

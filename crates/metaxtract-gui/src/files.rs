@@ -67,7 +67,7 @@ impl Picker {
     pub fn show(&mut self, ctx: &egui::Context) -> (bool, Option<PathBuf>) {
         let mut open = true;
         let mut chosen = None;
-        egui::Window::new("Choose path / 경로 선택")
+        crate::components::modal("Choose path / 경로 선택")
             .id(egui::Id::new("path-picker"))
             .default_size([720.0, 490.0])
             .collapsible(false)

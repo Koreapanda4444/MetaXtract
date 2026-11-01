@@ -4,7 +4,7 @@ use eframe::egui;
 use metaxtract_app::{self as app, storage};
 impl Desktop {
     fn case_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Case workspace / 케이스 작업 공간");
+        crate::components::heading(ui, "Case workspace / 케이스 작업 공간");
         let Some(case) = self.case.clone() else {
             ui.add_space(28.0);
             ui.label(
@@ -12,7 +12,7 @@ impl Desktop {
             );
             ui.label("Metadata stays on your computer. / 메타데이터는 컴퓨터 안에서 처리됩니다.");
             ui.add_space(20.0);
-            ui.heading("Recent cases / 최근 케이스");
+            crate::components::heading(ui, "Recent cases / 최근 케이스");
             let mut selected = None;
             for path in &self.settings.recent {
                 if let Ok(p) = path.to_path() {
@@ -42,7 +42,7 @@ impl Desktop {
         if ui
             .add_enabled(
                 !self.busy && !self.readonly,
-                egui::Button::new("Save notes and title / 노트·제목 저장"),
+                crate::components::button("Save notes and title / 노트·제목 저장"),
             )
             .clicked()
         {
@@ -73,13 +73,13 @@ impl Desktop {
             }
         }
         ui.add_space(16.0);
-        ui.heading("Scan history / 스캔 기록");
+        crate::components::heading(ui, "Scan history / 스캔 기록");
         ui.horizontal(|ui| {
             for (label, next) in [("Latest / 최근", false), ("Older / 이전", true)] {
                 if ui
                     .add_enabled(
                         !self.busy && (!next || self.history_next.is_some()),
-                        egui::Button::new(label),
+                        crate::components::button(label),
                     )
                     .clicked()
                 {
@@ -138,7 +138,8 @@ impl eframe::App for Desktop {
         self.poll_analysis(ctx);
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading(
+                crate::components::heading(
+                    ui,
                     egui::RichText::new("MetaXtract").color(egui::Color32::from_rgb(99, 195, 255)),
                 );
                 ui.separator();
@@ -155,7 +156,7 @@ impl eframe::App for Desktop {
                                     i.notes != self.notes || i.title != self.title
                                 })
                                 && (self.case.is_some() || !matches!(purpose, Purpose::Copy)),
-                            egui::Button::new(label),
+                            crate::components::button(label),
                         )
                         .clicked()
                     {
@@ -172,7 +173,7 @@ impl eframe::App for Desktop {
         });
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(&self.status);
+                crate::components::status(ui, &self.status, self.busy || self.scan.running());
                 if self.readonly {
                     ui.strong("READ ONLY / 읽기 전용");
                 }
