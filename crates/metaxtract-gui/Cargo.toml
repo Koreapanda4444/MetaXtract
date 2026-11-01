@@ -10,3 +10,4 @@ eframe.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
+rfd = { version = "=0.15.4", default-features = false, features = ["xdg-portal", "async-std"] }

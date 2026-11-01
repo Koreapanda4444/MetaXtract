@@ -271,5 +271,7 @@
   "Unsaved analysis": "저장하지 않은 분석",
   "This temporary analysis has not been saved. Save it as a case, or discard it to continue.": "이 임시 분석은 저장하지 않았습니다. 케이스로 저장하거나 버리고 계속하세요.",
   "Discard and continue": "버리고 계속",
-  "Keep working": "계속 작업"
+  "Keep working": "계속 작업",
+  "Choose file": "파일 선택",
+  "Choose folder": "폴더 선택"
 }

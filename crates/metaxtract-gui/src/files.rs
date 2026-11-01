@@ -1,6 +1,5 @@
-//! Bounded native-path picker, without a subprocess or web dependency.
 use eframe::egui;
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, sync::mpsc};
 #[derive(Clone, Copy, Debug)]
 pub enum Purpose {
     Open,
@@ -18,129 +17,102 @@ pub enum Purpose {
 }
 pub struct Picker {
     pub purpose: Purpose,
-    current: PathBuf,
-    location: String,
-    name: String,
-    selected: Option<PathBuf>,
-    entries: Vec<(PathBuf, bool)>,
-    error: String,
+    result: Option<mpsc::Receiver<io::Result<Option<PathBuf>>>>,
+    error: Option<String>,
 }
 impl Picker {
     pub fn new(purpose: Purpose) -> Self {
-        let current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let mut p = Self {
+        Self {
             purpose,
-            current,
-            location: String::new(),
-            name: String::new(),
-            selected: None,
-            entries: vec![],
-            error: String::new(),
-        };
-        p.reload();
-        p
+            result: None,
+            error: None,
+        }
     }
-    fn reload(&mut self) {
-        self.location = self.current.to_string_lossy().into_owned();
-        self.entries.clear();
-        self.selected = None;
-        let result = (|| -> io::Result<()> {
-            for entry in std::fs::read_dir(&self.current)?.take(1001) {
-                let entry = entry?;
-                let kind = entry.file_type()?;
-                if !kind.is_symlink() {
-                    self.entries.push((entry.path(), kind.is_dir()));
-                }
-            }
-            self.entries
-                .sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-            if self.entries.len() > 1000 {
-                self.entries.truncate(1000);
-                self.error = crate::i18n::tr(
-                    "Showing the first 1,000 entries. Enter a path to reach other items.",
-                )
-                .into();
-            } else {
-                self.error.clear();
-            }
-            Ok(())
-        })();
-        if let Err(e) = result {
-            self.error = e.to_string();
+    fn launch(&mut self, ctx: &egui::Context, folder: bool) {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        let purpose = self.purpose;
+        let title = crate::i18n::tr("Choose path").to_owned();
+        let context = ctx.clone();
+        let task = std::thread::Builder::new()
+            .name("metaxtract-file-dialog".into())
+            .spawn(move || {
+                let result = std::panic::catch_unwind(move || {
+                    let dialog = rfd::FileDialog::new().set_title(title);
+                    if folder {
+                        dialog.pick_folder()
+                    } else {
+                        match purpose {
+                            Purpose::New | Purpose::Copy | Purpose::SaveSession => dialog
+                                .add_filter("MetaXtract", &["mxcase"])
+                                .set_file_name("analysis.mxcase")
+                                .save_file(),
+                            Purpose::Csv => dialog
+                                .add_filter("CSV", &["csv"])
+                                .set_file_name("metadata.csv")
+                                .save_file(),
+                            Purpose::Jsonl => dialog
+                                .add_filter("JSONL", &["jsonl"])
+                                .set_file_name("metadata.jsonl")
+                                .save_file(),
+                            Purpose::GeoJson => {
+                                dialog.add_filter("GeoJSON", &["geojson"]).save_file()
+                            }
+                            Purpose::Kml => dialog.add_filter("KML", &["kml"]).save_file(),
+                            Purpose::Workflow(
+                                crate::workflows::Field::Output | crate::workflows::Field::Receipt,
+                            ) => dialog.save_file(),
+                            _ => dialog.pick_file(),
+                        }
+                    }
+                })
+                .map_err(|_| io::Error::other("Native dialog failed"));
+                let _ = sender.send(result);
+                context.request_repaint();
+            });
+        match task {
+            Ok(_) => self.result = Some(receiver),
+            Err(e) => self.error = Some(e.to_string()),
         }
     }
     pub fn show(&mut self, ctx: &egui::Context) -> (bool, Option<PathBuf>) {
+        if let Some(receiver) = &self.result {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            match receiver.try_recv() {
+                Ok(Ok(path)) => return (false, path),
+                Ok(Err(error)) => {
+                    self.error = Some(error.to_string());
+                    self.result = None;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.error = Some("Native dialog disconnected".into());
+                    self.result = None;
+                }
+                Err(mpsc::TryRecvError::Empty) => return (true, None),
+            }
+        }
         let mut open = true;
-        let mut chosen = None;
-        crate::components::modal(crate::i18n::tr("Choose path"))
-            .id(egui::Id::new("path-picker"))
-            .default_size([720.0, 490.0])
-            .collapsible(false)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    if ui.button(crate::i18n::tr("Parent")).clicked() {
-                        if let Some(p) = self.current.parent() {
-                            self.current = p.to_owned();
-                            self.reload();
-                        }
+        let mut choose = None;
+        if matches!(self.purpose, Purpose::Source | Purpose::Quick) || self.error.is_some() {
+            crate::components::modal(crate::i18n::tr("Choose path"))
+                .open(&mut open)
+                .show(ctx, |ui| {
+                    if let Some(error) = &self.error {
+                        ui.colored_label(egui::Color32::LIGHT_RED, error);
                     }
-                    ui.text_edit_singleline(&mut self.location);
-                    if ui.button(crate::i18n::tr("Go")).clicked() {
-                        self.current = PathBuf::from(&self.location);
-                        self.reload();
+                    if ui.button(crate::i18n::tr("Choose file")).clicked() {
+                        choose = Some(false);
+                    }
+                    if ui.button(crate::i18n::tr("Choose folder")).clicked() {
+                        choose = Some(true);
                     }
                 });
-                let mut navigate = None;
-                egui::ScrollArea::vertical()
-                    .max_height(330.0)
-                    .show(ui, |ui| {
-                        for (path, is_dir) in &self.entries {
-                            let name = path.file_name().unwrap_or_default().to_string_lossy();
-                            let row = ui.selectable_label(
-                                self.selected.as_ref() == Some(path),
-                                format!("{} {name}", if *is_dir { "[DIR]" } else { "     " }),
-                            );
-                            if row.clicked() {
-                                self.selected = Some(path.clone());
-                                self.name = name.into_owned();
-                            }
-                            if row.double_clicked() && *is_dir {
-                                navigate = Some(path.clone());
-                            }
-                        }
-                    });
-                if let Some(path) = navigate {
-                    self.current = path;
-                    self.name.clear();
-                    self.reload();
-                }
-                ui.label(crate::i18n::tr("Name or full path"));
-                if ui.text_edit_singleline(&mut self.name).changed() {
-                    self.selected = None;
-                }
-                ui.colored_label(egui::Color32::LIGHT_RED, &self.error);
-                if matches!(self.purpose, Purpose::Source | Purpose::Quick)
-                    && ui
-                        .button(crate::i18n::tr("Select this directory"))
-                        .clicked()
-                {
-                    chosen = Some(self.current.clone());
-                }
-                if ui.button(crate::i18n::tr("Choose")).clicked() {
-                    let path = self
-                        .selected
-                        .clone()
-                        .unwrap_or_else(|| self.current.join(&self.name));
-                    if path.is_dir() {
-                        self.current = path;
-                        self.name.clear();
-                        self.reload();
-                    } else if !self.name.is_empty() {
-                        chosen = Some(path);
-                    }
-                }
-            });
-        (open, chosen)
+        } else {
+            choose = Some(false);
+        }
+        if let Some(folder) = choose {
+            self.error = None;
+            self.launch(ctx, folder);
+        }
+        (open, None)
     }
 }

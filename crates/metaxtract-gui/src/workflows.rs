@@ -120,7 +120,7 @@ impl Desktop {
     }
     pub fn workflows_view(&mut self, ui: &mut egui::Ui) {
         crate::components::heading(ui, crate::i18n::tr("Export and tools"));
-        const ACTIONS: [&str; 18] = [
+        let actions: [&str; 18] = [
             crate::i18n::tr("Export records"),
             crate::i18n::tr("Redaction profile"),
             crate::i18n::tr("Report"),
@@ -142,9 +142,9 @@ impl Desktop {
         ];
         let previous = self.workflows.action;
         egui::ComboBox::from_id_salt("workflow-action")
-            .selected_text(ACTIONS[self.workflows.action])
+            .selected_text(actions[self.workflows.action])
             .show_ui(ui, |ui| {
-                for (i, label) in ACTIONS.iter().enumerate() {
+                for (i, label) in actions.iter().enumerate() {
                     ui.selectable_value(&mut self.workflows.action, i, *label);
                 }
             });
