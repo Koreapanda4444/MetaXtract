@@ -12,24 +12,26 @@ use metaxtract_app::{
 use std::{io, path::PathBuf};
 
 pub struct AnalysisUi {
-    totals: Option<CaseTotals>,
-    revision: u64,
-    scan_id: Option<String>,
-    statistics: Option<serde_json::Value>,
+    pub(crate) mime_facets: Vec<metaxtract_app::storage::FacetValue>,
+    pub(crate) totals: Option<CaseTotals>,
+    pub(crate) revision: u64,
+    pub(crate) scan_id: Option<String>,
+    pub(crate) statistics: Option<serde_json::Value>,
     pub metrics_loaded: bool,
-    report: Option<Box<InvestigationReport>>,
-    selected: bool,
-    view: usize,
-    detail: usize,
-    severity: usize,
-    radius: f64,
-    groups: String,
-    zoom: f32,
-    center: egui::Vec2,
+    pub(crate) report: Option<Box<InvestigationReport>>,
+    pub(crate) selected: bool,
+    pub(crate) view: usize,
+    pub(crate) detail: usize,
+    pub(crate) severity: usize,
+    pub(crate) radius: f64,
+    pub(crate) groups: String,
+    pub(crate) zoom: f32,
+    pub(crate) center: egui::Vec2,
 }
 impl Default for AnalysisUi {
     fn default() -> Self {
         Self {
+            mime_facets: vec![],
             totals: None,
             revision: 0,
             scan_id: None,
@@ -77,6 +79,7 @@ impl Desktop {
             return;
         };
         let scan = self.active_scan.clone();
+        let query = self.active_query(false).ok();
         self.analysis.metrics_loaded = true;
         self.analysis.scan_id = scan.clone();
         self.task(
@@ -95,9 +98,16 @@ impl Desktop {
                         "Case changed; refresh statistics",
                     )));
                 }
-                Ok((totals, before, statistics))
+                let facets = if let Some(q) = query {
+                    case.search_facets(&q, metaxtract_app::storage::FacetField::Mime, 32)?
+                        .values
+                } else {
+                    vec![]
+                };
+                Ok((totals, before, statistics, facets))
             },
-            |s, (totals, revision, statistics)| {
+            |s, (totals, revision, statistics, facets)| {
+                s.analysis.mime_facets = facets;
                 s.analysis.totals = Some(totals);
                 s.analysis.revision = revision;
                 s.analysis.statistics = statistics;
@@ -250,8 +260,8 @@ impl Desktop {
         }
         match self.analysis.view {
             0 => {
-                json_view(ui, &report.coverage);
-                for text in &report.limitations {
+                self.dashboard(ui);
+                for text in &self.analysis.report.as_ref().expect("report").limitations {
                     ui.label(text);
                 }
             }
