@@ -7,6 +7,7 @@ pub enum Purpose {
     New,
     Copy,
     Source,
+    Quick,
     Csv,
     Jsonl,
     Preview,
@@ -118,7 +119,7 @@ impl Picker {
                     self.selected = None;
                 }
                 ui.colored_label(egui::Color32::LIGHT_RED, &self.error);
-                if matches!(self.purpose, Purpose::Source)
+                if matches!(self.purpose, Purpose::Source | Purpose::Quick)
                     && ui
                         .button(crate::i18n::tr("Select this directory"))
                         .clicked()

@@ -167,6 +167,9 @@ impl Desktop {
                     self.report_error(e);
                 }
             }
+            if self.temporary_session.is_some() && self.scan.queue.is_empty() {
+                self.tab = crate::state::Tab::Records;
+            }
             self.scan.refresh_needed = true;
         }
         if self.scan.refresh_needed && !self.busy {

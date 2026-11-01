@@ -7,6 +7,17 @@ impl Desktop {
         crate::components::heading(ui, crate::i18n::tr("Case workspace"));
         let Some(case) = self.case.clone() else {
             ui.add_space(28.0);
+            crate::components::heading(ui, crate::i18n::tr("Quick analysis"));
+            ui.label(crate::i18n::tr(
+                "Open a file or folder to inspect metadata immediately. No case setup is required.",
+            ));
+            if ui
+                .button(crate::i18n::tr("Open for quick analysis"))
+                .clicked()
+            {
+                self.picker = Some(Picker::new(Purpose::Quick));
+            }
+            ui.add_space(16.0);
             ui.label(crate::i18n::tr("Create or open a local case to begin."));
             ui.label(crate::i18n::tr("Metadata stays on your computer."));
             ui.add_space(20.0);
@@ -187,6 +198,7 @@ impl eframe::App for Desktop {
                     }
                 });
                 for (label, purpose) in [
+                    (crate::i18n::tr("Quick analysis"), Purpose::Quick),
                     (crate::i18n::tr("New case"), Purpose::New),
                     (crate::i18n::tr("Open"), Purpose::Open),
                     (crate::i18n::tr("Save copy"), Purpose::Copy),

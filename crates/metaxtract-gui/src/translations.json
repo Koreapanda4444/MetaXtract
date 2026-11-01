@@ -260,5 +260,10 @@
   "Notifications": "알림",
   "Operation failed": "작업 실패",
   "Copy details": "상세 복사",
-  "Check the path and access permissions, then retry. Existing results are preserved.": "경로와 접근 권한을 확인한 뒤 다시 시도하세요. 기존 결과는 보존됩니다."
+  "Check the path and access permissions, then retry. Existing results are preserved.": "경로와 접근 권한을 확인한 뒤 다시 시도하세요. 기존 결과는 보존됩니다.",
+  "Quick analysis": "빠른 분석",
+  "Open for quick analysis": "파일·폴더 바로 분석",
+  "Open a file or folder to inspect metadata immediately. No case setup is required.": "파일이나 폴더를 열면 바로 분석합니다. 케이스 생성은 필요하지 않습니다.",
+  "Preparing quick analysis": "빠른 분석 준비 중",
+  "Finish or save the current work before opening another session.": "현재 작업을 끝내거나 저장한 뒤 다른 세션을 여세요."
 }

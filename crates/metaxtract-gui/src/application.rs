@@ -35,6 +35,7 @@ impl Desktop {
             workflows: Default::default(),
             scan: Default::default(),
             case: None,
+            temporary_session: None,
             info: None,
             scans: vec![],
             history_next: None,
@@ -104,6 +105,46 @@ impl Desktop {
             }
         }
     }
+    pub fn can_switch_case(&self) -> bool {
+        !self.busy
+            && !self.scan.running()
+            && self.scan.queue.is_empty()
+            && !self
+                .info
+                .as_ref()
+                .is_some_and(|i| i.notes != self.notes || i.title != self.title)
+    }
+    pub fn quick_analysis(&mut self, ctx: &egui::Context, path: PathBuf) {
+        if !self.can_switch_case() {
+            self.report_error(crate::i18n::tr(
+                "Finish or save the current work before opening another session.",
+            ));
+            return;
+        }
+        self.task(
+            ctx,
+            crate::i18n::tr("Preparing quick analysis"),
+            move || {
+                let directory = tempfile::Builder::new()
+                    .prefix("metaxtract-session-")
+                    .tempdir()?;
+                let case = Arc::new(CaseWorkspace::create(
+                    directory.path().join("session.mxcase"),
+                    crate::i18n::tr("Quick analysis"),
+                )?);
+                let info = case.info()?;
+                let history = case.scan_history(None, 128)?;
+                Ok((directory, case, info, history))
+            },
+            move |app, (directory, case, info, history)| {
+                app.case = None;
+                app.temporary_session = Some(directory);
+                app.loaded(case, info, history);
+                app.scan.queue.push_back(path);
+                app.tab = crate::state::Tab::Scan;
+            },
+        );
+    }
     pub fn report_error(&mut self, error: impl std::fmt::Display) {
         self.status = error.to_string();
         self.notifications.push(
@@ -164,14 +205,23 @@ impl Desktop {
         self.workflows = Default::default();
         self.restore_display_preferences();
         self.scan.close_when_idle = closing;
-        if let Err(e) = self.settings.remember(case.path()) {
-            self.status = format!("Case opened; recent list was not saved: {e}");
+        let temporary = self
+            .temporary_session
+            .as_ref()
+            .is_some_and(|d| case.path().starts_with(d.path()));
+        if !temporary {
+            if let Err(e) = self.settings.remember(case.path()) {
+                self.status = format!("Case opened; recent list was not saved: {e}");
+            }
         }
         self.readonly = case.access_mode() == storage::AccessMode::ReadOnly;
         self.title = info.title.clone();
         self.notes = info.notes.clone();
         self.active_scan = history.items.first().map(|s| s.id.clone());
         self.case = Some(case);
+        if !temporary {
+            self.temporary_session = None;
+        }
         self.info = Some(info);
         self.scans = history.items;
         self.history_next = history.next;
@@ -203,6 +253,7 @@ impl Desktop {
             Purpose::Preview => self.load_preview(ctx, path),
             Purpose::Csv => self.export_selection(ctx, path, true),
             Purpose::Jsonl => self.export_selection(ctx, path, false),
+            Purpose::Quick => self.quick_analysis(ctx, path),
             Purpose::Source => {
                 self.scan.source = path.to_string_lossy().into_owned();
                 self.scan.source_path = Some(path);
