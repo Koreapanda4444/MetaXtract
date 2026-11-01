@@ -250,5 +250,10 @@
   "Search & compare": "검색·비교",
   "Analysis": "분석",
   "Export & tools": "내보내기·도구",
-  "Selected scan": "선택 스캔"
+  "Selected scan": "선택 스캔",
+  "Appearance": "화면 설정",
+  "System": "시스템",
+  "Dark": "다크",
+  "Light": "라이트",
+  "UI scale": "화면 배율"
 }

@@ -23,8 +23,7 @@ impl Desktop {
                 .language
                 .unwrap_or_else(crate::i18n::system_language),
         );
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
-        crate::components::apply(&cc.egui_ctx);
+        settings.appearance.apply(&cc.egui_ctx, settings.scale);
         let (sender, receiver) = tasks::channel();
         let mut app = Self {
             tab: Tab::Case,

@@ -1,11 +1,14 @@
 use metaxtract_app::{self as app, core::scan::NativePath};
 use serde::{Deserialize, Serialize};
 use std::{io, path::PathBuf};
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub recent: Vec<NativePath>,
     pub korean: bool,
+    pub appearance: Appearance,
+    #[serde(default = "default_scale")]
+    pub scale: f32,
     pub language: Option<crate::i18n::Language>,
 }
 fn path() -> io::Result<PathBuf> {
@@ -46,5 +49,44 @@ impl Settings {
         file.as_file().sync_all()?;
         file.persist(path).map_err(|e| e.error)?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Appearance {
+    #[default]
+    System,
+    Dark,
+    Light,
+}
+impl Appearance {
+    pub fn apply(self, ctx: &eframe::egui::Context, scale: f32) {
+        ctx.set_theme(match self {
+            Self::System => eframe::egui::ThemePreference::System,
+            Self::Dark => eframe::egui::ThemePreference::Dark,
+            Self::Light => eframe::egui::ThemePreference::Light,
+        });
+        ctx.set_zoom_factor(if scale.is_finite() {
+            scale.clamp(0.75, 2.0)
+        } else {
+            1.0
+        });
+        crate::components::apply(ctx);
+    }
+}
+
+fn default_scale() -> f32 {
+    1.0
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            recent: vec![],
+            korean: false,
+            language: None,
+            appearance: Appearance::System,
+            scale: 1.0,
+        }
     }
 }

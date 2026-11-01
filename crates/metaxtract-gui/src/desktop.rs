@@ -162,6 +162,30 @@ impl eframe::App for Desktop {
                         self.status = error.to_string();
                     }
                 }
+                ui.menu_button(crate::i18n::tr("Appearance"), |ui| {
+                    let before = (self.settings.appearance, self.settings.scale);
+                    for (theme, label) in [
+                        (crate::settings::Appearance::System, "System"),
+                        (crate::settings::Appearance::Dark, "Dark"),
+                        (crate::settings::Appearance::Light, "Light"),
+                    ] {
+                        ui.selectable_value(
+                            &mut self.settings.appearance,
+                            theme,
+                            crate::i18n::tr(label),
+                        );
+                    }
+                    ui.add(
+                        egui::Slider::new(&mut self.settings.scale, 0.75..=2.0)
+                            .text(crate::i18n::tr("UI scale")),
+                    );
+                    if before != (self.settings.appearance, self.settings.scale) {
+                        self.settings.appearance.apply(ctx, self.settings.scale);
+                        if let Err(error) = self.settings.save() {
+                            self.status = error.to_string();
+                        }
+                    }
+                });
                 for (label, purpose) in [
                     (crate::i18n::tr("New case"), Purpose::New),
                     (crate::i18n::tr("Open"), Purpose::Open),
