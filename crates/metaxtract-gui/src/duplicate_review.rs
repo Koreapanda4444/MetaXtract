@@ -50,10 +50,10 @@ impl Desktop {
         };
         let mut pair = None;
         let mut open = None;
-        ui.label("Exact groups share a recorded cryptographic digest and size. Similarity scores are heuristic.");
+        ui.label(crate::i18n::tr("Exact groups share a recorded cryptographic digest and size. Similarity scores are heuristic."));
         ui.add(
             egui::Slider::new(&mut self.analysis.pair.minimum, 0..=1000)
-                .text("Minimum similarity (‰)"),
+                .text(crate::i18n::tr("Minimum similarity (‰)")),
         );
         egui::ScrollArea::vertical()
             .id_salt("duplicate-groups")
@@ -70,7 +70,7 @@ impl Desktop {
                         |ui| {
                             for path in &g.paths {
                                 ui.horizontal(|ui| {
-                                    if ui.small_button("Open").clicked() {
+                                    if ui.small_button(crate::i18n::tr("Open")).clicked() {
                                         open = Some((report.scan_id.clone(), path.clone()));
                                     }
                                     ui.label(path.to_string());
@@ -78,7 +78,9 @@ impl Desktop {
                                         && ui
                                             .add_enabled(
                                                 !self.busy,
-                                                egui::Button::new("Compare with first"),
+                                                egui::Button::new(crate::i18n::tr(
+                                                    "Compare with first",
+                                                )),
                                             )
                                             .clicked()
                                     {
@@ -121,14 +123,19 @@ impl Desktop {
                                         }
                                     ));
                                     if ui
-                                        .add_enabled(!self.busy, egui::Button::new("Compare pair"))
+                                        .add_enabled(
+                                            !self.busy,
+                                            egui::Button::new(crate::i18n::tr("Compare pair")),
+                                        )
                                         .clicked()
                                     {
                                         pair = Some((m.first.clone(), m.second.clone()));
                                     }
                                 });
                             }
-                            ui.weak("Showing up to 500 qualifying pairs per method.");
+                            ui.weak(crate::i18n::tr(
+                                "Showing up to 500 qualifying pairs per method.",
+                            ));
                         },
                     );
                 }
@@ -139,7 +146,7 @@ impl Desktop {
             report.coverage.visual_unavailable.len(),
             report.coverage.content_similarity_status
         ));
-        ui.collapsing("Unavailable preview coverage", |ui| {
+        ui.collapsing(crate::i18n::tr("Unavailable preview coverage"), |ui| {
             crate::inspectors::json_view(ui, &report.coverage.visual_unavailable)
         });
         if let Some(paths) = &self.analysis.pair.paths {
@@ -149,7 +156,10 @@ impl Desktop {
                     let ui = &mut cols[i];
                     ui.strong(path.to_string());
                     if ui
-                        .add_enabled(!self.busy, egui::Button::new("Open file inspector"))
+                        .add_enabled(
+                            !self.busy,
+                            egui::Button::new(crate::i18n::tr("Open file inspector")),
+                        )
                         .clicked()
                     {
                         open = Some((report.scan_id.clone(), (*path).clone()));
@@ -189,7 +199,7 @@ impl Desktop {
                                     );
                                 }
                                 for notice in &p.notices {
-                                    ui.weak(notice);
+                                    ui.weak(crate::i18n::bilingual(notice));
                                 }
                             }
                             Err(e) => {

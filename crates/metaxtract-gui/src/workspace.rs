@@ -41,7 +41,7 @@ impl Desktop {
             self.tab = Tab::Records;
         }
         let mut linked = None;
-        ui.collapsing("Files on current page", |ui| {
+        ui.collapsing(crate::i18n::tr("Files on current page"), |ui| {
             egui::ScrollArea::vertical()
                 .max_height(180.0)
                 .show(ui, |ui| {

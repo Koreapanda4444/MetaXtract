@@ -20,12 +20,14 @@ pub struct RelationshipsUi {
 }
 impl Desktop {
     pub(crate) fn relationships_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Cross-file relationships");
-        ui.label("Blue: recorded digest and size agree. Gold: a shared metadata value; a relationship is unconfirmed. Groups use a spanning star. Shared values do not establish authorship or chronology.");
+        ui.heading(crate::i18n::tr("Cross-file relationships"));
+        ui.label(crate::i18n::tr("Blue: recorded digest and size agree. Gold: a shared metadata value; a relationship is unconfirmed. Groups use a spanning star. Shared values do not establish authorship or chronology."));
         if ui
             .add_enabled(
                 !self.busy,
-                egui::Button::new("Build graph from current file filter / selection"),
+                egui::Button::new(crate::i18n::tr(
+                    "Build graph from current file filter / selection",
+                )),
             )
             .clicked()
         {
@@ -96,13 +98,13 @@ impl Desktop {
             );
         }
         if state.total > 200 {
-            ui.label("Graph is limited to the first 200 files in the current ordering. Narrow the filter for other files.");
+            ui.label(crate::i18n::tr("Graph is limited to the first 200 files in the current ordering. Narrow the filter for other files."));
         }
         ui.horizontal(|ui| {
             ui.checkbox(&mut state.exact, "Digest links only");
             state.zoom = state.zoom.clamp(0.5, 8.0);
-            ui.add(egui::Slider::new(&mut state.zoom, 0.5..=8.0).text("Zoom"));
-            if ui.button("Fit graph").clicked() {
+            ui.add(egui::Slider::new(&mut state.zoom, 0.5..=8.0).text(crate::i18n::tr("Zoom")));
+            if ui.button(crate::i18n::tr("Fit graph")).clicked() {
                 state.zoom = 1.0;
                 state.pan = egui::Vec2::ZERO;
             }
@@ -188,7 +190,10 @@ impl Desktop {
             });
         if let Some(i) = state.selected {
             if ui
-                .add_enabled(!self.busy, egui::Button::new("Open selected file"))
+                .add_enabled(
+                    !self.busy,
+                    egui::Button::new(crate::i18n::tr("Open selected file")),
+                )
                 .clicked()
             {
                 open = Some((state.scan.clone(), graph.files[i].clone()));
@@ -212,10 +217,10 @@ impl Desktop {
                                 "Shared claim: {key} = {}",
                                 crate::inspectors::claim_brief(value)
                             ));
-                            ui.weak("Unconfirmed relationship");
+                            ui.weak(crate::i18n::tr("Unconfirmed relationship"));
                         }
                     }
-                    if ui.button("Select neighbor").clicked() {
+                    if ui.button(crate::i18n::tr("Select neighbor")).clicked() {
                         state.selected = Some(other);
                     }
                 });

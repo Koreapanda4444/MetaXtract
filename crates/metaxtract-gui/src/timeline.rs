@@ -31,7 +31,7 @@ impl Desktop {
         };
         let state = &mut self.analysis.timeline;
         ui.horizontal_wrapped(|ui| {
-            ui.label("UTC from / to");
+            ui.label(crate::i18n::tr("UTC from / to"));
             ui.add(
                 egui::TextEdit::singleline(&mut state.from)
                     .desired_width(170.0)
@@ -47,7 +47,7 @@ impl Desktop {
             ui.add(
                 egui::TextEdit::singleline(&mut state.mime)
                     .desired_width(130.0)
-                    .hint_text("MIME contains")
+                    .hint_text(crate::i18n::tr("MIME contains"))
                     .char_limit(128),
             );
             ui.checkbox(&mut state.unresolved, "Unresolved only");
@@ -60,7 +60,7 @@ impl Desktop {
             return;
         };
         if from.zip(to).is_some_and(|(a, b)| a > b) {
-            ui.label("Start must precede end.");
+            ui.label(crate::i18n::tr("Start must precede end."));
             return;
         }
         let types: std::collections::BTreeMap<_, _> = report
@@ -99,9 +99,9 @@ impl Desktop {
             ui.add(
                 egui::Slider::new(&mut state.zoom, 1.0..=1000.0)
                     .logarithmic(true)
-                    .text("Zoom"),
+                    .text(crate::i18n::tr("Zoom")),
             );
-            if ui.button("Fit timeline").clicked() {
+            if ui.button(crate::i18n::tr("Fit timeline")).clicked() {
                 state.zoom = 1.0;
                 state.pan = 0.0;
             }
@@ -138,8 +138,14 @@ impl Desktop {
                 );
                 p.text(
                     egui::pos2(x, r.rect.bottom() - 10.0),
-                    egui::Align2::CENTER_BOTTOM,
-                    unix_seconds(t as i128),
+                    if n == 0 {
+                        egui::Align2::LEFT_BOTTOM
+                    } else if n == 4 {
+                        egui::Align2::RIGHT_BOTTOM
+                    } else {
+                        egui::Align2::CENTER_BOTTOM
+                    },
+                    unix_seconds(t as i128).replacen(' ', "\n", 1),
                     egui::FontId::monospace(10.0),
                     ui.visuals().text_color(),
                 );
@@ -171,7 +177,7 @@ impl Desktop {
         egui::ScrollArea::vertical()
             .id_salt("timeline-events")
             .max_height(220.0)
-            .show_rows(ui, 24.0, indices.len(), |ui, range| {
+            .show_rows(ui, 30.0, indices.len(), |ui, range| {
                 for n in range {
                     let i = indices[n];
                     let e = &report.timeline[i];
@@ -199,7 +205,7 @@ impl Desktop {
             .filter(|_| indices.contains(&self.analysis.detail))
         {
             if ui
-                .add_enabled(!self.busy, egui::Button::new("Open file"))
+                .add_enabled(!self.busy, egui::Button::new(crate::i18n::tr("Open file")))
                 .clicked()
             {
                 open = Some((report.scan_id.clone(), e.path.clone()));

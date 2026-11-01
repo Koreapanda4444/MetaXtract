@@ -73,11 +73,16 @@ impl Desktop {
         {
             let order = self.records.order;
             let group_by = self.records.group_by;
+            let prior = self.records.query.clone();
             self.records = RecordsUi::default();
             self.records.order = order;
             self.records.group_by = group_by;
-            let mut q = app::analysis::search::parse(&scan, "").expect("empty query");
+            let mut q = prior
+                .unwrap_or_else(|| app::analysis::search::parse(&scan, "").expect("empty query"));
+            q.records.scan_id = scan;
             q.records.order = self.records.order;
+            self.records.mime_filter = q.records.mime.clone().unwrap_or_default();
+            self.records.status_filter = q.records.status;
             self.records.query = Some(q);
         }
         if self.records.refresh

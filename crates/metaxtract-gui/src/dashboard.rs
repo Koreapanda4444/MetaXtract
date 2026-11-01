@@ -33,7 +33,7 @@ impl Desktop {
     pub(crate) fn dashboard(&mut self, ui: &mut egui::Ui) {
         let mut mime = None;
         let mut status = None;
-        ui.heading("File distribution · current file filter");
+        ui.heading(crate::i18n::tr("File distribution · current file filter"));
         let max = self
             .analysis
             .mime_facets
@@ -73,7 +73,7 @@ impl Desktop {
                     });
                 }
             });
-            ui.heading("Extraction status · analysis snapshot");
+            ui.heading(crate::i18n::tr("Extraction status · analysis snapshot"));
             let max = report
                 .coverage
                 .status_counts
@@ -86,7 +86,7 @@ impl Desktop {
                     status = serde_json::from_value(serde_json::Value::String(key.clone())).ok();
                 }
             }
-            ui.heading("Findings · analysis snapshot");
+            ui.heading(crate::i18n::tr("Findings · analysis snapshot"));
             let max = report
                 .coverage
                 .findings_by_severity
@@ -99,7 +99,7 @@ impl Desktop {
                     self.analysis.view = 4;
                 }
             }
-            ui.collapsing("Coverage and analysis limits", |ui| {
+            ui.collapsing(crate::i18n::tr("Coverage and analysis limits"), |ui| {
                 crate::inspectors::json_view(ui, &report.coverage)
             });
         }

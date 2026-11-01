@@ -12,11 +12,11 @@ impl Desktop {
                 .add(
                     egui::TextEdit::singleline(&mut self.search.text)
                         .desired_width((ui.available_width() - 110.0).max(100.0))
-                        .hint_text("Search files and metadata")
+                        .hint_text(crate::i18n::tr("Search files and metadata"))
                         .char_limit(4096),
                 )
                 .changed();
-            if ui.button("Reset filters").clicked() {
+            if ui.button(crate::i18n::tr("Reset filters")).clicked() {
                 self.search.text.clear();
                 self.search.visual = Default::default();
                 self.search.advanced = false;
@@ -28,7 +28,7 @@ impl Desktop {
                 self.search.pending = None;
             }
         });
-        ui.collapsing("Conditions · AND / OR / NOT", |ui| {
+        ui.collapsing(crate::i18n::tr("Conditions · AND / OR / NOT"), |ui| {
             changed |= self.search.visual.ui(ui);
         });
         if self.search.advanced {
@@ -84,6 +84,9 @@ impl Desktop {
                 Ok((q, id))
             },
             move |app, (q, id)| {
+                app.search.visual.load(q.clone());
+                app.search.text.clear();
+                app.search.advanced = false;
                 app.apply_search(q);
                 app.tab = Tab::Records;
                 app.focus_record(&context, id);

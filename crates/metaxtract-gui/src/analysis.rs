@@ -183,6 +183,7 @@ impl Desktop {
                                 .map(Box::new)
                             },
                             |s, r| {
+                                s.analysis.pair = Default::default();
                                 s.analysis.report = Some(r);
                                 s.analysis.detail = 0;
                             },
@@ -195,12 +196,12 @@ impl Desktop {
         ui.label(crate::i18n::tr("Scope uses the current record filter or selected IDs. Analysis is a revision-bound snapshot."));
         ui.collapsing(crate::i18n::tr("Geographic options"),|ui| {
             ui.horizontal(|ui| { ui.label(crate::i18n::tr("Cluster radius (m)")); ui.add(egui::DragValue::new(&mut self.analysis.radius).range(0.0..=1_000_000.0)); });
-            ui.label("Assign paths to track groups, then rebuild analysis. Unassigned locations remain unresolved.");
+            ui.label(crate::i18n::tr("Assign paths to track groups, then rebuild analysis. Unassigned locations remain unresolved."));
             if let Some(report)=&self.analysis.report {
                 let paths:std::collections::BTreeSet<_>=report.locations.iter().map(|p|p.path.to_string()).collect();
                 let paths:Vec<_>=paths.into_iter().collect();
-                egui::ScrollArea::vertical().id_salt("track-group-form").max_height(180.0).show_rows(ui,24.0,paths.len(),|ui,range| {
-                    for i in range {ui.horizontal(|ui| {ui.label(&paths[i]);ui.add(egui::TextEdit::singleline(self.analysis.groups.entry(paths[i].clone()).or_default()).desired_width(160.0).char_limit(128).hint_text("Group name"));});}
+                egui::ScrollArea::vertical().id_salt("track-group-form").max_height(180.0).show_rows(ui,30.0,paths.len(),|ui,range| {
+                    for i in range {ui.horizontal(|ui| {ui.label(&paths[i]);ui.add(egui::TextEdit::singleline(self.analysis.groups.entry(paths[i].clone()).or_default()).desired_width(160.0).char_limit(128).hint_text(crate::i18n::tr("Group name")));});}
                 });
                 self.analysis.groups.retain(|_,v|!v.trim().is_empty());
             }
@@ -212,8 +213,8 @@ impl Desktop {
                 crate::i18n::tr("Locations"),
                 crate::i18n::tr("Duplicates"),
                 crate::i18n::tr("Findings"),
-                "Relationships",
-                "Changes across scans",
+                crate::i18n::tr("Relationships"),
+                crate::i18n::tr("Changes across scans"),
             ]
             .into_iter()
             .enumerate()
@@ -234,7 +235,7 @@ impl Desktop {
                     "전체 케이스 · 수정 {}",
                     self.analysis.revision
                 ));
-                egui::Grid::new("case-totals").striped(true).show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
                     for (label, v) in [
                         (crate::i18n::tr("Scans"), t.scans),
                         (crate::i18n::tr("Records"), t.records),
@@ -243,9 +244,12 @@ impl Desktop {
                         (crate::i18n::tr("Conflicts"), t.conflicts),
                         (crate::i18n::tr("Diagnostics"), t.diagnostics),
                     ] {
-                        ui.label(label);
-                        ui.strong(v.to_string());
-                        ui.end_row();
+                        egui::Frame::group(ui.style()).show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.strong(v.to_string());
+                                ui.label(label);
+                            });
+                        });
                     }
                 });
                 ui.collapsing(crate::i18n::tr("Persisted file statistics"), |ui| {
@@ -276,7 +280,13 @@ impl Desktop {
             report.coverage.selected_records,
             report.coverage.full_scan_records
         ));
-        if self.active_scan.as_ref() != Some(&report.scan_id)
+        let scope_changed = self
+            .active_query(self.analysis.selected)
+            .ok()
+            .zip(report.query.as_ref())
+            .is_some_and(|(a, b)| serde_json::to_string(&a).ok() != serde_json::to_string(b).ok());
+        if scope_changed
+            || self.active_scan.as_ref() != Some(&report.scan_id)
             || self
                 .info
                 .as_ref()
@@ -473,7 +483,7 @@ impl Desktop {
         egui::ScrollArea::vertical()
             .id_salt("locations-list")
             .max_height(180.0)
-            .show_rows(ui, 24.0, report.locations.len(), |ui, r| {
+            .show_rows(ui, 30.0, report.locations.len(), |ui, r| {
                 for i in r {
                     let s = &report.locations[i];
                     if ui
@@ -493,7 +503,10 @@ impl Desktop {
         let mut open = None;
         if let Some(s) = report.locations.get(self.analysis.detail) {
             if ui
-                .add_enabled(!self.busy, egui::Button::new("Open location file"))
+                .add_enabled(
+                    !self.busy,
+                    egui::Button::new(crate::i18n::tr("Open location file")),
+                )
                 .clicked()
             {
                 open = Some((report.scan_id.clone(), s.path.clone()));

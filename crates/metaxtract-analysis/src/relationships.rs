@@ -172,4 +172,29 @@ mod tests {
             .is_err()
         );
     }
+    #[test]
+    fn shared_metadata_is_distinct_from_digest_evidence() {
+        let mut a = record("a");
+        let mut b = record("b");
+        let claim = NormalizedClaim {
+            id: ClaimId::new(1),
+            key: CanonicalKey::parse("camera.model").unwrap(),
+            value: NormalizedValue::Text("shared model".into()),
+            supporting_observations: vec![],
+            contradicting_observations: vec![],
+            supporting_parsers: vec![],
+            dissenting_parsers: vec![],
+            confidence: Confidence::new(500, vec![ConfidenceBasis::Heuristic]).unwrap(),
+            agreement: AgreementLevel::SingleParser,
+            resolution: ClaimResolution::Unresolved,
+        };
+        a.claims.push(claim.clone());
+        b.claims.push(claim);
+        let graph = build(&[a, b], Default::default()).unwrap();
+        assert_eq!(graph.edges.len(), 1);
+        assert!(matches!(
+            graph.edges[0].basis,
+            RelationshipBasis::SharedMetadata { .. }
+        ));
+    }
 }

@@ -32,8 +32,8 @@ fn field_name(path: &[FieldSegment]) -> String {
 }
 impl Desktop {
     pub(crate) fn evolution_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Metadata changes across scans");
-        ui.label("Track one evidence path across 2–16 chosen scans. Dates show scan start time, not the time metadata was edited. Missing records do not prove deletion; identical paths alone do not establish file identity.");
+        ui.heading(crate::i18n::tr("Metadata changes across scans"));
+        ui.label(crate::i18n::tr("Track one evidence path across 2–16 chosen scans. Dates show scan start time, not the time metadata was edited. Missing records do not prove deletion; identical paths alone do not establish file identity."));
         let state = &mut self.analysis.evolution;
         if state.path.is_empty() {
             if let Some((_, r)) = &self.records.focused {
@@ -41,7 +41,7 @@ impl Desktop {
             }
         }
         ui.horizontal(|ui| {
-            ui.label("Evidence path");
+            ui.label(crate::i18n::tr("Evidence path"));
             ui.add(
                 egui::TextEdit::singleline(&mut state.path)
                     .desired_width(400.0)
@@ -87,7 +87,7 @@ impl Desktop {
                 !self.busy
                     && (2..=16).contains(&state.scans.len())
                     && !state.path.trim().is_empty(),
-                egui::Button::new("Build field history"),
+                egui::Button::new(crate::i18n::tr("Build field history")),
             )
             .clicked()
         {
@@ -239,7 +239,7 @@ impl Desktop {
                 state.selected = i.saturating_sub(1);
             }
         }
-        ui.weak("Scans are ordered chronologically with equal spacing. Green: record present; red: absent; gold: metadata changed.");
+        ui.weak(crate::i18n::tr("Scans are ordered chronologically with equal spacing. Green: record present; red: absent; gold: metadata changed."));
         let mut open = None;
         for (i, t) in history.transitions.iter().enumerate() {
             if ui
@@ -278,7 +278,7 @@ impl Desktop {
             });
             ui.add(
                 egui::TextEdit::singleline(&mut state.filter)
-                    .hint_text("Filter field names")
+                    .hint_text(crate::i18n::tr("Filter field names"))
                     .char_limit(256),
             );
             if let Some(d) = &t.changes {
@@ -314,9 +314,11 @@ impl Desktop {
                         },
                     );
                 }
-                ui.weak("Up to 200 matching raw fields and 200 claim changes are displayed.");
+                ui.weak(crate::i18n::tr(
+                    "Up to 200 matching raw fields and 200 claim changes are displayed.",
+                ));
             } else {
-                ui.label("A record is missing at one or both endpoints; no field comparison is inferred.");
+                ui.label(crate::i18n::tr("A record is missing at one or both endpoints; no field comparison is inferred."));
             }
         }
         if let Some((scan, path)) = open {

@@ -13,9 +13,11 @@ pub fn graph(ui: &mut egui::Ui, field: &FieldLineage) -> Option<ObservationId> {
         field.confidence.score_millis(),
         field.agreement
     ));
-    ui.weak("Parser → original tag / raw observation → normalized claim. Red links contradict the claim. Click a raw node to inspect its original value.");
+    ui.weak(crate::i18n::tr("Parser → original tag / raw observation → normalized claim. Red links contradict the claim. Click a raw node to inspect its original value."));
     if field.evidence.is_empty() {
-        ui.label("No raw observation links were retained for this claim.");
+        ui.label(crate::i18n::tr(
+            "No raw observation links were retained for this claim.",
+        ));
         return None;
     }
     let mut selected = None;
@@ -109,8 +111,9 @@ pub fn graph(ui: &mut egui::Ui, field: &FieldLineage) -> Option<ObservationId> {
             field.evidence.len()
         ));
     }
-    ui.collapsing("Full provenance, ranges and conflicts", |ui| {
-        crate::inspectors::json_view(ui, field)
-    });
+    ui.collapsing(
+        crate::i18n::tr("Full provenance, ranges and conflicts"),
+        |ui| crate::inspectors::json_view(ui, field),
+    );
     selected
 }

@@ -16,7 +16,7 @@ impl Desktop {
                 .iter()
                 .enumerate()
             {
-                ui.selectable_value(&mut self.analysis.severity, i, *label);
+                ui.selectable_value(&mut self.analysis.severity, i, crate::i18n::tr(label));
             }
             egui::ComboBox::from_id_salt("finding-category")
                 .selected_text(if self.analysis.findings.category.is_empty() {
@@ -59,7 +59,7 @@ impl Desktop {
                     }
                 });
         });
-        ui.weak("Finding severity, extraction status, and parser diagnostics describe separate aspects of the evidence.");
+        ui.weak(crate::i18n::tr("Finding severity, extraction status, and parser diagnostics describe separate aspects of the evidence."));
         let findings: Vec<_> = report
             .records
             .iter()
@@ -85,7 +85,7 @@ impl Desktop {
         egui::ScrollArea::vertical()
             .id_salt("findings-review")
             .max_height(200.0)
-            .show_rows(ui, 25.0, findings.len(), |ui, range| {
+            .show_rows(ui, 30.0, findings.len(), |ui, range| {
                 for i in range {
                     let (_, f) = findings[i];
                     if ui
@@ -117,13 +117,13 @@ impl Desktop {
             if ui
                 .add_enabled(
                     !self.busy,
-                    egui::Button::new("Open file and inspect evidence"),
+                    egui::Button::new(crate::i18n::tr("Open file and inspect evidence")),
                 )
                 .clicked()
             {
                 open = Some((report.scan_id.clone(), f.path.clone()));
             }
-            ui.collapsing("Claim and observation evidence", |ui| {
+            ui.collapsing(crate::i18n::tr("Claim and observation evidence"), |ui| {
                 ui.label(format!(
                     "Claims: {:?} · observations: {:?}",
                     f.claims, f.observations
@@ -153,18 +153,21 @@ impl Desktop {
                     }
                 }
             });
-            ui.collapsing("Parser diagnostics", |ui| {
+            ui.collapsing(crate::i18n::tr("Parser diagnostics"), |ui| {
                 if let Some(d) = r.metadata.get("diagnostics") {
                     crate::inspectors::json_view(ui, d);
                 }
             });
-            ui.collapsing("Normalization and validation issues", |ui| {
-                crate::inspectors::json_view(ui, &r.normalization_issues);
-                crate::inspectors::json_view(ui, &r.validation_issues);
-            });
+            ui.collapsing(
+                crate::i18n::tr("Normalization and validation issues"),
+                |ui| {
+                    crate::inspectors::json_view(ui, &r.normalization_issues);
+                    crate::inspectors::json_view(ui, &r.validation_issues);
+                },
+            );
         }
         ui.separator();
-        ui.heading("Conflicting metadata claims");
+        ui.heading(crate::i18n::tr("Conflicting metadata claims"));
         let conflicts: Vec<_> = report
             .records
             .iter()
@@ -178,7 +181,7 @@ impl Desktop {
         egui::ScrollArea::vertical()
             .id_salt("conflicting-files")
             .max_height(140.0)
-            .show_rows(ui, 24.0, conflicts.len(), |ui, range| {
+            .show_rows(ui, 30.0, conflicts.len(), |ui, range| {
                 for i in range {
                     if ui
                         .selectable_label(
@@ -193,7 +196,10 @@ impl Desktop {
             });
         if let Some(r) = conflicts.get(self.analysis.findings.conflict) {
             if ui
-                .add_enabled(!self.busy, egui::Button::new("Open conflicting file"))
+                .add_enabled(
+                    !self.busy,
+                    egui::Button::new(crate::i18n::tr("Open conflicting file")),
+                )
                 .clicked()
             {
                 open = Some((report.scan_id.clone(), r.path.clone()));

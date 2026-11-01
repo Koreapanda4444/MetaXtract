@@ -176,7 +176,7 @@ summaries show MIME/status/claim/tag counts and explicitly indicate additional g
 filters persist their full typed criteria; loading rebinds them to the selected scan. Legacy
 criteria stay preserved and unknown status/query syntax requires manual review.
 
-The comparison tab accepts before/after scan IDs and an optional shared restriction. It retains
+The comparison tab offers labeled before/after scan selectors and an optional shared restriction. It retains
 the compared IDs, query and case revision, distinguishes added/removed/changed/moved records,
 and opens each changed field's before/after value beside semantic claim changes. Binary changes
 use length and SHA-256 rather than large byte arrays. Pause active scans for a consistent
@@ -292,3 +292,37 @@ Repeated exports of an unchanged case use fixed ZIP timestamps; snapshot `create
 content's last update time, not the wall-clock export time. The separate bounded cache stores raw
 extraction results under content, engine and policy identities. `--cache off` bypasses it. Purging
 accepts only a dedicated existing cache database and preserves case records and scan checkpoints.
+
+### File workspace and visual investigations
+
+The **Files** workspace places the resizable source explorer, file table and inspector together.
+The table provides global ascending/descending size and path ordering, MIME/status group ordering,
+modified UTC dates and page-local collapsible groups. Sort and filter changes restart keyset paging.
+Right-click a filename to copy its path, inspect, export selected records or queue authorized originals
+for another scan. Reanalysis creates a new scan and preserves previous evidence.
+
+The inspector starts with a summary and categorized EXIF/GPS/XMP/document/media fields. Search covers
+field names and textual/typed values; right-click copies the complete name, value or JSON up to 1 MiB.
+Larger values require export. **Advanced evidence and diagnostics** retains raw, normalized, provenance,
+conflict and diagnostic views. The provenance diagram links parser, original tag and normalized claim;
+click a raw node to open its recorded observation. Zoom affects the bounded preview, not native decode
+resolution. Previous/next file controls cross result pages.
+
+The Files search bar applies after a short delay; **Conditions** builds AND/OR/NOT groups without JSON.
+An empty AND matches all records and an empty OR matches none. **Set key** applies a custom canonical
+claim key. Named filters preserve base restrictions; switching to advanced JSON preserves the full query.
+**Reset filters** removes both base and expression restrictions. Scan comparison uses labeled scan
+selectors, the same search scope and highlighted before/after values. Analysis items link back to files.
+
+The dashboard shows file-type distribution and analysis coverage, extraction statuses and findings.
+Timeline date filters require UTC dates or timezone-qualified ISO timestamps; unresolved times remain
+separate. The offline coordinate plot supports panning, clusters and explicitly assigned track groups.
+Duplicate review offers paired, size/SHA-256-verified previews of locally authorized originals. Findings
+keep extraction status, anomaly severity, conflicts and parser diagnostics distinct.
+
+**Relationships** builds a bounded graph of the first 200 matching files (up to 4,000 links). Digest/size
+agreement is distinguished from shared metadata values, which do not prove a relationship or authorship.
+Group edges form a deterministic spanning star. **Changes across scans** tracks one evidence path across
+2–16 selected scans, ordered by scan start time, with field and claim changes. Missing records do not prove
+file deletion; equal paths do not prove identity. Graph/history snapshots retain their scan IDs and case
+revision. Rebuild them after changing scope or evidence. These views do not alter original records.

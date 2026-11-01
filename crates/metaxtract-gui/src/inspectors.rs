@@ -203,7 +203,7 @@ impl Desktop {
                         egui::ScrollArea::vertical()
                             .id_salt(category)
                             .max_height(240.0)
-                            .show_rows(ui, 26.0, indices.len(), |ui, range| {
+                            .show_rows(ui, 30.0, indices.len(), |ui, range| {
                                 for &index in &indices[range] {
                                     let observation = &record.observations[index];
                                     let name =
@@ -273,7 +273,7 @@ impl Desktop {
                 egui::ScrollArea::vertical()
                     .id_salt("raw-fields")
                     .max_height(240.0)
-                    .show_rows(ui, 26.0, self.inspect.raw_indices.len(), |ui, range| {
+                    .show_rows(ui, 30.0, self.inspect.raw_indices.len(), |ui, range| {
                         for &i in &self.inspect.raw_indices[range] {
                             let o = &record.observations[i];
                             if ui
@@ -342,7 +342,7 @@ impl Desktop {
                 egui::ScrollArea::vertical()
                     .id_salt("normalized-fields")
                     .max_height(240.0)
-                    .show_rows(ui, 26.0, self.inspect.claim_indices.len(), |ui, range| {
+                    .show_rows(ui, 30.0, self.inspect.claim_indices.len(), |ui, range| {
                         for &i in &self.inspect.claim_indices[range] {
                             let c = &record.claims[i];
                             if ui
@@ -368,6 +368,19 @@ impl Desktop {
                     .selected_claim
                     .and_then(|i| record.claims.get(i))
                 {
+                    ui.menu_button(crate::i18n::tr("Copy claim"), |ui| {
+                        copy_field(
+                            ui,
+                            claim.key.as_str(),
+                            &claim.value,
+                            claim,
+                            match &claim.value {
+                                NormalizedValue::Text(v) => Some(v.as_str()),
+                                _ => None,
+                            },
+                            &mut self.notifications,
+                        )
+                    });
                     json_view(ui, claim);
                 }
             }
@@ -408,7 +421,7 @@ impl Desktop {
                     egui::ScrollArea::vertical()
                         .id_salt("field-lineage")
                         .max_height(240.0)
-                        .show_rows(ui, 26.0, lineage.len(), |ui, range| {
+                        .show_rows(ui, 30.0, lineage.len(), |ui, range| {
                             for i in range {
                                 let field = &lineage[i];
                                 if ui
@@ -444,7 +457,7 @@ impl Desktop {
                 egui::ScrollArea::vertical()
                     .id_salt("claim-conflicts")
                     .max_height(240.0)
-                    .show_rows(ui, 26.0, record.conflicts.len(), |ui, range| {
+                    .show_rows(ui, 30.0, record.conflicts.len(), |ui, range| {
                         for i in range {
                             let conflict = &record.conflicts[i];
                             if ui
@@ -495,7 +508,7 @@ impl Desktop {
                 egui::ScrollArea::vertical()
                     .id_salt("record-diagnostics")
                     .max_height(240.0)
-                    .show_rows(ui, 26.0, record.diagnostics.len(), |ui, range| {
+                    .show_rows(ui, 30.0, record.diagnostics.len(), |ui, range| {
                         for i in range {
                             let d = &record.diagnostics[i];
                             if ui

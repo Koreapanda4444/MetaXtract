@@ -72,7 +72,17 @@ pub fn overview(ui: &mut egui::Ui, record: &ExtractionRecord) {
                     None
                 };
                 if let Some(name) = name {
-                    let signature = format!("{key}:{:?}", claim.value);
+                    if matches!(name, "Width" | "Height")
+                        && match claim.value {
+                            NormalizedValue::Signed(v) => v <= 0,
+                            NormalizedValue::Unsigned(v) => v == 0,
+                            NormalizedValue::Number(v) => v <= 0.0 || !v.is_finite(),
+                            _ => false,
+                        }
+                    {
+                        continue;
+                    }
+                    let signature = format!("{name}:{:?}", claim.value);
                     if shown.insert(signature) && shown.len() <= 16 {
                         ui.label(crate::i18n::tr(name));
                         ui.add(

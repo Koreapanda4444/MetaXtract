@@ -44,20 +44,9 @@ impl Desktop {
             }
             serde_json::from_str::<SearchQuery>(&self.search.json).map_err(io::Error::other)?
         } else {
-            {
-                let text = app::analysis::search::parse(scan, &self.search.text)?;
-                let mut q = SearchQuery::new(
-                    scan,
-                    s::SearchExpression::All(vec![
-                        self.search.visual.expression.clone(),
-                        text.expression,
-                    ]),
-                );
-                if let Some(base) = &self.search.visual.base {
-                    q.records = base.clone();
-                }
-                q
-            }
+            self.search
+                .visual
+                .query(scan, &self.search.text, self.records.order)?
         };
         q.records.scan_id = scan.clone();
         q.records.order = self.records.order;
@@ -74,6 +63,7 @@ impl Desktop {
         self.analysis.metrics_loaded = false;
         self.records.query = Some(q);
         self.records.refresh = true;
+        self.search.pending = None;
         self.tab = Tab::Records;
     }
     fn load_filter(&mut self, filter: FilterQuery) -> io::Result<()> {
@@ -155,19 +145,40 @@ impl Desktop {
             return;
         }
         ui.label(crate::i18n::tr("Examples"));
+        let visual_query = (!self.search.advanced).then(|| self.search_query());
         let toggle = ui.checkbox(
             &mut self.search.advanced,
             crate::i18n::tr("Typed query JSON (AND/OR/NOT)"),
         );
-        if toggle.changed() && self.search.advanced {
-            match app::analysis::search::parse(
-                self.active_scan.as_deref().unwrap_or(""),
-                &self.search.text,
-            )
-            .and_then(|q| serde_json::to_string_pretty(&q).map_err(io::Error::other))
-            {
-                Ok(json) => self.search.json = json,
-                Err(e) => self.report_error(e),
+        if toggle.changed() {
+            if self.search.advanced {
+                match visual_query
+                    .unwrap_or_else(|| self.search_query())
+                    .and_then(|q| serde_json::to_string_pretty(&q).map_err(io::Error::other))
+                {
+                    Ok(json) => self.search.json = json,
+                    Err(e) => {
+                        self.search.advanced = false;
+                        self.report_error(e);
+                    }
+                }
+            } else {
+                let result = serde_json::from_str::<SearchQuery>(&self.search.json)
+                    .map_err(io::Error::other)
+                    .and_then(|q| {
+                        q.validate()?;
+                        Ok(q)
+                    });
+                match result {
+                    Ok(q) => {
+                        self.search.visual.load(q);
+                        self.search.text.clear();
+                    }
+                    Err(e) => {
+                        self.search.advanced = true;
+                        self.report_error(e);
+                    }
+                }
             }
         }
         if self.search.advanced {
@@ -180,7 +191,7 @@ impl Desktop {
         } else {
             ui.add(
                 egui::TextEdit::singleline(&mut self.search.text)
-                    .hint_text("Text or search expression")
+                    .hint_text(crate::i18n::tr("Text or search expression"))
                     .desired_width(f32::INFINITY),
             );
             self.search.visual.ui(ui);
@@ -385,7 +396,7 @@ impl Desktop {
         }
         ui.label(crate::i18n::tr("Optional shared search restriction"));
         ui.text_edit_singleline(&mut self.search.text);
-        ui.collapsing("Shared metadata conditions", |ui| {
+        ui.collapsing(crate::i18n::tr("Shared metadata conditions"), |ui| {
             self.search.visual.ui(ui);
         });
         if ui
@@ -487,7 +498,7 @@ impl Desktop {
                 .enumerate()
                 {
                     if ui
-                        .selectable_value(&mut self.search.view, i, *label)
+                        .selectable_value(&mut self.search.view, i, crate::i18n::tr(label))
                         .changed()
                     {
                         self.search.selected_record = None;
@@ -500,7 +511,7 @@ impl Desktop {
                     egui::ScrollArea::vertical()
                         .id_salt("diff-records")
                         .max_height(190.0)
-                        .show_rows(ui, 26.0, diff.changed.len(), |ui, range| {
+                        .show_rows(ui, 30.0, diff.changed.len(), |ui, range| {
                             for i in range {
                                 let r = &diff.changed[i];
                                 if ui
@@ -527,7 +538,10 @@ impl Desktop {
                     {
                         ui.horizontal(|ui| {
                             if ui
-                                .add_enabled(!self.busy, egui::Button::new("Open before file"))
+                                .add_enabled(
+                                    !self.busy,
+                                    egui::Button::new(crate::i18n::tr("Open before file")),
+                                )
                                 .clicked()
                             {
                                 open = Some((
@@ -536,7 +550,10 @@ impl Desktop {
                                 ));
                             }
                             if ui
-                                .add_enabled(!self.busy, egui::Button::new("Open after file"))
+                                .add_enabled(
+                                    !self.busy,
+                                    egui::Button::new(crate::i18n::tr("Open after file")),
+                                )
                                 .clicked()
                             {
                                 open = Some((
@@ -548,7 +565,7 @@ impl Desktop {
                         egui::ScrollArea::vertical()
                             .id_salt("diff-fields")
                             .max_height(160.0)
-                            .show_rows(ui, 26.0, record.fields.len(), |ui, range| {
+                            .show_rows(ui, 30.0, record.fields.len(), |ui, range| {
                                 for i in range {
                                     if ui
                                         .selectable_label(
@@ -593,7 +610,7 @@ impl Desktop {
                     egui::ScrollArea::vertical()
                         .id_salt("diff-paths")
                         .max_height(300.0)
-                        .show_rows(ui, 26.0, paths.len(), |ui, range| {
+                        .show_rows(ui, 30.0, paths.len(), |ui, range| {
                             for path in &paths[range] {
                                 if ui.link(path.to_string()).clicked() {
                                     let scan = if self.search.view == 1 {
@@ -610,7 +627,7 @@ impl Desktop {
                     egui::ScrollArea::vertical()
                         .id_salt("diff-relocations")
                         .max_height(300.0)
-                        .show_rows(ui, 26.0, diff.relocations.len(), |ui, range| {
+                        .show_rows(ui, 30.0, diff.relocations.len(), |ui, range| {
                             for moved in &diff.relocations[range] {
                                 ui.label(format!("{} → {}", moved.before, moved.after));
                             }

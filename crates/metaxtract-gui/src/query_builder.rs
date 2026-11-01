@@ -10,33 +10,62 @@ use metaxtract_app::{
 pub struct VisualQuery {
     pub expression: E,
     pub base: Option<RecordQuery>,
+    epoch: u64,
 }
 impl Default for VisualQuery {
     fn default() -> Self {
         Self {
             expression: E::All(vec![]),
             base: None,
+            epoch: next_epoch(),
         }
     }
 }
 impl VisualQuery {
+    pub fn query(
+        &self,
+        scan: &str,
+        text: &str,
+        order: metaxtract_app::storage::RecordOrder,
+    ) -> std::io::Result<SearchQuery> {
+        let expression = if text.trim().is_empty() {
+            self.expression.clone()
+        } else {
+            E::All(vec![
+                self.expression.clone(),
+                metaxtract_app::analysis::search::parse(scan, text)?.expression,
+            ])
+        };
+        let mut q = SearchQuery::new(scan, expression);
+        if let Some(base) = &self.base {
+            q.records = base.clone();
+        }
+        q.records.scan_id = scan.into();
+        q.records.order = order;
+        q.validate()?;
+        Ok(q)
+    }
     pub fn load(&mut self, query: SearchQuery) {
+        self.epoch = next_epoch();
         self.expression = query.expression;
         self.base = Some(query.records);
     }
     pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
         let mut changed = false;
         if let Some(base) = &self.base {
-            ui.collapsing("Saved base restrictions", |ui| {
+            ui.collapsing(crate::i18n::tr("Saved base restrictions"), |ui| {
                 crate::inspectors::json_view(ui, base);
             });
-            if ui.small_button("Clear saved base restrictions").clicked() {
+            if ui
+                .small_button(crate::i18n::tr("Clear saved base restrictions"))
+                .clicked()
+            {
                 self.base = None;
                 changed = true;
             }
         }
         let mut budget = 96usize.saturating_sub(count(&self.expression));
-        ui.push_id("visual-query", |ui| {
+        ui.push_id(("visual-query", self.epoch), |ui| {
             changed |= node(ui, &mut self.expression, 0, &mut budget);
         });
         changed
@@ -107,10 +136,26 @@ fn node(ui: &mut egui::Ui, e: &mut E, depth: usize, budget: &mut usize) -> bool 
                     .changed()
                 {
                     ui.ctx().data_mut(|d| d.insert_temp(id, text.clone()));
-                    if let Ok(parsed) = CanonicalKey::parse(text) {
-                        *key = parsed;
-                    }
+                }
+                let parsed = CanonicalKey::parse(text.clone());
+                if ui
+                    .add_enabled(
+                        parsed.is_ok(),
+                        egui::Button::new(crate::i18n::tr("Set key")),
+                    )
+                    .clicked()
+                {
+                    *key = parsed.clone().expect("validated key");
                     changed = true;
+                }
+                if text != key.as_str() {
+                    ui.weak(format!("Active key: {key}. Set key to apply this draft."));
+                }
+                if parsed.is_err() {
+                    ui.colored_label(
+                        egui::Color32::LIGHT_RED,
+                        "Use lowercase segments separated by dots.",
+                    );
                 }
             }
             let ops: &[O] = match p.field {
@@ -167,7 +212,7 @@ fn node(ui: &mut egui::Ui, e: &mut E, depth: usize, budget: &mut usize) -> bool 
                             egui::TextEdit::singleline(&mut p.value)
                                 .desired_width(160.0)
                                 .char_limit(4096)
-                                .hint_text("Value"),
+                                .hint_text(crate::i18n::tr("Value")),
                         )
                         .changed();
                 }
@@ -183,7 +228,9 @@ fn node(ui: &mut egui::Ui, e: &mut E, depth: usize, budget: &mut usize) -> bool 
     let previous = kind;
     ui.horizontal(|ui| {
         for (i, label) in ["AND", "OR", "NOT"].iter().enumerate() {
-            changed |= ui.selectable_value(&mut kind, i, *label).changed();
+            changed |= ui
+                .selectable_value(&mut kind, i, crate::i18n::tr(label))
+                .changed();
         }
         if kind == 2 {
             ui.label("negates the group below");
@@ -226,7 +273,7 @@ fn node(ui: &mut egui::Ui, e: &mut E, depth: usize, budget: &mut usize) -> bool 
                 if ui
                     .add_enabled(
                         *budget > 0 && children.len() < 64,
-                        egui::Button::new("+ condition"),
+                        egui::Button::new(crate::i18n::tr("+ condition")),
                     )
                     .clicked()
                 {
@@ -237,7 +284,7 @@ fn node(ui: &mut egui::Ui, e: &mut E, depth: usize, budget: &mut usize) -> bool 
                 if ui
                     .add_enabled(
                         *budget > 0 && depth < 5 && children.len() < 64,
-                        egui::Button::new("+ group"),
+                        egui::Button::new(crate::i18n::tr("+ group")),
                     )
                     .clicked()
                 {
@@ -275,5 +322,91 @@ fn field_name(f: &F) -> &'static str {
         F::Conflicts => "Has conflicts",
         F::Text => "Any text",
         F::RecordId => "Record ID",
+    }
+}
+
+fn next_epoch() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use metaxtract_app::{schema::*, storage::*};
+    #[test]
+    fn loaded_boolean_filters_preserve_base_restrictions_and_rebind_scan() {
+        let temp = tempfile::tempdir().unwrap();
+        let case = CaseWorkspace::create(temp.path().join("q.mxcase"), "query").unwrap();
+        let scan = case.begin_scan("fixture", "test").unwrap();
+        for (path, mime) in [
+            ("photos/a.jpg", "image/jpeg"),
+            ("photos/b.png", "image/png"),
+            ("other.jpg", "image/jpeg"),
+        ] {
+            case.append_record(
+                &scan,
+                &ExtractionRecord::new(SourceDescriptor {
+                    path: EvidencePath::root(RelativePath::parse(path).unwrap()),
+                    kind: SourceKind::File,
+                    identity: FileIdentity {
+                        size_bytes: 10,
+                        modified_ns: None,
+                        created_ns: None,
+                        stable_id: None,
+                    },
+                    declared_media_type: None,
+                    detected_media_type: Some(mime.into()),
+                }),
+            )
+            .unwrap();
+        }
+        let mut q = SearchQuery::new(
+            "old",
+            E::Not(Box::new(E::Predicate(SearchPredicate {
+                field: F::Mime,
+                operator: O::Equal,
+                value: "image/png".into(),
+            }))),
+        );
+        q.records.path_prefix = Some("photos/".into());
+        q.records.min_size = Some(5);
+        q.records.status = Some(ExtractionStatus::Complete);
+        let mut visual = VisualQuery::default();
+        visual.load(q);
+        let q = visual.query(&scan, "", RecordOrder::Path).unwrap();
+        assert_eq!(q.records.min_size, Some(5));
+        assert_eq!(case.count_search(&q).unwrap(), 1);
+        visual.expression = E::Any(vec![]);
+        assert_eq!(
+            case.count_search(&visual.query(&scan, "", RecordOrder::Path).unwrap())
+                .unwrap(),
+            0
+        );
+        visual.expression = E::All(vec![]);
+        assert_eq!(
+            case.count_search(&visual.query(&scan, "-mime:png", RecordOrder::Path).unwrap())
+                .unwrap(),
+            1
+        );
+    }
+    #[test]
+    fn saved_filters_at_the_node_limit_do_not_gain_empty_wrapper_nodes() {
+        let p = || {
+            E::Predicate(SearchPredicate {
+                field: F::Mime,
+                operator: O::Exists,
+                value: String::new(),
+            })
+        };
+        let expression = E::All(vec![
+            E::Any((0..63).map(|_| p()).collect()),
+            E::Any((0..62).map(|_| p()).collect()),
+        ]);
+        let q = SearchQuery::new("test", expression);
+        q.validate().unwrap();
+        let mut visual = VisualQuery::default();
+        visual.load(q);
+        assert!(visual.query("new", "", RecordOrder::Path).is_ok());
     }
 }
