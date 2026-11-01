@@ -279,5 +279,16 @@
   "Queue limit reached": "대기열 한도 도달",
   "Wait for the current operation or open a writable session.": "현재 작업이 끝나기를 기다리거나 쓰기 가능한 세션을 여세요.",
   "Some inputs were skipped": "일부 입력을 건너뛰었습니다",
-  "Drop files or folders to analyze": "파일이나 폴더를 놓으면 분석합니다"
+  "Drop files or folders to analyze": "파일이나 폴더를 놓으면 분석합니다",
+  "Failed": "실패",
+  "Paused": "일시 정지",
+  "Cancelled": "취소",
+  "Running": "진행 중",
+  "Pending": "대기 중",
+  "Select all queued": "대기 항목 전체 선택",
+  "Remove selected": "선택 제거",
+  "Move up": "위로",
+  "Move down": "아래로",
+  "Queue history": "대기열 처리 기록",
+  "Analyze again": "다시 분석"
 }

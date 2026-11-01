@@ -8,6 +8,23 @@ use std::{
     sync::mpsc,
     time::{Duration, Instant},
 };
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QueueState {
+    Completed,
+    Failed,
+    Paused,
+    Cancelled,
+}
+impl QueueState {
+    pub fn label(self) -> &'static str {
+        crate::i18n::tr(match self {
+            Self::Completed => "Completed",
+            Self::Failed => "Failed",
+            Self::Paused => "Paused",
+            Self::Cancelled => "Cancelled",
+        })
+    }
+}
 struct Active {
     control: ScanControl,
     events: mpsc::Receiver<app::scan::AppScanEvent>,
@@ -24,6 +41,9 @@ pub struct ScanUi {
     pub cache_enabled: bool,
     pub max_files: u64,
     pub queue: VecDeque<PathBuf>,
+    pub selected_queue: std::collections::BTreeSet<PathBuf>,
+    pub queue_history: VecDeque<(PathBuf, QueueState)>,
+    pub history_filter: Option<QueueState>,
     active: Option<Active>,
     pub latest: Option<app::scan::AppScanEvent>,
     pub held: bool,
@@ -43,6 +63,9 @@ impl Default for ScanUi {
             cache_enabled: true,
             max_files: 1_000_000,
             queue: VecDeque::new(),
+            selected_queue: Default::default(),
+            queue_history: VecDeque::new(),
+            history_filter: None,
             active: None,
             latest: None,
             held: false,
@@ -53,6 +76,25 @@ impl Default for ScanUi {
     }
 }
 impl ScanUi {
+    pub fn move_selected(&mut self, up: bool) {
+        if up {
+            for i in 1..self.queue.len() {
+                if self.selected_queue.contains(&self.queue[i])
+                    && !self.selected_queue.contains(&self.queue[i - 1])
+                {
+                    self.queue.swap(i, i - 1);
+                }
+            }
+        } else {
+            for i in (0..self.queue.len().saturating_sub(1)).rev() {
+                if self.selected_queue.contains(&self.queue[i])
+                    && !self.selected_queue.contains(&self.queue[i + 1])
+                {
+                    self.queue.swap(i, i + 1);
+                }
+            }
+        }
+    }
     pub fn running(&self) -> bool {
         self.active.is_some()
     }
@@ -139,11 +181,21 @@ impl Desktop {
         }
         if let Some(result) = finished {
             self.scan.active = None;
-            self.scan.active_source = None;
+            let completed_source = self.scan.active_source.take();
             self.analysis.metrics_loaded = false;
             match result {
                 Ok(out) => {
                     self.scan.held |= out.summary.stopped.is_some();
+                    let state = match out.summary.stopped {
+                        Some(app::core::scan::StopReason::Cancelled) => QueueState::Cancelled,
+                        Some(_) => QueueState::Paused,
+                        None if out.summary.failed > 0 => QueueState::Failed,
+                        None => QueueState::Completed,
+                    };
+                    if let Some(path) = completed_source {
+                        self.scan.queue_history.push_front((path, state));
+                        self.scan.queue_history.truncate(128);
+                    }
                     self.active_scan = Some(out.scan_id.clone());
                     self.status = crate::textf!(
                         "{} complete, {} failed · {:?}",
@@ -168,6 +220,12 @@ impl Desktop {
                 }
                 Err(e) => {
                     self.scan.held = true;
+                    if let Some(path) = completed_source {
+                        self.scan
+                            .queue_history
+                            .push_front((path, QueueState::Failed));
+                        self.scan.queue_history.truncate(128);
+                    }
                     self.report_error(e);
                 }
             }
@@ -253,8 +311,7 @@ impl Desktop {
                     .source_path
                     .clone()
                     .unwrap_or_else(|| PathBuf::from(&self.scan.source));
-                self.scan.queue.push_back(path);
-                self.scan.held = false;
+                self.ingest_paths(ui.ctx(), vec![path]);
             }
             if ui
                 .add_enabled(
@@ -314,23 +371,89 @@ impl Desktop {
                 active.started.elapsed().as_secs_f64()
             ));
         }
+        ui.horizontal_wrapped(|ui| {
+            if ui.button(crate::i18n::tr("Select all queued")).clicked() {
+                self.scan.selected_queue = self.scan.queue.iter().cloned().collect();
+            }
+            if ui.button(crate::i18n::tr("Remove selected")).clicked() {
+                self.scan
+                    .queue
+                    .retain(|p| !self.scan.selected_queue.contains(p));
+                self.scan.selected_queue.clear();
+            }
+            for (label, up) in [("Move up", true), ("Move down", false)] {
+                if ui.button(crate::i18n::tr(label)).clicked() {
+                    self.scan.move_selected(up);
+                }
+            }
+        });
         egui::ScrollArea::vertical()
             .id_salt("scan-queue")
-            .max_height(160.0)
+            .max_height(180.0)
             .show(ui, |ui| {
-                let mut remove = None;
-                for (i, path) in self.scan.queue.iter().enumerate() {
-                    ui.horizontal(|ui| {
-                        if ui.small_button(crate::i18n::tr("Remove")).clicked() {
-                            remove = Some(i);
-                        }
-                        ui.label(path.display().to_string());
-                    });
+                if let Some(path) = &self.scan.active_source {
+                    ui.strong(format!(
+                        "{}: {}",
+                        crate::i18n::tr("Running"),
+                        path.display()
+                    ));
                 }
-                if let Some(i) = remove {
-                    self.scan.queue.remove(i);
+                for (i, path) in self.scan.queue.iter().enumerate() {
+                    let mut selected = self.scan.selected_queue.contains(path);
+                    if ui
+                        .checkbox(
+                            &mut selected,
+                            format!(
+                                "{} · {} · {}",
+                                i + 1,
+                                crate::i18n::tr("Pending"),
+                                path.display()
+                            ),
+                        )
+                        .changed()
+                    {
+                        if selected {
+                            self.scan.selected_queue.insert(path.clone());
+                        } else {
+                            self.scan.selected_queue.remove(path);
+                        }
+                    }
                 }
             });
+        ui.collapsing(crate::i18n::tr("Queue history"), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.selectable_value(&mut self.scan.history_filter, None, crate::i18n::tr("All"));
+                for state in [
+                    QueueState::Completed,
+                    QueueState::Failed,
+                    QueueState::Paused,
+                    QueueState::Cancelled,
+                ] {
+                    ui.selectable_value(&mut self.scan.history_filter, Some(state), state.label());
+                }
+            });
+            let mut retry = None;
+            for (path, state) in &self.scan.queue_history {
+                if self
+                    .scan
+                    .history_filter
+                    .is_some_and(|filter| filter != *state)
+                {
+                    continue;
+                }
+                ui.horizontal(|ui| {
+                    ui.label(format!("{} · {}", state.label(), path.display()));
+                    if matches!(state, QueueState::Failed | QueueState::Cancelled)
+                        && ui.small_button(crate::i18n::tr("Analyze again")).clicked()
+                    {
+                        retry = Some(path.clone());
+                    }
+                });
+            }
+            if let Some(path) = retry {
+                self.ingest_paths(ui.ctx(), vec![path]);
+            }
+        });
         ui.separator();
         crate::components::heading(ui, crate::i18n::tr("Resume checkpoint"));
         ui.label(crate::i18n::tr(
