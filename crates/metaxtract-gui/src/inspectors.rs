@@ -372,6 +372,12 @@ impl Desktop {
                 }
             }
             InspectorTab::Provenance => {
+                let raw_positions: std::collections::BTreeMap<_, _> = record
+                    .observations
+                    .iter()
+                    .enumerate()
+                    .map(|(i, o)| (o.id, i))
+                    .collect();
                 ui.label(crate::i18n::tr("Source identity"));
                 json_view(ui, &record.source);
                 json_view(ui, &record.digests);
@@ -392,6 +398,7 @@ impl Desktop {
                         },
                         move |app, lineage| {
                             if app.records.focused.as_ref().map(|r| r.0) == Some(id) {
+                                app.inspect.selected_lineage = (!lineage.is_empty()).then_some(0);
                                 app.inspect.lineage = Some(lineage);
                             }
                         },
@@ -422,7 +429,11 @@ impl Desktop {
                         });
                     if let Some(field) = self.inspect.selected_lineage.and_then(|i| lineage.get(i))
                     {
-                        json_view(ui, field);
+                        if let Some(id) = crate::provenance_graph::graph(ui, field) {
+                            self.inspect.selected_raw = raw_positions.get(&id).copied();
+                            self.inspect.advanced_tab = Some(InspectorTab::Raw);
+                            self.inspect.open_evidence = true;
+                        }
                     }
                 }
             }

@@ -18,6 +18,7 @@ mod inspectors;
 mod metadata_search;
 mod notifications;
 mod preview;
+mod provenance_graph;
 mod query_builder;
 mod quick_access;
 mod records;
