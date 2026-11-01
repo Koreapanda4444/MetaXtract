@@ -6,6 +6,7 @@ pub enum Purpose {
     Open,
     New,
     Copy,
+    SaveSession,
     Source,
     Quick,
     Csv,

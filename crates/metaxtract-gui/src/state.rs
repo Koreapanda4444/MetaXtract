@@ -24,6 +24,7 @@ pub struct Desktop {
     pub search: crate::search::SearchUi,
     pub analysis: crate::analysis::AnalysisUi,
     pub workflows: crate::workflows::WorkflowsUi,
+    pub session_ui: crate::sessions::SessionUi,
     pub temporary_session: Option<tempfile::TempDir>,
     pub case: Option<Arc<CaseWorkspace>>,
     pub info: Option<CaseInfo>,

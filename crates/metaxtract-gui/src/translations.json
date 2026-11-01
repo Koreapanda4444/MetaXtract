@@ -265,5 +265,11 @@
   "Open for quick analysis": "파일·폴더 바로 분석",
   "Open a file or folder to inspect metadata immediately. No case setup is required.": "파일이나 폴더를 열면 바로 분석합니다. 케이스 생성은 필요하지 않습니다.",
   "Preparing quick analysis": "빠른 분석 준비 중",
-  "Finish or save the current work before opening another session.": "현재 작업을 끝내거나 저장한 뒤 다른 세션을 여세요."
+  "Finish or save the current work before opening another session.": "현재 작업을 끝내거나 저장한 뒤 다른 세션을 여세요.",
+  "Temporary analysis. Save as a case to keep these results.": "임시 분석입니다. 결과를 보관하려면 케이스로 저장하세요.",
+  "Save as case": "케이스로 저장",
+  "Unsaved analysis": "저장하지 않은 분석",
+  "This temporary analysis has not been saved. Save it as a case, or discard it to continue.": "이 임시 분석은 저장하지 않았습니다. 케이스로 저장하거나 버리고 계속하세요.",
+  "Discard and continue": "버리고 계속",
+  "Keep working": "계속 작업"
 }

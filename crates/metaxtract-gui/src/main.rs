@@ -12,6 +12,7 @@ mod preview;
 mod records;
 mod scan;
 mod search;
+mod sessions;
 mod settings;
 mod state;
 mod tasks;

@@ -135,6 +135,16 @@ impl Desktop {
 }
 impl eframe::App for Desktop {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if ctx.input(|i| i.viewport().close_requested())
+            && self.temporary_session.is_some()
+            && !self.session_ui.discard_once
+            && !self.smoke
+            && !self.busy
+            && !self.scan.running()
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.session_ui.confirm_close = true;
+        }
         if ctx.input(|i| i.viewport().close_requested()) && (self.busy || self.scan.running()) {
             self.scan.pause();
             self.scan.close_when_idle = true;
@@ -148,6 +158,7 @@ impl eframe::App for Desktop {
         self.poll_scan(ctx);
         self.poll_records(ctx);
         self.poll_analysis(ctx);
+        self.session_notice(ctx);
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 crate::components::heading(

@@ -36,6 +36,7 @@ impl Desktop {
             scan: Default::default(),
             case: None,
             temporary_session: None,
+            session_ui: Default::default(),
             info: None,
             scans: vec![],
             history_next: None,
@@ -246,6 +247,14 @@ impl Desktop {
         );
     }
     pub(crate) fn chosen(&mut self, ctx: &egui::Context, purpose: Purpose, path: PathBuf) {
+        if self.temporary_session.is_some()
+            && matches!(purpose, Purpose::New | Purpose::Open | Purpose::Quick)
+            && !self.session_ui.discard_once
+        {
+            self.session_ui.pending = Some((purpose, path));
+            return;
+        }
+        self.session_ui.discard_once = false;
         match purpose {
             Purpose::Workflow(field) => self.workflow_path(field, path),
             Purpose::GeoJson => self.export_geo(ctx, path, false),
@@ -260,7 +269,7 @@ impl Desktop {
             }
             Purpose::Open => self.open(ctx, path, false),
             Purpose::New => self.open(ctx, path, true),
-            Purpose::Copy => {
+            Purpose::Copy | Purpose::SaveSession => {
                 if let Some(case) = self.case.clone() {
                     self.task(
                         ctx,
