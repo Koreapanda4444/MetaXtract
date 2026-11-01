@@ -48,40 +48,43 @@ impl Desktop {
                     .char_limit(4096),
             );
         });
-        ui.collapsing(
-            format!("Choose scans · {} selected", state.scans.len()),
-            |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("history-scans")
-                    .max_height(180.0)
-                    .show(ui, |ui| {
-                        for scan in &self.scans {
-                            let mut selected = state.scans.contains(&scan.id);
-                            if ui
-                                .checkbox(
-                                    &mut selected,
-                                    format!(
-                                        "{} · {} · {} · {:?}",
-                                        crate::formatting::unix_seconds(
-                                            i128::from(scan.started_ms) / 1000
-                                        ),
-                                        scan.source,
-                                        scan.record_count,
-                                        scan.status
+        egui::CollapsingHeader::new(crate::textf!(
+            "Choose scans · {} selected",
+            "스캔 선택 · {}개 선택",
+            state.scans.len()
+        ))
+        .id_salt("history-scan-selector")
+        .show(ui, |ui| {
+            egui::ScrollArea::vertical()
+                .id_salt("history-scans")
+                .max_height(180.0)
+                .show(ui, |ui| {
+                    for scan in &self.scans {
+                        let mut selected = state.scans.contains(&scan.id);
+                        if ui
+                            .checkbox(
+                                &mut selected,
+                                format!(
+                                    "{} · {} · {} · {:?}",
+                                    crate::formatting::unix_seconds(
+                                        i128::from(scan.started_ms) / 1000
                                     ),
-                                )
-                                .changed()
-                            {
-                                if selected {
-                                    state.scans.insert(scan.id.clone());
-                                } else {
-                                    state.scans.remove(&scan.id);
-                                }
+                                    scan.source,
+                                    scan.record_count,
+                                    scan.status
+                                ),
+                            )
+                            .changed()
+                        {
+                            if selected {
+                                state.scans.insert(scan.id.clone());
+                            } else {
+                                state.scans.remove(&scan.id);
                             }
                         }
-                    });
-            },
-        );
+                    }
+                });
+        });
         if ui
             .add_enabled(
                 !self.busy

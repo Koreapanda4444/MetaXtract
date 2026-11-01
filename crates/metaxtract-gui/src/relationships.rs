@@ -125,7 +125,17 @@ impl Desktop {
                 r.rect.center() + state.pan + egui::vec2(angle.cos(), angle.sin()) * radius
             })
             .collect();
-        for edge in &graph.edges {
+        for edge in graph
+            .edges
+            .iter()
+            .filter(|e| !matches!(e.basis, RelationshipBasis::ContentDigest { .. }))
+            .chain(
+                graph
+                    .edges
+                    .iter()
+                    .filter(|e| matches!(e.basis, RelationshipBasis::ContentDigest { .. })),
+            )
+        {
             let digest = matches!(edge.basis, RelationshipBasis::ContentDigest { .. });
             if state.exact && !digest {
                 continue;

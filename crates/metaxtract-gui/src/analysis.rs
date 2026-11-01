@@ -337,6 +337,7 @@ impl Desktop {
             ui.checkbox(&mut self.analysis.show_tracks, "Tracks");
             ui.checkbox(&mut self.analysis.show_clusters, "Clusters");
         });
+        let plot_width = ui.available_width().max(100.0);
         egui::ComboBox::from_id_salt("geo-cluster")
             .selected_text(
                 self.analysis
@@ -356,7 +357,7 @@ impl Desktop {
                         .clicked()
                     {
                         if let Some(center) = &c.centroid {
-                            let width = ui.available_width().max(200.0);
+                            let width = plot_width;
                             let extent = c
                                 .members
                                 .iter()
