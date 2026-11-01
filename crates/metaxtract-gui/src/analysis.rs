@@ -25,7 +25,10 @@ pub struct AnalysisUi {
     pub(crate) detail: usize,
     pub(crate) severity: usize,
     pub(crate) radius: f64,
-    pub(crate) groups: String,
+    pub(crate) groups: std::collections::BTreeMap<String, String>,
+    pub(crate) show_tracks: bool,
+    pub(crate) show_clusters: bool,
+    pub(crate) cluster: Option<usize>,
     pub(crate) zoom: f32,
     pub(crate) center: egui::Vec2,
 }
@@ -45,7 +48,10 @@ impl Default for AnalysisUi {
             detail: 0,
             severity: 0,
             radius: 100.0,
-            groups: "{}".into(),
+            groups: Default::default(),
+            show_tracks: true,
+            show_clusters: true,
+            cluster: None,
             zoom: 1.0,
             center: egui::Vec2::ZERO,
         }
@@ -145,14 +151,10 @@ impl Desktop {
             {
                 let result = (|| -> io::Result<_> {
                     let query = self.active_query(self.analysis.selected)?;
-                    if self.analysis.groups.len() > 65536 {
-                        return Err(io::Error::other("Track groups exceed 64 KiB"));
-                    }
                     let mut options =
                         app::workflows::report_options(crate::i18n::tr("Case analysis"), "")?;
                     options.cluster_radius_meters = self.analysis.radius;
-                    options.track_groups =
-                        serde_json::from_str(&self.analysis.groups).map_err(io::Error::other)?;
+                    options.track_groups = self.analysis.groups.clone();
                     Ok((query, options))
                 })();
                 match result {
@@ -185,8 +187,15 @@ impl Desktop {
         ui.label(crate::i18n::tr("Scope uses the current record filter or selected IDs. Analysis is a revision-bound snapshot."));
         ui.collapsing(crate::i18n::tr("Geographic options"),|ui| {
             ui.horizontal(|ui| { ui.label(crate::i18n::tr("Cluster radius (m)")); ui.add(egui::DragValue::new(&mut self.analysis.radius).range(0.0..=1_000_000.0)); });
-            ui.label(crate::i18n::tr("Track groups: explicit {evidence path: group} JSON. Unassigned points stay unresolved."));
-            ui.add(egui::TextEdit::multiline(&mut self.analysis.groups).desired_rows(2).desired_width(f32::INFINITY));
+            ui.label("Assign paths to track groups, then rebuild analysis. Unassigned locations remain unresolved.");
+            if let Some(report)=&self.analysis.report {
+                let paths:std::collections::BTreeSet<_>=report.locations.iter().map(|p|p.path.to_string()).collect();
+                let paths:Vec<_>=paths.into_iter().collect();
+                egui::ScrollArea::vertical().id_salt("track-group-form").max_height(180.0).show_rows(ui,24.0,paths.len(),|ui,range| {
+                    for i in range {ui.horizontal(|ui| {ui.label(&paths[i]);ui.add(egui::TextEdit::singleline(self.analysis.groups.entry(paths[i].clone()).or_default()).desired_width(160.0).char_limit(128).hint_text("Group name"));});}
+                });
+                self.analysis.groups.retain(|_,v|!v.trim().is_empty());
+            }
         });
         ui.horizontal_wrapped(|ui| {
             for (i, label) in [
@@ -422,13 +431,57 @@ impl Desktop {
                 }
             }
         });
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut self.analysis.show_tracks, "Tracks");
+            ui.checkbox(&mut self.analysis.show_clusters, "Clusters");
+        });
+        egui::ComboBox::from_id_salt("geo-cluster")
+            .selected_text(
+                self.analysis
+                    .cluster
+                    .map(|i| format!("Cluster {}", i + 1))
+                    .unwrap_or_else(|| "All clusters".into()),
+            )
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.analysis.cluster, None, "All clusters");
+                for (i, c) in report.clusters.iter().enumerate() {
+                    if ui
+                        .selectable_value(
+                            &mut self.analysis.cluster,
+                            Some(i),
+                            format!("Cluster {} · {} points", i + 1, c.members.len()),
+                        )
+                        .clicked()
+                    {
+                        if let Some(center) = &c.centroid {
+                            let width = ui.available_width().max(200.0);
+                            let extent = c
+                                .members
+                                .iter()
+                                .filter_map(|j| report.locations.get(*j))
+                                .fold(0.01_f64, |v, p| {
+                                    v.max((p.point.longitude - center.longitude).abs())
+                                        .max((p.point.latitude - center.latitude).abs() * 2.0)
+                                });
+                            self.analysis.zoom = (90.0 / extent).clamp(1.0, 64.0) as f32;
+                            self.analysis.center = egui::vec2(
+                                -center.longitude as f32 / 360.0 * width,
+                                center.latitude as f32 / 180.0 * 250.0,
+                            ) * self.analysis.zoom;
+                            if let Some(j) = c.members.first() {
+                                self.analysis.detail = *j;
+                            }
+                        }
+                    }
+                }
+            });
         let (response, painter) = ui.allocate_painter(
             egui::vec2(ui.available_width().max(100.0), 250.0),
             egui::Sense::click_and_drag(),
         );
         let rect = response.rect;
         if response.dragged() {
-            self.analysis.center += response.drag_delta();
+            self.analysis.center += ui.input(|i| i.pointer.delta());
         }
         painter.rect_filled(rect, 4.0, egui::Color32::from_rgb(15, 25, 38));
         let project = |lon: f64, lat: f64| {
@@ -451,7 +504,12 @@ impl Desktop {
                 egui::Stroke::new(0.5, egui::Color32::DARK_GRAY),
             );
         }
-        for track in &report.tracks.segments {
+        for track in report
+            .tracks
+            .segments
+            .iter()
+            .filter(|_| self.analysis.show_tracks)
+        {
             for pair in track.samples.windows(2) {
                 let (a, b) = (
                     &report.locations[pair[0]].point,
@@ -465,6 +523,27 @@ impl Desktop {
                         ],
                         egui::Stroke::new(1.0, egui::Color32::LIGHT_GREEN),
                     );
+                }
+            }
+        }
+        if self.analysis.show_clusters {
+            for (i, cluster) in report.clusters.iter().take(5000).enumerate() {
+                if let Some(c) = &cluster.centroid {
+                    let point = project(c.longitude, c.latitude);
+                    if rect.contains(point) {
+                        painter.circle_stroke(
+                            point,
+                            12.0,
+                            egui::Stroke::new(1.5, egui::Color32::GOLD),
+                        );
+                        painter.text(
+                            point + egui::vec2(13.0, 0.0),
+                            egui::Align2::LEFT_CENTER,
+                            format!("C{} ({})", i + 1, cluster.members.len()),
+                            egui::FontId::proportional(11.0),
+                            egui::Color32::GOLD,
+                        );
+                    }
                 }
             }
         }
@@ -518,7 +597,14 @@ impl Desktop {
                     }
                 }
             });
+        let mut open = None;
         if let Some(s) = report.locations.get(self.analysis.detail) {
+            if ui
+                .add_enabled(!self.busy, egui::Button::new("Open location file"))
+                .clicked()
+            {
+                open = Some((report.scan_id.clone(), s.path.clone()));
+            }
             json_view(ui, s);
         }
         ui.collapsing(crate::i18n::tr("Clusters and track diagnostics"), |ui| {
@@ -526,6 +612,9 @@ impl Desktop {
             json_view(ui, &report.tracks);
             json_view(ui, &report.coverage.invalid_locations);
         });
+        if let Some((scan, path)) = open {
+            self.navigate_to_path(ui.ctx(), scan, path);
+        }
     }
     pub fn export_geo(&mut self, ctx: &egui::Context, path: PathBuf, kml: bool) {
         let Some(report) = &self.analysis.report else {
