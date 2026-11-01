@@ -311,5 +311,8 @@
   "Too many inputs; only the first 1024 were processed.": "입력이 너무 많아 처음 1,024개만 처리했습니다.",
   "Working": "작업 중",
   "Files": "파일",
-  "Add files or folder": "파일·폴더 추가"
+  "Add files or folder": "파일·폴더 추가",
+  "File details": "파일 상세",
+  "Hide": "숨기기",
+  "Show file details": "파일 상세 보기"
 }

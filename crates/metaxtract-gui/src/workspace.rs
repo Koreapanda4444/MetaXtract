@@ -49,15 +49,30 @@ impl Desktop {
         self.quick_access_view(ui);
     }
     pub fn workspace_view(&mut self, ui: &mut egui::Ui) {
-        egui::SidePanel::right("file-inspector")
-            .default_width(380.0)
-            .resizable(false)
-            .show_inside(ui, |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("inspector-panel")
-                    .show(ui, |ui| self.record_detail_view(ui));
-            });
+        if self.settings.workspace.show_inspector {
+            let panel = egui::SidePanel::right("file-inspector")
+                .default_width(self.settings.workspace.inspector_width.clamp(260.0, 760.0))
+                .width_range(260.0..=760.0)
+                .resizable(true)
+                .show_inside(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.strong(crate::i18n::tr("File details"));
+                        if ui.small_button(crate::i18n::tr("Hide")).clicked() {
+                            self.settings.workspace.show_inspector = false;
+                        }
+                    });
+                    egui::ScrollArea::vertical()
+                        .id_salt("inspector-panel")
+                        .show(ui, |ui| self.record_detail_view(ui));
+                });
+            self.settings.workspace.inspector_width = panel.response.rect.width();
+        }
         egui::CentralPanel::default().show_inside(ui, |ui| {
+            if !self.settings.workspace.show_inspector
+                && ui.button(crate::i18n::tr("Show file details")).clicked()
+            {
+                self.settings.workspace.show_inspector = true;
+            }
             egui::ScrollArea::vertical()
                 .id_salt("file-workspace")
                 .show(ui, |ui| self.records_view(ui));
