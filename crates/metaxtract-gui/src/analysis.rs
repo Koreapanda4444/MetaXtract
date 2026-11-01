@@ -12,6 +12,7 @@ use metaxtract_app::{
 use std::{io, path::PathBuf};
 
 pub struct AnalysisUi {
+    pub(crate) timeline: crate::timeline::TimelineUi,
     pub(crate) mime_facets: Vec<metaxtract_app::storage::FacetValue>,
     pub(crate) totals: Option<CaseTotals>,
     pub(crate) revision: u64,
@@ -31,6 +32,7 @@ pub struct AnalysisUi {
 impl Default for AnalysisUi {
     fn default() -> Self {
         Self {
+            timeline: Default::default(),
             mime_facets: vec![],
             totals: None,
             revision: 0,
@@ -265,29 +267,7 @@ impl Desktop {
                     ui.label(text);
                 }
             }
-            1 => {
-                ui.label(crate::i18n::tr("Unknown time zones remain unresolved; claims retain their original provenance."));
-                egui::ScrollArea::vertical()
-                    .id_salt("timeline-list")
-                    .max_height(270.0)
-                    .show_rows(ui, 24.0, report.timeline.len(), |ui, range| {
-                        for i in range {
-                            let e = &report.timeline[i];
-                            if ui
-                                .selectable_label(
-                                    self.analysis.detail == i,
-                                    format!("{} · {} · {:?}", e.path, e.event, e.timestamp),
-                                )
-                                .clicked()
-                            {
-                                self.analysis.detail = i;
-                            }
-                        }
-                    });
-                if let Some(e) = report.timeline.get(self.analysis.detail) {
-                    json_view(ui, e);
-                }
-            }
+            1 => self.timeline_view(ui),
             2 => self.location_view(ui),
             3 => {
                 ui.label(crate::i18n::tr("Visual similarity is a heuristic. Enable Decode previews for a new scan to supply image fingerprints."));

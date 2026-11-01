@@ -27,6 +27,7 @@ mod settings;
 mod state;
 mod summary;
 mod tasks;
+mod timeline;
 mod workflows;
 mod workspace;
 use eframe::egui;
