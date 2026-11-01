@@ -12,6 +12,7 @@ use metaxtract_app::{
 use std::{io, path::PathBuf};
 
 pub struct AnalysisUi {
+    pub(crate) pair: crate::duplicate_review::PairUi,
     pub(crate) timeline: crate::timeline::TimelineUi,
     pub(crate) mime_facets: Vec<metaxtract_app::storage::FacetValue>,
     pub(crate) totals: Option<CaseTotals>,
@@ -35,6 +36,7 @@ pub struct AnalysisUi {
 impl Default for AnalysisUi {
     fn default() -> Self {
         Self {
+            pair: Default::default(),
             timeline: Default::default(),
             mime_facets: vec![],
             totals: None,
@@ -278,80 +280,7 @@ impl Desktop {
             }
             1 => self.timeline_view(ui),
             2 => self.location_view(ui),
-            3 => {
-                ui.label(crate::i18n::tr("Visual similarity is a heuristic. Enable Decode previews for a new scan to supply image fingerprints."));
-                ui.collapsing(
-                    crate::textf!(
-                        "Exact duplicate groups ({})",
-                        "해시 중복 그룹 ({})",
-                        report.exact_duplicates.len()
-                    ),
-                    |ui| {
-                        egui::ScrollArea::vertical()
-                            .id_salt("exact-groups")
-                            .max_height(240.0)
-                            .show_rows(ui, 24.0, report.exact_duplicates.len(), |ui, range| {
-                                for i in range {
-                                    let g = &report.exact_duplicates[i];
-                                    if ui
-                                        .selectable_label(
-                                            self.analysis.detail == i,
-                                            format!(
-                                                "{:?} · {} · {} files",
-                                                g.algorithm,
-                                                g.digest,
-                                                g.paths.len()
-                                            ),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.analysis.detail = i;
-                                    }
-                                }
-                            });
-                        if let Some(g) = report.exact_duplicates.get(self.analysis.detail) {
-                            json_view(ui, g);
-                        }
-                    },
-                );
-                ui.collapsing(
-                    crate::textf!(
-                        "Visual matches ({})",
-                        "시각적 유사 ({})",
-                        report.visually_similar.len()
-                    ),
-                    |ui| {
-                        egui::ScrollArea::vertical().max_height(300.0).show_rows(
-                            ui,
-                            70.0,
-                            report.visually_similar.len(),
-                            |ui, range| {
-                                for i in range {
-                                    json_view(ui, &report.visually_similar[i]);
-                                }
-                            },
-                        );
-                    },
-                );
-                ui.label(crate::textf!(
-                    "Images with fingerprints: {}; missing previews: {}",
-                    "지문 확보 이미지: {}; 미리보기 누락: {}",
-                    report.coverage.visual_records_with_previews,
-                    report.coverage.visual_unavailable.len()
-                ));
-                ui.collapsing(crate::i18n::tr("Missing coverage"), |ui| {
-                    egui::ScrollArea::vertical().max_height(180.0).show_rows(
-                        ui,
-                        22.0,
-                        report.coverage.visual_unavailable.len(),
-                        |ui, r| {
-                            for i in r {
-                                ui.label(report.coverage.visual_unavailable[i].to_string());
-                            }
-                        },
-                    );
-                });
-            }
+            3 => self.duplicate_review(ui),
             _ => {
                 ui.horizontal(|ui| {
                     for (i, label) in [

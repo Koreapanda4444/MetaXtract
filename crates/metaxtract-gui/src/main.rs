@@ -6,6 +6,7 @@ mod categories;
 mod components;
 mod dashboard;
 mod desktop;
+mod duplicate_review;
 mod explorer_search;
 mod file_actions;
 mod files;
