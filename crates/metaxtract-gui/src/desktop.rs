@@ -1,7 +1,6 @@
 use crate::files::{Picker, Purpose};
 pub use crate::state::{Desktop, Tab};
 use eframe::egui;
-use metaxtract_app::{self as app, storage};
 impl Desktop {
     fn case_view(&mut self, ui: &mut egui::Ui) {
         crate::components::heading(ui, crate::i18n::tr("Case workspace"));
@@ -155,6 +154,7 @@ impl eframe::App for Desktop {
             self.busy = false;
             callback(self);
         }
+        self.dropped_files(ctx);
         self.poll_scan(ctx);
         self.poll_records(ctx);
         self.poll_analysis(ctx);
@@ -301,13 +301,11 @@ impl eframe::App for Desktop {
         });
         if let Some(picker) = &mut self.picker {
             let purpose = picker.purpose;
-            let (open, path) = picker.show(ctx);
-            if !open || path.is_some() {
+            let (open, paths) = picker.show(ctx);
+            if !open || !paths.is_empty() {
                 self.picker = None;
             }
-            if let Some(path) = path {
-                self.chosen(ctx, purpose, path);
-            }
+            self.chosen_many(ctx, purpose, paths);
         }
         self.save_display_preferences(ctx, ctx.input(|i| i.viewport().close_requested()));
         self.notifications.show(ctx);

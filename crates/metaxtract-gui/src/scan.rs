@@ -16,6 +16,7 @@ struct Active {
 }
 pub struct ScanUi {
     pub source: String,
+    pub active_source: Option<PathBuf>,
     pub source_path: Option<PathBuf>,
     pub workers: usize,
     pub decode_previews: bool,
@@ -34,6 +35,7 @@ impl Default for ScanUi {
     fn default() -> Self {
         Self {
             source: String::new(),
+            active_source: None,
             source_path: None,
             workers: 2,
             decode_previews: false,
@@ -75,6 +77,7 @@ impl Desktop {
             self.status = crate::i18n::tr("Open a case first").into();
             return;
         };
+        self.scan.active_source = Some(source.clone());
         let mut request = app::scan::ScanRequest::new(source, case.path().to_owned());
         request.workers = self.scan.workers;
         request.options.recursive.preview = self.scan.decode_previews;
@@ -136,6 +139,7 @@ impl Desktop {
         }
         if let Some(result) = finished {
             self.scan.active = None;
+            self.scan.active_source = None;
             self.analysis.metrics_loaded = false;
             match result {
                 Ok(out) => {

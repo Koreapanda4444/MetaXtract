@@ -6,6 +6,7 @@ mod components;
 mod desktop;
 mod files;
 mod i18n;
+mod ingestion;
 mod inspectors;
 mod notifications;
 mod preview;

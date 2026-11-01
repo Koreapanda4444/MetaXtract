@@ -273,5 +273,11 @@
   "Discard and continue": "버리고 계속",
   "Keep working": "계속 작업",
   "Choose file": "파일 선택",
-  "Choose folder": "폴더 선택"
+  "Choose folder": "폴더 선택",
+  "Choose a regular file or folder": "일반 파일 또는 폴더를 선택하세요",
+  "Already queued": "이미 대기 중",
+  "Queue limit reached": "대기열 한도 도달",
+  "Wait for the current operation or open a writable session.": "현재 작업이 끝나기를 기다리거나 쓰기 가능한 세션을 여세요.",
+  "Some inputs were skipped": "일부 입력을 건너뛰었습니다",
+  "Drop files or folders to analyze": "파일이나 폴더를 놓으면 분석합니다"
 }

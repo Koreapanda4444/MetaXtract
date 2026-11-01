@@ -1,9 +1,6 @@
 use crate::state::Desktop;
 use crate::tasks;
-use crate::{
-    files::{Picker, Purpose},
-    settings::Settings,
-};
+use crate::{files::Purpose, settings::Settings};
 use eframe::egui;
 use metaxtract_app::{
     self as app,
@@ -116,6 +113,9 @@ impl Desktop {
                 .is_some_and(|i| i.notes != self.notes || i.title != self.title)
     }
     pub fn quick_analysis(&mut self, ctx: &egui::Context, path: PathBuf) {
+        self.quick_analysis_many(ctx, vec![path]);
+    }
+    pub fn quick_analysis_many(&mut self, ctx: &egui::Context, paths: Vec<PathBuf>) {
         if !self.can_switch_case() {
             self.report_error(crate::i18n::tr(
                 "Finish or save the current work before opening another session.",
@@ -141,7 +141,7 @@ impl Desktop {
                 app.case = None;
                 app.temporary_session = Some(directory);
                 app.loaded(case, info, history);
-                app.scan.queue.push_back(path);
+                app.scan.queue.extend(paths);
                 app.tab = crate::state::Tab::Scan;
             },
         );
@@ -246,12 +246,40 @@ impl Desktop {
             |app, (case, info, scans)| app.loaded(case, info, scans),
         );
     }
+    pub(crate) fn chosen_many(
+        &mut self,
+        ctx: &egui::Context,
+        purpose: Purpose,
+        paths: Vec<PathBuf>,
+    ) {
+        if paths.is_empty() {
+            return;
+        }
+        if matches!(purpose, Purpose::Quick) {
+            if self.temporary_session.is_some() && !self.session_ui.discard_once {
+                self.session_ui.pending = Some((purpose, paths));
+                return;
+            }
+            self.session_ui.discard_once = false;
+            let (paths, rejected) = crate::ingestion::prepare(paths, std::iter::empty());
+            if !rejected.is_empty() {
+                self.report_error(rejected.join("\n"));
+            }
+            if !paths.is_empty() {
+                self.quick_analysis_many(ctx, paths);
+            }
+        } else if matches!(purpose, Purpose::Source) {
+            self.ingest_paths(ctx, paths);
+        } else if let Some(path) = paths.into_iter().next() {
+            self.chosen(ctx, purpose, path);
+        }
+    }
     pub(crate) fn chosen(&mut self, ctx: &egui::Context, purpose: Purpose, path: PathBuf) {
         if self.temporary_session.is_some()
             && matches!(purpose, Purpose::New | Purpose::Open | Purpose::Quick)
             && !self.session_ui.discard_once
         {
-            self.session_ui.pending = Some((purpose, path));
+            self.session_ui.pending = Some((purpose, vec![path]));
             return;
         }
         self.session_ui.discard_once = false;

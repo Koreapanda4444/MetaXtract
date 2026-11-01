@@ -17,7 +17,7 @@ pub enum Purpose {
 }
 pub struct Picker {
     pub purpose: Purpose,
-    result: Option<mpsc::Receiver<io::Result<Option<PathBuf>>>>,
+    result: Option<mpsc::Receiver<io::Result<Vec<PathBuf>>>>,
     error: Option<String>,
 }
 impl Picker {
@@ -39,7 +39,7 @@ impl Picker {
                 let result = std::panic::catch_unwind(move || {
                     let dialog = rfd::FileDialog::new().set_title(title);
                     if folder {
-                        dialog.pick_folder()
+                        dialog.pick_folder().into_iter().collect()
                     } else {
                         match purpose {
                             Purpose::New | Purpose::Copy | Purpose::SaveSession => dialog
@@ -61,8 +61,13 @@ impl Picker {
                             Purpose::Workflow(
                                 crate::workflows::Field::Output | crate::workflows::Field::Receipt,
                             ) => dialog.save_file(),
+                            Purpose::Source | Purpose::Quick => {
+                                return dialog.pick_files().unwrap_or_default();
+                            }
                             _ => dialog.pick_file(),
                         }
+                        .into_iter()
+                        .collect()
                     }
                 })
                 .map_err(|_| io::Error::other("Native dialog failed"));
@@ -74,7 +79,7 @@ impl Picker {
             Err(e) => self.error = Some(e.to_string()),
         }
     }
-    pub fn show(&mut self, ctx: &egui::Context) -> (bool, Option<PathBuf>) {
+    pub fn show(&mut self, ctx: &egui::Context) -> (bool, Vec<PathBuf>) {
         if let Some(receiver) = &self.result {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
             match receiver.try_recv() {
@@ -87,7 +92,7 @@ impl Picker {
                     self.error = Some("Native dialog disconnected".into());
                     self.result = None;
                 }
-                Err(mpsc::TryRecvError::Empty) => return (true, None),
+                Err(mpsc::TryRecvError::Empty) => return (true, vec![]),
             }
         }
         let mut open = true;
@@ -113,6 +118,6 @@ impl Picker {
             self.error = None;
             self.launch(ctx, folder);
         }
-        (open, None)
+        (open, vec![])
     }
 }

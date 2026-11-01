@@ -9,7 +9,7 @@ use std::path::PathBuf;
 pub struct SessionUi {
     pub confirm_close: bool,
     pub discard_once: bool,
-    pub pending: Option<(Purpose, PathBuf)>,
+    pub pending: Option<(Purpose, Vec<PathBuf>)>,
 }
 impl Desktop {
     pub fn session_notice(&mut self, ctx: &egui::Context) {
@@ -51,7 +51,7 @@ impl Desktop {
             if discard {
                 self.session_ui.discard_once = true;
                 if let Some((purpose, path)) = self.session_ui.pending.take() {
-                    self.chosen(ctx, purpose, path);
+                    self.chosen_many(ctx, purpose, path);
                 } else {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }

@@ -1,10 +1,7 @@
 use crate::tasks::Callback;
 use crate::{files::Picker, settings::Settings};
 use metaxtract_app::storage::{self, CaseInfo, CaseWorkspace, ScanInfo};
-use std::{
-    path::PathBuf,
-    sync::{Arc, mpsc},
-};
+use std::sync::{Arc, mpsc};
 #[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub enum Tab {
     #[default]
