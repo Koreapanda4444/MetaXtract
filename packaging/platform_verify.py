@@ -93,7 +93,7 @@ def pe_resources(path: Path) -> None:
 
 
 def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
-    from verify import environment, windows_graphics
+    from verify import environment, windows_graphics, write_evidence
 
     assets = directory.resolve()
     with tempfile.TemporaryDirectory(
@@ -101,12 +101,10 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
     ) as temporary:
         base = Path(temporary)
         env = environment(base)
-        evidence = (
-            Path(__file__).resolve().parents[1]
-            / "crates/metaxtract-gui/assets/icon.png"
-        )
+        evidence = base / "evidence 한글.png"
+        write_evidence(evidence)
 
-        def run(*args, graphics_driver=False, nsis_directory=None):
+        def run(*args, graphics_driver=False, nsis_directory=None, system_tool=False):
             args = list(args)
             if not Path(str(args[0])).is_absolute():
                 args[0] = shutil.which(str(args[0])) or str(args[0])
@@ -121,7 +119,7 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
             with windows_graphics(graphics if graphics_driver else None):
                 result = subprocess.run(
                     command,
-                    env=env,
+                    env=dict(env, PATH=os.defpath) if system_tool else env,
                     cwd=base,
                     capture_output=True,
                     timeout=120,
@@ -218,17 +216,18 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
                 "-nobrowse",
                 "-mountpoint",
                 mount,
+                system_tool=True,
             )
             try:
                 app = base / "Applications/MetaXtract.app"
                 app.parent.mkdir()
                 shutil.copytree(mount / "MetaXtract.app", app)
-                run("codesign", "--verify", "--deep", "--strict", app)
+                run("codesign", "--verify", "--deep", "--strict", app, system_tool=True)
                 run(app / "Contents/MacOS/metaxtract", "inspect", evidence)
                 if gui:
                     run(app / "Contents/MacOS/metaxtract-gui", "--smoke")
             finally:
-                run("hdiutil", "detach", mount)
+                run("hdiutil", "detach", mount, system_tool=True)
             shutil.rmtree(app)
             return {"dmg_mount_copy_run_remove": True, "notarization_claimed": False}
         (image,) = assets.glob("*.AppImage")
@@ -286,7 +285,7 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
             subprocess.run(["sudo", "rmdir", "--", str(app)], check=True)
             native = True
         else:
-            run("dpkg-deb", "--extract", deb, base / "deb-extracted")
+            run("dpkg-deb", "--extract", deb, base / "deb-extracted", system_tool=True)
             runtime(base / "deb-extracted/opt/MetaXtract")
             native = False
         return {

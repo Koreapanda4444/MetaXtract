@@ -251,19 +251,23 @@ def generated_schema_five(source: Path, destination: Path) -> None:
         db.execute("PRAGMA user_version=5")
 
 
+def write_evidence(path: Path) -> None:
+    """Generate known pixels and metadata without requiring a source checkout."""
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
+
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+                     + chunk(b"tEXt", b"Software\0MetaXtract isolated package")
+                     + chunk(b"IDAT", zlib.compress(b"\0\xff\0\0")) + chunk(b"IEND", b""))
+
+
 def workflow(current: Path, previous: Path | None, gui: bool, graphics: Path | None = None) -> dict:
     with tempfile.TemporaryDirectory(prefix="MetaXtract install 근거 ") as temporary:
         root = Path(temporary)
         app = root / "Application with spaces 한글"
         env = environment(root)
         evidence = root / "evidence 한글.png"
-
-        def chunk(kind: bytes, data: bytes) -> bytes:
-            return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
-
-        evidence.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
-                             + chunk(b"tEXt", b"Software\0MetaXtract isolated package")
-                             + chunk(b"IDAT", zlib.compress(b"\0\xff\0\0")) + chunk(b"IEND", b""))
+        write_evidence(evidence)
         initial = previous or current
         activate(initial, app, lambda path: invoke(path, env, "--help", json_output=False))
         old = check_inventory(app)
