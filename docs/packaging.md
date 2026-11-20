@@ -11,8 +11,8 @@ to run the package. Keep the complete extracted folder together.
 
 | Platform | Desktop | CLI |
 |---|---|---|
-| Windows x64 | `metaxtract-gui.exe` | `metaxtract.exe --help` |
-| Linux x64 | `./metaxtract-gui` | `./metaxtract --help` |
+| Windows x64 | `MetaXtract.exe` | `runtime/bin/metaxtract.exe --help` |
+| Linux x64 | `./MetaXtract` | `./runtime/bin/metaxtract --help` |
 | macOS, package architecture | `MetaXtract.app` | `MetaXtract.app/Contents/MacOS/metaxtract --help` |
 
 Extract the archive into a new user-owned folder before opening the desktop. Windows 10+ packages
@@ -47,7 +47,7 @@ see Microsoft's [redistribution list](https://learn.microsoft.com/visualstudio/r
 and [app-local deployment](https://learn.microsoft.com/cpp/windows/choosing-a-deployment-method).
 App-local runtime updates are delivered with package updates.
 
-A matching `MetaXtract-sources-<target>.tar.gz` contains application/build sources and the exact
+A matching `MetaXtract-sources-<version>-<target>.tar.gz` contains application/build sources and the exact
 upstream native source trees used in the build. The application's archive includes the libarchive
 filter guard and allocator hooks, qpdf changes and FFmpeg build recipe. The original upstream
 trees are unchanged. Shared libraries remain replaceable; there are no embedded metadata
@@ -69,7 +69,7 @@ The builder compiles the production workspace, finds the exact Cargo/native outp
 linked non-OS dependency, and writes the application and matching source archives under `dist/`.
 Windows needs Visual Studio's x64 C++ tools and REDIST files; Unix needs `readelf` or `otool`.
 `--allow-dirty` is for local verification and marks the inventory as uncommitted. It is not used
-for CI release artifacts. Cross-compilation and public code signing are outside this builder.
+for CI release artifacts. Cross-compilation is not supported. Windows needs NSIS; Linux uses dpkg-deb and SHA-256-pinned AppImageTool 1.9.1 / type2 runtime 20251108. Optional macOS signing is described below.
 
 ## Installation verification
 
@@ -114,3 +114,23 @@ run identifies that source run in **Build or reuse verified packages** and publi
 installation receipts. The application archive, its checksum and matching source archive belong
 together. Historical `MetaXtract-Windows` artifacts belong to the retired Python application;
 current CI publishes only the native product packages and verification receipts.
+
+## Desktop installation, updates and removal
+
+Use [GitHub Releases](https://github.com/Koreapanda4444/MetaXtract/releases) for stable versioned downloads. Releases are published after the complete CI workflow succeeds. Retain the matching source archive and notices. Compare the downloaded file against `SHA256SUMS` using `sha256sum`, `shasum -a 256`, or PowerShell `Get-FileHash -Algorithm SHA256`. Checksums detect corruption; they do not authenticate a publisher.
+
+| Platform | Install and start | Upgrade / remove |
+|---|---|---|
+| Windows x64 | Run `MetaXtract-<version>-Windows-Setup.exe`; choose a per-user folder. Start-menu shortcut uses the embedded icon; desktop shortcut is optional. | Close the app and scans, then install at the same path. Settings → Apps removes owned files/shortcuts and retains user data. |
+| Windows portable | Extract the release ZIP and open `MetaXtract.exe`. The CI `MetaXtract-Windows-Portable` artifact extracts directly into this layout. | Extract into a new folder and test a case copy before replacing the old folder. |
+| macOS ARM64 | Open the DMG and drag `MetaXtract.app` to Applications. | Close and replace the bundle; remove it to uninstall. Retain downloaded sources/notices. |
+| Linux x64 AppImage | `chmod +x MetaXtract-<version>-x86_64.AppImage`, then run. Without FUSE add `--appimage-extract-and-run`. | Close and replace the file; delete it to uninstall. |
+| Linux amd64 DEB | `sudo apt install ./MetaXtract-<version>-amd64.deb`; open from the application menu. | Install the newer DEB; `sudo apt remove metaxtract` removes owned application/menu files. |
+
+For a Linux extracted archive, `./desktop-integration.sh` registers the current path/icon in the user menu. Repeat after moving the folder; `./desktop-integration.sh --uninstall` removes the two integration files. Move paths containing desktop-file escape characters to a simpler directory first.
+
+Windows/Linux internal GUI, CLI and worker live in `runtime/bin/`; Linux libraries are in `runtime/lib/`. The root launcher accepts `--cli` for the internal CLI. Keep the complete layout together. macOS embeds a copy of dependency notices inside the app bundle. AppImage still needs compatible OS graphics/font services and the glibc/C++ ABI recorded in `package.json`; DEB dependency floors derive from the built runtime.
+
+Set `METAXTRACT_MACOS_IDENTITY` to a configured Developer ID identity before building to sign. Set `METAXTRACT_NOTARY_PROFILE` to an existing notarytool keychain profile for submission/stapling. Credentials stay in the build environment. Without these settings macOS is ad-hoc signed, **not notarized**. Windows EXEs/installers are **not Authenticode signed**. Review source, checksum and build provenance before using the OS's explicit trust controls.
+
+Native-format verification checks NSIS install/reinstall/removal and embedded EXE resources, read-only DMG mounting and copied-app execution, AppImage extraction/execution and DEB install/reinstall/removal on disposable CI runners. GUI verification also exercises native scanning, filtered search, focused inspection, analysis, CSV/JSONL/HTML/JSON exports and source preservation. These checks complement the existing archive rollback and legacy-case compatibility verification.

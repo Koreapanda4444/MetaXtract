@@ -326,3 +326,21 @@ Group edges form a deterministic spanning star. **Changes across scans** tracks 
 2–16 selected scans, ordered by scan start time, with field and claim changes. Missing records do not prove
 file deletion; equal paths do not prove identity. Graph/history snapshots retain their scan IDs and case
 revision. Rebuild them after changing scope or evidence. These views do not alter original records.
+
+### Commands, delivery and task history
+
+| Shortcut (Ctrl on Windows/Linux; Cmd on macOS) | Action |
+|---|---|
+| O / Shift+O / N | Open case / Quick analysis / New case |
+| F / E / Shift+A | Focus file search / Export / Analysis |
+| K or Shift+P | Search commands; Enter runs the first match; Escape dismisses |
+
+**Export and tools** groups existing operations under Export, Privacy and security, Case management and Diagnostics. Choose CSV/JSONL/HTML/JSON, Whole scan/Current filter/Selected records, then a new destination. Existing files are never overwritten. Reports select baseline scans from a list. Sensitive delivery/verification dialogs review case, scan, paths and signing/trust scope.
+
+The redaction form supports privacy/all-metadata presets, selector rules, Remove/Mask and focused-record preview. Advanced JSON remains available. These export changes preserve source files and stored originals. Full-case bundles include original metadata; export filters/redaction do not silently apply to case copies.
+
+**Saved presets** retains up to 32 named search, analysis-radius and export/redaction settings. Passwords, private keys and file destinations are excluded. ID filters require the original case/scan; field filters can bind to the current scan. Applying preserves the current selection and tab.
+
+**Notifications → Task and error history** retains up to 512 bounded entries across restarts, with search, errors-only filtering and copying. Interrupted tasks are identified after restart. Local `history.json` beside `desktop.json` may contain file paths and error text; handle it like investigation settings.
+
+The Case workspace's version panel offers **Check for updates**. Only a click contacts the official GitHub latest-release endpoint, with timeout/response limits and no evidence upload. Review the official download/checksum page; downloads and installation require your action. Close scans and back up cases before following the [installation guide](packaging.md).

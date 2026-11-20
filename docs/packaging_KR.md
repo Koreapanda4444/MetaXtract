@@ -11,8 +11,8 @@ Python·Rust·CMake·ExifTool·ffprobe나 시스템에 별도로 설치한 메�
 
 | 플랫폼 | 데스크톱 | CLI |
 |---|---|---|
-| Windows x64 | `metaxtract-gui.exe` | `metaxtract.exe --help` |
-| Linux x64 | `./metaxtract-gui` | `./metaxtract --help` |
+| Windows x64 | `MetaXtract.exe` | `runtime/bin/metaxtract.exe --help` |
+| Linux x64 | `./MetaXtract` | `./runtime/bin/metaxtract --help` |
 | macOS, 패키지의 아키텍처 | `MetaXtract.app` | `MetaXtract.app/Contents/MacOS/metaxtract --help` |
 
 새 사용자 소유 폴더에 압축을 푼 뒤 데스크톱을 실행하세요. Windows 10 이상용 패키지는 MSVC의
@@ -47,7 +47,7 @@ Python·Rust·CMake·ExifTool·ffprobe나 시스템에 별도로 설치한 메�
 [앱 로컬 배포](https://learn.microsoft.com/cpp/windows/choosing-a-deployment-method)를 참고하세요.
 앱 로컬 런타임의 갱신은 패키지 업데이트로 전달합니다.
 
-대응하는 `MetaXtract-sources-<target>.tar.gz`에는 애플리케이션·빌드 원본과 실제로 사용한
+대응하는 `MetaXtract-sources-<version>-<target>.tar.gz`에는 애플리케이션·빌드 원본과 실제로 사용한
 정확한 네이티브 라이브러리 원본 트리를 넣습니다. 애플리케이션 원본에는 libarchive 필터
 검사·할당 처리, qpdf 수정과 FFmpeg 빌드 방법이 포함되며, 상위 프로젝트 원본은 그대로
 유지합니다. 공유 라이브러리는 교체할 수 있고 메타데이터용 외부 실행 프로그램은 포함하지
@@ -70,8 +70,7 @@ python packaging/build.py
 연결 의존성을 검사한 뒤 `dist/`에 실행 패키지와 대응하는 원본 압축 파일을 만듭니다.
 Windows에는 Visual Studio의 x64 C++ 도구와 REDIST 파일이 필요하고 Unix에는
 `readelf` 또는 `otool`이 필요합니다. `--allow-dirty`는 로컬 검증용이며 미커밋 상태를
-구성 목록에 표시합니다. CI 배포 산출물에는 사용하지 않습니다. 교차 컴파일과 공용 코드
-서명은 이 제작기의 범위에 포함하지 않습니다.
+구성 목록에 표시합니다. CI 배포 산출물에는 사용하지 않습니다. 교차 컴파일은 지원하지 않습니다. Windows는 NSIS, Linux는 dpkg-deb와 SHA-256으로 고정한 AppImageTool 1.9.1·type2 런타임 20251108을 사용합니다. macOS 선택 서명 설정은 아래를 참고하세요.
 
 ## 설치 검증
 
@@ -115,3 +114,23 @@ PyInstaller 작업은 제거했으며 네이티브 인수 검증에서 캡처한
 제공합니다. 실행 압축 파일·체크섬·대응하는 원본 압축 파일을 함께 보관하세요. 이전
 `MetaXtract-Windows`는 제거한 Python 앱의 과거 산출물입니다. 현재 CI는 네이티브 제품
 패키지와 검증 영수증만 배포합니다.
+
+## 데스크톱 설치·업데이트·제거
+
+안정 버전은 [GitHub Releases](https://github.com/Koreapanda4444/MetaXtract/releases)에서 받습니다. 전체 CI 성공 후 게시하며 대응 소스·고지도 함께 보관합니다. `SHA256SUMS`와 실제 다운로드를 `sha256sum`, `shasum -a 256`, PowerShell `Get-FileHash -Algorithm SHA256`으로 대조하세요. 체크섬은 손상을 검출하며 배포자 인증 서명은 아닙니다.
+
+| 플랫폼 | 설치·실행 | 업데이트·제거 |
+|---|---|---|
+| Windows x64 | `MetaXtract-<version>-Windows-Setup.exe`에서 사용자 설치 폴더를 선택합니다. 시작 메뉴는 내장 아이콘을 사용하고 바탕화면 바로가기는 선택 사항입니다. | 앱·스캔 종료 후 같은 경로에 설치합니다. 설정 → 앱에서 제거하면 앱 소유 파일·바로가기를 정리하며 사용자 데이터는 보존합니다. |
+| Windows 포터블 | 릴리스 ZIP을 풀고 `MetaXtract.exe`를 실행합니다. CI `MetaXtract-Windows-Portable`도 한 번 풀면 같은 구조입니다. | 새 폴더에 풀어 케이스 사본을 확인한 뒤 이전 폴더를 정리합니다. |
+| macOS ARM64 | DMG를 열어 `MetaXtract.app`을 응용 프로그램에 복사합니다. | 앱을 닫고 번들을 교체하며 번들을 지우면 제거됩니다. 다운로드한 소스·고지도 보관하세요. |
+| Linux x64 AppImage | `chmod +x MetaXtract-<version>-x86_64.AppImage` 후 실행합니다. FUSE가 없으면 `--appimage-extract-and-run`을 붙입니다. | 앱 종료 후 파일을 교체하며 지우면 제거됩니다. |
+| Linux amd64 DEB | `sudo apt install ./MetaXtract-<version>-amd64.deb` 후 앱 메뉴에서 실행합니다. | 새 DEB를 설치하고 `sudo apt remove metaxtract`로 앱 소유 파일·메뉴를 제거합니다. |
+
+Linux 압축 배포는 `./desktop-integration.sh`로 현재 경로·아이콘을 사용자 메뉴에 등록합니다. 폴더를 옮기면 다시 실행하며 `./desktop-integration.sh --uninstall`로 등록한 두 파일을 제거합니다. 데스크톱 파일의 이스케이프 문자가 든 경로는 단순한 경로로 옮기세요.
+
+Windows·Linux의 내부 GUI·CLI·파서는 `runtime/bin/`, Linux 라이브러리는 `runtime/lib/`에 있습니다. 루트 실행기는 `--cli`로 내부 CLI를 실행합니다. 구성을 통째로 유지하세요. macOS 앱 번들에는 의존성 고지 사본도 포함합니다. AppImage도 호환되는 OS 그래픽·글꼴과 `package.json`의 glibc·C++ ABI가 필요하며 DEB는 실제 빌드의 ABI에서 의존성 하한을 계산합니다.
+
+선택 서명은 빌드 전 `METAXTRACT_MACOS_IDENTITY`를 구성된 Developer ID로 지정합니다. 기존 notarytool 키체인 프로필을 `METAXTRACT_NOTARY_PROFILE`로 지정하면 제출·공증 부착을 수행합니다. 자격 정보는 빌드 환경에만 둡니다. 미설정 시 macOS는 임시 서명이며 **공증되지 않습니다**. Windows EXE·설치 파일도 **Authenticode 서명이 없습니다**. 소스·체크섬·빌드 출처를 검토한 뒤 OS의 명시적인 신뢰 승인 기능을 사용하세요.
+
+네이티브 형식 검증은 NSIS 설치·재설치·제거와 EXE 내부 리소스, 읽기 전용 DMG 탑재·복사 앱 실행, AppImage 추출 실행, 일회용 CI의 DEB 설치·재설치·제거를 확인합니다. GUI 검증에서는 실제 스캔·필터 검색·상세 보기·분석·CSV/JSONL/HTML/JSON 내보내기·원본 보존을 확인하며 기존 압축 배포 롤백·이전 케이스 호환성 검증도 유지합니다.

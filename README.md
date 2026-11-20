@@ -51,8 +51,10 @@ See the [Rust application guide](docs/application.md) for the new CLI and Rust d
 
 ## Run the current application
 
+[Stable downloads](https://github.com/Koreapanda4444/MetaXtract/releases): Windows Setup/portable, macOS DMG, Linux AppImage/DEB. Check SHA256SUMS and retain matching sources.
+
 Standalone CI packages include the desktop, CLI, parser worker, native libraries and notices.
-Extract the complete package and launch `metaxtract-gui.exe` on Windows, `metaxtract-gui` on
+Extract the complete package and launch `MetaXtract.exe` on Windows, `MetaXtract` on
 Linux, or `MetaXtract.app` on macOS. See the [package guide](docs/packaging.md) for platform
 requirements, installation, updates and source archives.
 

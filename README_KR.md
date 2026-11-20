@@ -55,8 +55,10 @@ Rust GUI·CLI에서 스캔·일시정지·재개, 페이지별 레코드, 원본
 
 ## 현재 앱 실행
 
+[안정 버전 다운로드](https://github.com/Koreapanda4444/MetaXtract/releases): Windows 설치·포터블, macOS DMG, Linux AppImage·DEB를 제공합니다. SHA256SUMS와 대응 소스를 함께 확인하세요.
+
 CI의 독립 패키지는 데스크톱·CLI·전용 파서·네이티브 라이브러리와 고지를 함께 제공합니다.
-전체를 풀고 Windows는 `metaxtract-gui.exe`, Linux는 `metaxtract-gui`, macOS는
+전체를 풀고 Windows는 `MetaXtract.exe`, Linux는 `MetaXtract`, macOS는
 `MetaXtract.app`을 실행하세요. 플랫폼 요구 사항·설치·업데이트·원본 압축 파일은
 [패키지 안내](docs/packaging_KR.md)에 있습니다.
 
