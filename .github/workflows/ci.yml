@@ -172,6 +172,9 @@ jobs:
           key: ${{ steps.native-media-cache.outputs.cache-primary-key }}
       - name: Build production workspace
         run: cargo build --workspace --release --locked
+      - name: Install Windows installer compiler
+        if: runner.os == 'Windows'
+        run: choco install nsis --no-progress -y
       - name: Build standalone Rust package
         timeout-minutes: 15
         run: python packaging/build.py

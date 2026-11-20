@@ -17,6 +17,7 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+import installers
 import runtime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -334,6 +335,9 @@ def main() -> int:
             if portable.exists():
                 shutil.rmtree(portable)
             shutil.copytree(root, portable)
+        if os.name == "nt":
+            version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+            checksum_file(installers.windows(root, args.out, version))
         for path in (source, archive):
             destination = args.out / path.name
             os.replace(path, destination)
