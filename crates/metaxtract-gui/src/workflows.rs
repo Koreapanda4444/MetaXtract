@@ -45,6 +45,7 @@ impl PathEntry {
 }
 pub struct WorkflowsUi {
     category: usize,
+    scope: usize,
     action: usize,
     paths: [PathEntry; 5],
     selected: bool,
@@ -65,6 +66,7 @@ impl Default for WorkflowsUi {
     fn default() -> Self {
         Self {
             category: 0,
+            scope: 1,
             action: 0,
             paths: Default::default(),
             selected: false,
@@ -124,7 +126,14 @@ impl Desktop {
                 p.native = None;
             }
             if ui.button(crate::i18n::tr("Browse")).clicked() {
-                self.picker = Some(Picker::new(Purpose::Workflow(field)));
+                let name = match (self.workflows.action, self.workflows.format, field) {
+                    (0, 0, Field::Output) => "metadata.jsonl",
+                    (0, _, Field::Output) => "metadata.csv",
+                    (2, 0, Field::Output) => "report.html",
+                    (2, _, Field::Output) => "report.json",
+                    _ => "output",
+                };
+                self.picker = Some(Picker::new(Purpose::Workflow(field)).suggested(name));
             }
         });
     }
@@ -187,6 +196,60 @@ impl Desktop {
             self.workflows.format = 0;
             self.workflows.password = Default::default();
         }
+        if matches!(self.workflows.action, 0 | 2) {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(crate::i18n::tr("1. Format"));
+                for (label, action, format) in [
+                    ("CSV", 0, 1),
+                    ("JSONL", 0, 0),
+                    ("HTML", 2, 0),
+                    ("JSON", 2, 1),
+                ] {
+                    if ui
+                        .selectable_label(
+                            self.workflows.action == action && self.workflows.format == format,
+                            label,
+                        )
+                        .clicked()
+                    {
+                        self.workflows.select_action(action);
+                        self.workflows.format = format;
+                    }
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.label(crate::i18n::tr("2. Scope"));
+                for (i, label) in ["Whole scan", "Current file filter", "Selected records only"]
+                    .iter()
+                    .enumerate()
+                {
+                    ui.selectable_value(&mut self.workflows.scope, i, crate::i18n::tr(label));
+                }
+            });
+            self.workflows.selected = self.workflows.scope == 2;
+            let count = match self.workflows.scope {
+                0 => self
+                    .scans
+                    .iter()
+                    .find(|s| Some(&s.id) == self.active_scan.as_ref())
+                    .map(|s| s.record_count),
+                2 => Some(self.records.selected.len() as u64),
+                _ => self
+                    .records
+                    .query
+                    .as_ref()
+                    .filter(|q| Some(&q.records.scan_id) == self.active_scan.as_ref())
+                    .map(|_| self.records.total),
+            };
+            ui.label(crate::textf!(
+                "Export scope: {} records",
+                "내보낼 범위: {}개 레코드",
+                count
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|| crate::i18n::tr("counted during export").into())
+            ));
+            ui.label(crate::i18n::tr("3. Destination"));
+        }
         let action = self.workflows.action;
         ui.add_space(8.0);
         if matches!(action, 14 | 15) {
@@ -198,13 +261,6 @@ impl Desktop {
         }
         if matches!(action, 0..=2) {
             if action != 1 {
-                ui.checkbox(
-                    &mut self.workflows.selected,
-                    crate::i18n::tr("Selected records only"),
-                );
-                ui.label(crate::i18n::tr(
-                    "Uses the current record filter for the selected scan",
-                ));
                 ui.checkbox(
                     &mut self.workflows.redact,
                     crate::i18n::tr("Apply redaction profile"),
@@ -436,6 +492,21 @@ impl Desktop {
                 ui.text_edit_singleline(&mut self.workflows.name);
             });
         }
+        let destination_valid = if matches!(action, 0 | 2) {
+            match self.workflows.paths[Field::Output.index()].path() {
+                Ok(p) if p.exists() => {
+                    ui.colored_label(
+                        egui::Color32::LIGHT_RED,
+                        crate::i18n::tr("Choose a new output path; this file already exists."),
+                    );
+                    false
+                }
+                Ok(_) => true,
+                Err(_) => false,
+            }
+        } else {
+            true
+        };
         let requires_case = matches!(action, 0 | 2 | 6 | 9 | 10 | 12 | 14 | 15 | 17);
         let writable = matches!(action, 9 | 12);
         let switch_allowed = !self
@@ -444,7 +515,8 @@ impl Desktop {
             .is_some_and(|i| i.title != self.title || i.notes != self.notes);
         if ui
             .add_enabled(
-                !self.busy
+                destination_valid
+                    && !self.busy
                     && !self.scan.running()
                     && (!requires_case || self.case.is_some())
                     && (!writable || !self.readonly)
@@ -476,7 +548,16 @@ impl Desktop {
         let action = self.workflows.action;
         let prepared = (|| -> io::Result<_> {
             let query = if matches!(action, 0 | 2 | 14 | 15) {
-                Some(self.active_query(self.workflows.selected)?)
+                Some(if matches!(action, 0 | 2) && self.workflows.scope == 0 {
+                    s::SearchQuery::new(
+                        self.active_scan
+                            .as_deref()
+                            .ok_or_else(|| io::Error::other("Select a scan"))?,
+                        s::SearchExpression::All(vec![]),
+                    )
+                } else {
+                    self.active_query(self.workflows.selected)?
+                })
             } else {
                 None
             };

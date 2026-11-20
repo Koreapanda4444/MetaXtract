@@ -16,6 +16,7 @@ pub enum Purpose {
     Workflow(crate::workflows::Field),
 }
 pub struct Picker {
+    suggested: Option<String>,
     pub purpose: Purpose,
     result: Option<mpsc::Receiver<io::Result<Vec<PathBuf>>>>,
     error: Option<String>,
@@ -23,14 +24,20 @@ pub struct Picker {
 impl Picker {
     pub fn new(purpose: Purpose) -> Self {
         Self {
+            suggested: None,
             purpose,
             result: None,
             error: None,
         }
     }
+    pub fn suggested(mut self, name: &str) -> Self {
+        self.suggested = Some(name.into());
+        self
+    }
     fn launch(&mut self, ctx: &egui::Context, folder: bool) {
         let (sender, receiver) = mpsc::sync_channel(1);
         let purpose = self.purpose;
+        let suggested = self.suggested.clone();
         let title = crate::i18n::tr("Choose path").to_owned();
         let context = ctx.clone();
         let task = std::thread::Builder::new()
@@ -38,6 +45,11 @@ impl Picker {
             .spawn(move || {
                 let result = std::panic::catch_unwind(move || {
                     let dialog = rfd::FileDialog::new().set_title(title);
+                    let dialog = if let Some(name) = suggested {
+                        dialog.set_file_name(name)
+                    } else {
+                        dialog
+                    };
                     if folder {
                         dialog.pick_folder().into_iter().collect()
                     } else {
