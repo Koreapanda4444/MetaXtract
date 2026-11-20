@@ -134,3 +134,7 @@ Windows·Linux의 내부 GUI·CLI·파서는 `runtime/bin/`, Linux 라이브러�
 선택 서명은 빌드 전 `METAXTRACT_MACOS_IDENTITY`를 구성된 Developer ID로 지정합니다. 기존 notarytool 키체인 프로필을 `METAXTRACT_NOTARY_PROFILE`로 지정하면 제출·공증 부착을 수행합니다. 자격 정보는 빌드 환경에만 둡니다. 미설정 시 macOS는 임시 서명이며 **공증되지 않습니다**. Windows EXE·설치 파일도 **Authenticode 서명이 없습니다**. 소스·체크섬·빌드 출처를 검토한 뒤 OS의 명시적인 신뢰 승인 기능을 사용하세요.
 
 네이티브 형식 검증은 NSIS 설치·재설치·제거와 EXE 내부 리소스, 읽기 전용 DMG 탑재·복사 앱 실행, AppImage 추출 실행, 일회용 CI의 DEB 설치·재설치·제거를 확인합니다. GUI 검증에서는 실제 스캔·필터 검색·상세 보기·분석·CSV/JSONL/HTML/JSON 내보내기·원본 보존을 확인하며 기존 압축 배포 롤백·이전 케이스 호환성 검증도 유지합니다.
+
+Linux 실행 파일은 Ubuntu 24.04 실행기에서 빌드해 glibc 기준을 고정하고 설치 검증은 ubuntu-latest에서 수행해 이후 환경과의 호환성을 확인합니다. 실제 ABI 하한은 package.json을 기준으로 합니다. 릴리스에는 개별 .sha256 파일과 SHA256SUMS를 함께 제공합니다.
+
+게시에는 main의 `chore(release):` 준비 커밋이 필요합니다. 해당 CI는 실행 패키지·대응 소스를 새로 빌드하며 게시기는 준비 커밋이 최신 main인지 다시 확인한 뒤 실행 파일·체크섬을 올립니다.

@@ -19,13 +19,21 @@ def windows(root: Path, destination: Path, version: str) -> Path:
     lines = [
         'Unicode true', '!include "MUI2.nsh"', 'Name "MetaXtract"',
         f'OutFile "{target.resolve()}"', 'RequestExecutionLevel user',
+        f'VIProductVersion "{version}.0"',
+        'VIAddVersionKey /LANG=1033 "ProductName" "MetaXtract"',
+        'VIAddVersionKey /LANG=1033 "FileDescription" "MetaXtract desktop installer"',
+        f'VIAddVersionKey /LANG=1033 "FileVersion" "{version}"',
+        f'VIAddVersionKey /LANG=1033 "ProductVersion" "{version}"',
+        'VIAddVersionKey /LANG=1033 "LegalCopyright" "MetaXtract contributors"',
         'InstallDir "$LOCALAPPDATA\\Programs\\MetaXtract"',
         'InstallDirRegKey HKCU "Software\\MetaXtract" "InstallDir"',
-        f'Icon "{icon}"', f'UninstallIcon "{icon}"',
-        '!insertmacro MUI_PAGE_DIRECTORY', '!insertmacro MUI_PAGE_INSTFILES',
+        f'!define MUI_ICON "{icon}"', f'!define MUI_UNICON "{icon}"',
+        '!insertmacro MUI_PAGE_COMPONENTS', '!insertmacro MUI_PAGE_DIRECTORY', '!insertmacro MUI_PAGE_INSTFILES',
         '!insertmacro MUI_UNPAGE_CONFIRM', '!insertmacro MUI_UNPAGE_INSTFILES',
         '!insertmacro MUI_LANGUAGE "English"', '!insertmacro MUI_LANGUAGE "Korean"',
-        'Section "MetaXtract"', 'SetShellVarContext current',
+        'LangString DesktopShortcut ${LANG_ENGLISH} "Desktop shortcut"',
+        'LangString DesktopShortcut ${LANG_KOREAN} "바탕화면 바로가기"',
+        'Section "MetaXtract"', 'SectionIn RO', 'SetShellVarContext current',
         'IfFileExists "$INSTDIR\\Uninstall.exe" 0 +2',
         'ExecWait \'"$INSTDIR\\Uninstall.exe" /S _?=$INSTDIR\'',
     ]
@@ -34,7 +42,7 @@ def windows(root: Path, destination: Path, version: str) -> Path:
         relative = path.relative_to(root)
         parent = str(relative.parent).replace('/', '\\')
         lines += [f'SetOutPath "$INSTDIR\\{parent}"', f'File "{path.resolve()}"']
-    lines += ['WriteUninstaller "$INSTDIR\\Uninstall.exe"',
+    lines += ['SetOutPath "$INSTDIR"', 'WriteUninstaller "$INSTDIR\\Uninstall.exe"',
               'WriteRegStr HKCU "Software\\MetaXtract" "InstallDir" "$INSTDIR"',
               'CreateDirectory "$SMPROGRAMS\\MetaXtract"',
               'CreateShortcut "$SMPROGRAMS\\MetaXtract\\MetaXtract.lnk" "$INSTDIR\\MetaXtract.exe" "" "$INSTDIR\\MetaXtract.exe" 0',
@@ -44,7 +52,7 @@ def windows(root: Path, destination: Path, version: str) -> Path:
               'WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MetaXtract" "UninstallString" \'$\\"$INSTDIR\\Uninstall.exe$\\"\'',
               'WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MetaXtract" "QuietUninstallString" \'$\\"$INSTDIR\\Uninstall.exe$\\" /S\'',
               'SectionEnd',
-              'Section /o "Desktop shortcut"',
+              'Section /o "$(DesktopShortcut)"',
               'CreateShortcut "$DESKTOP\\MetaXtract.lnk" "$INSTDIR\\MetaXtract.exe" "" "$INSTDIR\\MetaXtract.exe" 0', 'SectionEnd',
               'Section "Uninstall"', 'SetShellVarContext current']
     # Explicit ownership only: never recursively erase application/user directories.
@@ -62,6 +70,8 @@ def windows(root: Path, destination: Path, version: str) -> Path:
     script = root.parent / "installer.nsi"
     script.write_text('\n'.join(lines) + '\n', encoding="utf-8")
     subprocess.run([compiler, str(script)], check=True)
+    if png not in target.read_bytes():
+        raise ValueError("NSIS omitted the original application icon")
     return target
 
 

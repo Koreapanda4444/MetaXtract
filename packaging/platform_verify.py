@@ -10,6 +10,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -42,20 +43,26 @@ def pe_resources(path: Path) -> None:
         for n in range(named + ids)
     }
 
-    def payload(entry: int) -> bytes:
-        for _ in range(4):
-            if not entry & 0x80000000:
-                address, length = struct.unpack_from("<II", data, base + entry)
-                at = offset(address)
-                return data[at : at + length]
-            directory = base + (entry & 0x7FFFFFFF)
-            entry = struct.unpack_from("<II", data, directory + 16)[1]
-        raise ValueError("PE resource nesting exceeds limit")
+    def payloads(entry: int, depth: int = 0):
+        if depth > 4:
+            raise ValueError("PE resource nesting exceeds limit")
+        if not entry & 0x80000000:
+            address, length = struct.unpack_from("<II", data, base + entry)
+            at = offset(address)
+            yield data[at : at + length]
+            return
+        directory = base + (entry & 0x7FFFFFFF)
+        named, ids = struct.unpack_from("<HH", data, directory + 12)
+        if named + ids > 4096:
+            raise ValueError("PE resource count exceeds limit")
+        for n in range(named + ids):
+            child = struct.unpack_from("<II", data, directory + 16 + n * 8)[1]
+            yield from payloads(child, depth + 1)
 
     for kind in (3, 14, 16):
-        if kind not in entries or not payload(entries[kind]):
+        if kind not in entries or not next(payloads(entries[kind]), b""):
             raise ValueError("EXE lacks embedded icon/group/version resources")
-    version = payload(entries[16])
+    version = next(payloads(entries[16]))
     for text in (
         "ProductName",
         "MetaXtract",
@@ -65,8 +72,24 @@ def pe_resources(path: Path) -> None:
     ):
         if text.encode("utf-16le") not in version:
             raise ValueError("EXE version resource is incomplete: " + text)
-    if b"\x89PNG\r\n\x1a\n" not in payload(entries[3]):
-        raise ValueError("EXE icon does not contain the application artwork")
+
+    def valid_icon(icon: bytes) -> bool:
+        if icon.startswith(b"\x89PNG\r\n\x1a\n"):
+            return len(icon) >= 24
+        if len(icon) < 40:
+            return False
+        header, width, height, planes, bits = struct.unpack_from("<IiiHH", icon)
+        return (
+            header >= 40
+            and width > 0
+            and height > 0
+            and height % 2 == 0
+            and planes == 1
+            and bits in (1, 4, 8, 24, 32)
+        )
+
+    if not any(valid_icon(icon) for icon in payloads(entries[3])):
+        raise ValueError("EXE contains no valid icon image")
 
 
 def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
@@ -83,13 +106,21 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
             / "crates/metaxtract-gui/assets/icon.png"
         )
 
-        def run(*args, graphics_driver=False):
+        def run(*args, graphics_driver=False, nsis_directory=None):
             args = list(args)
             if not Path(str(args[0])).is_absolute():
                 args[0] = shutil.which(str(args[0])) or str(args[0])
+            command = list(map(str, args))
+            if nsis_directory is not None:
+                if os.name != "nt":
+                    raise ValueError("NSIS directory options require Windows")
+                # NSIS requires /D= to be the final, unquoted command-line tail.
+                command = (
+                    subprocess.list2cmdline(command) + " /D=" + str(nsis_directory)
+                )
             with windows_graphics(graphics if graphics_driver else None):
                 result = subprocess.run(
-                    list(map(str, args)),
+                    command,
                     env=env,
                     cwd=base,
                     capture_output=True,
@@ -120,8 +151,9 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
 
         if os.name == "nt":
             (setup,) = assets.glob("*-Windows-Setup.exe")
+            pe_resources(setup)
             app = base / "Installed application"
-            run(setup, "/S", f"/D={app}")
+            run(setup, "/S", nsis_directory=app)
             manifest = runtime(app)
             for role in ("launcher", "gui"):
                 pe_resources(app / manifest["executables"][role])
@@ -138,11 +170,19 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
                     )
             retained = app / "user-evidence.txt"
             retained.write_text("preserve evidence", encoding="utf-8")
-            run(setup, "/S", f"/D={app}")
+            run(setup, "/S", nsis_directory=app)
             runtime(app)
             if retained.read_text() != "preserve evidence":
                 raise ValueError("Upgrade erased user evidence")
-            run(app / "Uninstall.exe", "/S", f"_?={app}")
+            run(app / "Uninstall.exe", "/S")
+            deadline = time.monotonic() + 60
+            while (app / "Uninstall.exe").exists() and time.monotonic() < deadline:
+                time.sleep(0.1)
+            if (
+                any((app / name).exists() for name in manifest["files"])
+                or (app / "Uninstall.exe").exists()
+            ):
+                raise ValueError("Uninstaller retained an owned application file")
             if (
                 retained.read_text() != "preserve evidence"
                 or (app / "MetaXtract.exe").exists()
