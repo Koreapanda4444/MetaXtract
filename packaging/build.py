@@ -18,6 +18,7 @@ import zipfile
 from pathlib import Path
 
 import installers
+import linux
 import runtime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -140,6 +141,8 @@ def assemble(root: Path, programs: dict[str, Path], native: Path) -> dict:
     for name in ("mx_libraw", "tag", "avformat", "avcodec", "avutil", "swscale", "swresample"):
         if not any(name in p.lower() for p in copied):
             raise ValueError(f"required bundled library is missing: {name}")
+    if sys.platform.startswith("linux"):
+        linux.desktop(root)
     copy_licenses(root, native)
     if os.name == "nt":
         redist = runtime.windows_crt()
