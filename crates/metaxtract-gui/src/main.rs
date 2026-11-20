@@ -37,6 +37,7 @@ mod summary;
 mod tasks;
 mod timeline;
 mod updates;
+mod validation;
 mod workflows;
 mod workspace;
 use eframe::egui;
@@ -75,10 +76,16 @@ fn main() -> eframe::Result {
     let mut open = None;
     let mut smoke = false;
     let mut analyze = None;
+    let mut validation = None;
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
         if arg == "--smoke" {
             smoke = true;
+        } else if arg == "--validate-workflows" {
+            validation = args.next().map(PathBuf::from);
+            if validation.is_none() {
+                std::process::exit(2);
+            }
         } else if arg == "--analyze" {
             analyze = args.next().map(PathBuf::from);
             if analyze.is_none() {
@@ -113,6 +120,7 @@ fn main() -> eframe::Result {
         Box::new(move |cc| {
             let korean = fonts(&cc.egui_ctx);
             let mut desktop = desktop::Desktop::new(cc, open, smoke, korean);
+            desktop.validation = validation.map(crate::validation::Validation::new);
             if let Some(path) = analyze {
                 desktop.quick_analysis(&cc.egui_ctx, path);
             }

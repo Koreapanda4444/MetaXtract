@@ -25,6 +25,7 @@ impl Desktop {
         settings.appearance.apply(&cc.egui_ctx, settings.scale);
         let (sender, receiver) = tasks::channel();
         let mut app = Self {
+            validation: None,
             case_generation: 0,
             updates: Default::default(),
             commands: Default::default(),

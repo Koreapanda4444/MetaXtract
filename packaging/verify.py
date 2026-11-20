@@ -214,7 +214,7 @@ def invoke(app: Path, env: dict, *args: object, role: str = "cli", success: bool
         child_env["GALLIUM_DRIVER"] = "llvmpipe"
     with windows_graphics(graphics):
         result = subprocess.run([str(executable), *map(str, args)], cwd=app.parent,
-                                env=child_env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+                                env=child_env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120 if "--validate-workflows" in args else 60)
     if success != (result.returncode == 0):
         raise ValueError(f"{role} {args[0]} exit {result.returncode}: {result.stderr[-2000:]} {result.stdout[:1000]}")
     if not success or not json_output:
@@ -349,6 +349,15 @@ def workflow(current: Path, previous: Path | None, gui: bool, graphics: Path | N
         if gui and not desktop.is_file():
             raise ValueError("desktop did not preserve its recent-case settings")
         desktop_digest = digest(desktop) if gui else None
+
+        if gui and new.get("executables", {}).get("launcher", sys.platform == "darwin"):
+            validation = root / "Desktop workflow verification"
+            validation.mkdir()
+            shutil.copyfile(evidence, validation / "validation.png")
+            invoke(app, env, "--validate-workflows", validation, role="gui", json_output=False, graphics=graphics)
+            result = json.loads((validation / "desktop-workflows.json").read_text(encoding="utf-8"))
+            if result.get("ok") is not True:
+                raise ValueError("Native desktop workflow failed: " + str(result))
 
         # No global worker fallback is allowed when the bundled worker is missing.
         worker = app / new["executables"]["worker"]

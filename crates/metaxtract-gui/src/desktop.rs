@@ -329,6 +329,7 @@ impl eframe::App for Desktop {
         }
         self.persist_pending_queue();
         self.save_display_preferences(ctx, ctx.input(|i| i.viewport().close_requested()));
+        self.poll_validation(ctx);
         self.notifications.show(ctx);
         self.command_palette(ctx);
         if self.smoke {

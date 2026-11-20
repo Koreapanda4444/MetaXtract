@@ -604,7 +604,7 @@ impl Desktop {
         p.validate()?;
         Ok(p)
     }
-    fn run_workflow(&mut self, ctx: &egui::Context) {
+    pub(crate) fn run_workflow(&mut self, ctx: &egui::Context) {
         let action = self.workflows.action;
         let prepared = (|| -> io::Result<_> {
             let query = if matches!(action, 0 | 2 | 14 | 15) {

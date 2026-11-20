@@ -132,6 +132,42 @@ impl Desktop {
             },
         );
     }
+    pub(crate) fn request_analysis(&mut self, ctx: &egui::Context) {
+        let result = (|| -> io::Result<_> {
+            let query = self.active_query(self.analysis.selected)?;
+            let mut options = app::workflows::report_options(crate::i18n::tr("Case analysis"), "")?;
+            options.cluster_radius_meters = self.analysis.radius;
+            options.track_groups = self.analysis.groups.clone();
+            Ok((query, options))
+        })();
+        match result {
+            Ok((query, options)) => {
+                let case = self.case.clone().expect("open case");
+                self.task(
+                    ctx,
+                    crate::i18n::tr("Analyzing metadata"),
+                    move || {
+                        a::reporting::build_report(
+                            &case,
+                            &query,
+                            &options,
+                            None,
+                            None,
+                            Default::default(),
+                        )
+                        .map(Box::new)
+                    },
+                    |s, r| {
+                        s.analysis.pair = Default::default();
+                        s.analysis.report_generation = s.analysis.report_generation.wrapping_add(1);
+                        s.analysis.report = Some(r);
+                        s.analysis.detail = 0;
+                    },
+                );
+            }
+            Err(e) => self.report_error(e),
+        }
+    }
     pub fn analysis_view(&mut self, ui: &mut egui::Ui) {
         crate::components::heading(ui, crate::i18n::tr("Case analysis"));
         self.preset_controls(ui);
@@ -160,42 +196,7 @@ impl Desktop {
                 )
                 .clicked()
             {
-                let result = (|| -> io::Result<_> {
-                    let query = self.active_query(self.analysis.selected)?;
-                    let mut options =
-                        app::workflows::report_options(crate::i18n::tr("Case analysis"), "")?;
-                    options.cluster_radius_meters = self.analysis.radius;
-                    options.track_groups = self.analysis.groups.clone();
-                    Ok((query, options))
-                })();
-                match result {
-                    Ok((query, options)) => {
-                        let case = self.case.clone().expect("open case");
-                        self.task(
-                            ui.ctx(),
-                            crate::i18n::tr("Analyzing metadata"),
-                            move || {
-                                a::reporting::build_report(
-                                    &case,
-                                    &query,
-                                    &options,
-                                    None,
-                                    None,
-                                    Default::default(),
-                                )
-                                .map(Box::new)
-                            },
-                            |s, r| {
-                                s.analysis.pair = Default::default();
-                                s.analysis.report_generation =
-                                    s.analysis.report_generation.wrapping_add(1);
-                                s.analysis.report = Some(r);
-                                s.analysis.detail = 0;
-                            },
-                        );
-                    }
-                    Err(e) => self.report_error(e),
-                }
+                self.request_analysis(ui.ctx());
             }
         });
         ui.label(crate::i18n::tr("Scope uses the current record filter or selected IDs. Analysis is a revision-bound snapshot."));
