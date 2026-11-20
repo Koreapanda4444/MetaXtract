@@ -37,6 +37,7 @@ def main() -> None:
     for archive in (p for p in assets if "-sources-" in p.name):
         if not archive.name.endswith(".tar.gz"):
             raise ValueError("Unexpected source asset")
+    sidecars = [asset.with_name(asset.name + ".sha256") for asset in assets]
     checksums = directory / "SHA256SUMS"
     checksums.write_text(''.join(hashlib.file_digest(p.open("rb"), "sha256").hexdigest() + "  " + p.name + "\n" for p in assets), encoding="ascii")
     notes = ("Desktop release: Windows Setup / portable ZIP, macOS DMG, Linux AppImage / DEB.\n\n"
@@ -46,7 +47,7 @@ def main() -> None:
              "See the included English/Korean installation guides.\n\nVerified CI: https://github.com/" + os.environ["GITHUB_REPOSITORY"] + "/actions/runs/" + os.environ["VERIFIED_RUN"])
     body = directory / "notes.md"
     body.write_text(notes, encoding="utf-8")
-    subprocess.run(["gh", "release", "create", tag, "--target", os.environ["VERIFIED_SHA"], "--title", "MetaXtract " + version, "--notes-file", str(body), *map(str, assets), str(checksums)], check=True)
+    subprocess.run(["gh", "release", "create", tag, "--target", os.environ["VERIFIED_SHA"], "--title", "MetaXtract " + version, "--notes-file", str(body), *map(str, assets), *map(str, sidecars), str(checksums)], check=True)
 
 
 if __name__ == "__main__":

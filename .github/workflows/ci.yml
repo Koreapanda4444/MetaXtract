@@ -28,6 +28,10 @@ jobs:
           retries: 3
           script: |
             if (context.eventName !== 'push' || context.ref !== 'refs/heads/main') return;
+            if (context.payload.head_commit?.message?.startsWith('chore(release):')) {
+              core.info('Release candidate: build fresh packages and matching sources.');
+              return;
+            }
             const permitted = new Set([
               '.github/workflows/ci.yml', 'packaging/verify.py',
               'docs/packaging.md', 'docs/packaging_KR.md'
