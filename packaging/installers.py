@@ -26,6 +26,8 @@ def windows(root: Path, destination: Path, version: str) -> Path:
         '!insertmacro MUI_UNPAGE_CONFIRM', '!insertmacro MUI_UNPAGE_INSTFILES',
         '!insertmacro MUI_LANGUAGE "English"', '!insertmacro MUI_LANGUAGE "Korean"',
         'Section "MetaXtract"', 'SetShellVarContext current',
+        'IfFileExists "$INSTDIR\\Uninstall.exe" 0 +2',
+        'ExecWait \'"$INSTDIR\\Uninstall.exe" /S _?=$INSTDIR\'',
     ]
     files = sorted(p for p in root.rglob("*") if p.is_file())
     for path in files:
@@ -33,7 +35,17 @@ def windows(root: Path, destination: Path, version: str) -> Path:
         parent = str(relative.parent).replace('/', '\\')
         lines += [f'SetOutPath "$INSTDIR\\{parent}"', f'File "{path.resolve()}"']
     lines += ['WriteUninstaller "$INSTDIR\\Uninstall.exe"',
-              'WriteRegStr HKCU "Software\\MetaXtract" "InstallDir" "$INSTDIR"', 'SectionEnd',
+              'WriteRegStr HKCU "Software\\MetaXtract" "InstallDir" "$INSTDIR"',
+              'CreateDirectory "$SMPROGRAMS\\MetaXtract"',
+              'CreateShortcut "$SMPROGRAMS\\MetaXtract\\MetaXtract.lnk" "$INSTDIR\\MetaXtract.exe" "" "$INSTDIR\\MetaXtract.exe" 0',
+              'WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MetaXtract" "DisplayName" "MetaXtract"',
+              f'WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MetaXtract" "DisplayVersion" "{version}"',
+              'WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MetaXtract" "DisplayIcon" "$INSTDIR\\MetaXtract.exe,0"',
+              'WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MetaXtract" "UninstallString" \'$\\"$INSTDIR\\Uninstall.exe$\\"\'',
+              'WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MetaXtract" "QuietUninstallString" \'$\\"$INSTDIR\\Uninstall.exe$\\" /S\'',
+              'SectionEnd',
+              'Section /o "Desktop shortcut"',
+              'CreateShortcut "$DESKTOP\\MetaXtract.lnk" "$INSTDIR\\MetaXtract.exe" "" "$INSTDIR\\MetaXtract.exe" 0', 'SectionEnd',
               'Section "Uninstall"', 'SetShellVarContext current']
     # Explicit ownership only: never recursively erase application/user directories.
     for path in files:
@@ -43,7 +55,10 @@ def windows(root: Path, destination: Path, version: str) -> Path:
         relative = str(directory.relative_to(root)).replace('/', '\\')
         lines += [f'RMDir "$INSTDIR\\{relative}"']
     lines += ['Delete "$INSTDIR\\Uninstall.exe"', 'RMDir "$INSTDIR"',
-              'DeleteRegKey HKCU "Software\\MetaXtract"', 'SectionEnd']
+              'DeleteRegKey HKCU "Software\\MetaXtract"',
+              'DeleteRegKey HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MetaXtract"',
+              'Delete "$SMPROGRAMS\\MetaXtract\\MetaXtract.lnk"', 'RMDir "$SMPROGRAMS\\MetaXtract"',
+              'Delete "$DESKTOP\\MetaXtract.lnk"', 'SectionEnd']
     script = root.parent / "installer.nsi"
     script.write_text('\n'.join(lines) + '\n', encoding="utf-8")
     subprocess.run([compiler, str(script)], check=True)
