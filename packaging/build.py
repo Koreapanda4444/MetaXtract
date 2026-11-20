@@ -355,6 +355,10 @@ def main() -> int:
         if sys.platform == "darwin":
             version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
             checksum_file(installers.macos(root, args.out, version))
+        if sys.platform.startswith("linux"):
+            version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+            for path in linux.formats(root, args.out, version, manifest["runtime"]):
+                checksum_file(path)
         for path in (source, archive):
             destination = args.out / path.name
             os.replace(path, destination)

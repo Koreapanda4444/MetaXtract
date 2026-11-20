@@ -32,9 +32,49 @@ if [ "${1:-}" = "--uninstall" ]; then
 fi
 mkdir -p -- "$(dirname -- "$entry")" "$(dirname -- "$icon")"
 # Desktop Exec quoting: reject control characters and escape reserved characters.
-case "$root" in *'"'*|*'`'*|*'$'*|*'\\\\'*|*'%'*) echo 'Move the application to a simpler directory first.' >&2; exit 1;; esac
+case "$root" in *'"'*|*'`'*|*'$'*|*'\\\\'*|*'%'*|*'&'*|*'|'*) echo 'Move the application to a simpler directory first.' >&2; exit 1;; esac
 LC_ALL=C printf '%s' "$root" | LC_ALL=C grep -q '[[:cntrl:]]' && exit 1
 sed "s|^Exec=.*|Exec=\\\"$root/MetaXtract\\\" %f|" "$root/share/applications/metaxtract.desktop" > "$entry"
 cp -- "$root/share/icons/hicolor/128x128/apps/metaxtract.png" "$icon"
 ''', encoding="utf-8")
     (root / "desktop-integration.sh").chmod(0o755)
+
+
+def fetch(url: str, checksum: str, target: Path) -> Path:
+    if not target.exists():
+        with urllib.request.urlopen(url, timeout=60) as response, target.open("wb") as output:
+            shutil.copyfileobj(response, output)
+    if hashlib.sha256(target.read_bytes()).hexdigest() != checksum:
+        raise ValueError("AppImage build input checksum differs: " + url)
+    target.chmod(0o755)
+    return target
+
+
+def formats(root: Path, destination: Path, version: str, abi: dict) -> list[Path]:
+    tools = root.parent / "appimage-tools"
+    tools.mkdir()
+    tool = fetch("https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage",
+                 "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0", tools / "appimagetool")
+    runtime = fetch("https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64",
+                    "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d", tools / "runtime")
+    appdir = root.parent / "MetaXtract.AppDir"
+    shutil.copytree(root, appdir)
+    shutil.copy2(appdir / "share/applications/metaxtract.desktop", appdir / "metaxtract.desktop")
+    shutil.copy2(appdir / "share/icons/hicolor/128x128/apps/metaxtract.png", appdir / "metaxtract.png")
+    (appdir / "AppRun").write_text('#!/bin/sh\nexec "$(dirname -- "$0")/MetaXtract" "$@"\n', encoding="utf-8")
+    (appdir / "AppRun").chmod(0o755)
+    image = destination / f"MetaXtract-{version}-x86_64.AppImage"
+    env = dict(os.environ, APPIMAGE_EXTRACT_AND_RUN="1", ARCH="x86_64")
+    subprocess.run([str(tool), "--runtime-file", str(runtime), str(appdir), str(image)], env=env, check=True)
+    package = root.parent / "deb"
+    application = package / "opt/MetaXtract"
+    shutil.copytree(root, application)
+    (package / "DEBIAN").mkdir()
+    dependencies = "libc6 (>= 2.39), libstdc++6 (>= 14), libx11-6, libxkbcommon0, libegl1, libgl1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libfontconfig1"
+    (package / "DEBIAN/control").write_text(f"Package: metaxtract\nVersion: {version}\nArchitecture: amd64\nMaintainer: MetaXtract contributors\nSection: utils\nPriority: optional\nDepends: {dependencies}\nDescription: File metadata inspection and evidence analysis\n", encoding="utf-8")
+    (package / "usr/bin").mkdir(parents=True)
+    (package / "usr/bin/MetaXtract").symlink_to("/opt/MetaXtract/MetaXtract")
+    shutil.copytree(root / "share", package / "usr/share")
+    deb = destination / f"MetaXtract-{version}-amd64.deb"
+    subprocess.run(["dpkg-deb", "--build", "--root-owner-group", str(package), str(deb)], check=True)
+    return [image, deb]
