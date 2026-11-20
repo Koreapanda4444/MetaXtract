@@ -47,6 +47,7 @@ pub struct WorkflowsUi {
     category: usize,
     scope: usize,
     action: usize,
+    review_open: bool,
     paths: [PathEntry; 5],
     selected: bool,
     redact: bool,
@@ -68,6 +69,7 @@ impl Default for WorkflowsUi {
             category: 0,
             scope: 1,
             action: 0,
+            review_open: false,
             paths: Default::default(),
             selected: false,
             redact: false,
@@ -327,9 +329,17 @@ impl Desktop {
                     ui.label(crate::i18n::tr("Analyst"));
                     ui.text_edit_singleline(&mut self.workflows.analyst);
                 });
-                ui.horizontal(|ui| {
-                    ui.label(crate::i18n::tr("Baseline scan (optional)"));
-                    ui.text_edit_singleline(&mut self.workflows.baseline);
+                ui.horizontal_wrapped(|ui| {
+                    crate::search::scan_picker(
+                        ui,
+                        "report-baseline",
+                        "Baseline scan (optional)",
+                        &mut self.workflows.baseline,
+                        &self.scans,
+                    );
+                    if ui.small_button(crate::i18n::tr("No baseline")).clicked() {
+                        self.workflows.baseline.clear();
+                    }
                 });
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut self.workflows.format, 0, "HTML · EN/KR");
@@ -521,16 +531,65 @@ impl Desktop {
             )
             .clicked()
         {
-            self.run_workflow(ui.ctx());
+            if matches!(action, 2 | 3 | 4 | 6 | 8 | 9 | 10 | 14 | 15 | 17) {
+                self.workflows.review_open = true;
+            } else {
+                self.run_workflow(ui.ctx());
+            }
         }
         ui.label(crate::i18n::tr(
             "Outputs use new paths and never overwrite existing files",
         ));
         if let Some(result) = &self.workflows.result {
             ui.separator();
-            json_view(ui, result);
+            match result.get("verified").and_then(serde_json::Value::as_bool) {
+                Some(true) => {
+                    ui.colored_label(
+                        egui::Color32::LIGHT_GREEN,
+                        crate::i18n::tr("Verification passed"),
+                    );
+                }
+                Some(false) => {
+                    ui.colored_label(
+                        egui::Color32::LIGHT_RED,
+                        crate::i18n::tr("Verification found differences"),
+                    );
+                }
+                None => {
+                    ui.strong(crate::i18n::tr("Operation completed"));
+                }
+            }
+            for key in [
+                "records",
+                "checked_files",
+                "verified_files",
+                "virtual_records_not_reopened",
+            ] {
+                if let Some(n) = result.get(key).and_then(serde_json::Value::as_u64) {
+                    ui.label(format!("{key}: {n}"));
+                }
+            }
+            ui.collapsing(crate::i18n::tr("Result details"), |ui| {
+                json_view(ui, result)
+            });
+        }
+        let mut review = self.workflows.review_open;
+        let mut execute = false;
+        crate::components::modal(crate::i18n::tr("Review operation")).open(&mut review).show(ui.ctx(),|ui|{
+            ui.heading(actions[action]);
+            if let Some(info)=&self.info{ui.label(format!("{} · {}",info.title,self.active_scan.as_deref().unwrap_or("—")));}
+            for (field,label) in [(Field::Input,"Input"),(Field::Output,"Output"),(Field::Public,"Trusted public key"),(Field::Receipt,"Signature receipt")] {let entry=&self.workflows.paths[field.index()];if !entry.text.is_empty(){ui.label(format!("{}: {}",crate::i18n::tr(label),entry.text));}}
+            if matches!(action,6|8|9){ui.label(crate::i18n::tr("Complete case operations include original metadata. Export filters and redaction do not apply."));}
+            if matches!(action,2|4|6){ui.label(if self.workflows.signing||action==4{crate::i18n::tr("Signing with the selected private key")}else{crate::i18n::tr("Unsigned output")});}
+            if matches!(action,7|8|10){ui.label(if self.workflows.trusted{crate::i18n::tr("Using independently trusted verification material")}else{crate::i18n::tr("Internal consistency only; identity is untrusted")});}
+            if ui.add_enabled(!self.busy,egui::Button::new(crate::i18n::tr("Run"))).clicked(){execute=true;}
+        });
+        self.workflows.review_open = review && !execute;
+        if execute {
+            self.run_workflow(ui.ctx());
         }
     }
+
     fn read_profile(&self) -> io::Result<RedactionProfile> {
         if self.workflows.profile.len() > 65536 {
             return Err(io::Error::other("Profile exceeds 64 KiB"));
@@ -580,7 +639,7 @@ impl Desktop {
         let (query, profile, paths) = match prepared {
             Ok(v) => v,
             Err(e) => {
-                self.status = e.to_string();
+                self.report_error(e);
                 return;
             }
         };
