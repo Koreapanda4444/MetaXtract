@@ -17,7 +17,7 @@ pub struct Settings {
     pub scale: f32,
     pub language: Option<crate::i18n::Language>,
 }
-fn path() -> io::Result<PathBuf> {
+pub(crate) fn path() -> io::Result<PathBuf> {
     let base = if cfg!(target_os = "windows") {
         std::env::var_os("APPDATA").map(PathBuf::from)
     } else if cfg!(target_os = "macos") {

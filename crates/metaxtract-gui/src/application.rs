@@ -175,6 +175,8 @@ impl Desktop {
         }
         self.busy = true;
         self.status = label.into();
+        let task_id = self.notifications.start(label);
+        let started = std::time::Instant::now();
         let sender = self.sender.clone();
         let context = ctx.clone();
         if let Err(e) = std::thread::Builder::new()
@@ -182,22 +184,31 @@ impl Desktop {
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
                     .unwrap_or_else(|_| Err(io::Error::other("background operation panicked")));
-                let _ = sender.send(Box::new(move |app| match result {
-                    Ok(v) => {
-                        app.status = crate::i18n::tr("Completed").into();
-                        apply(app, v);
-                        if !app.busy && app.status != crate::i18n::tr("Completed") {
-                            app.notifications
-                                .push(app.status.clone(), String::new(), false);
+                let _ = sender.send(Box::new(move |app| {
+                    app.notifications.finish(
+                        task_id,
+                        result.as_ref().err().map(ToString::to_string),
+                        started.elapsed(),
+                    );
+                    match result {
+                        Ok(v) => {
+                            app.status = crate::i18n::tr("Completed").into();
+                            apply(app, v);
+                            if !app.busy && app.status != crate::i18n::tr("Completed") {
+                                app.notifications
+                                    .push(app.status.clone(), String::new(), false);
+                            }
                         }
+                        Err(e) => app.status = e.to_string(),
                     }
-                    Err(e) => app.report_error(e),
                 }));
                 context.request_repaint();
             })
         {
             self.busy = false;
-            self.report_error(e);
+            self.notifications
+                .finish(task_id, Some(e.to_string()), started.elapsed());
+            self.status = e.to_string();
         }
     }
     pub fn loaded(
