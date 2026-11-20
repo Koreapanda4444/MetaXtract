@@ -329,6 +329,11 @@ def main() -> int:
             archive = stage / (name + ".tar.gz")
             with tarfile.open(archive, "w:gz") as stream:
                 stream.add(root, "MetaXtract")
+        if os.name == "nt":
+            portable = args.out / "portable"
+            if portable.exists():
+                shutil.rmtree(portable)
+            shutil.copytree(root, portable)
         for path in (source, archive):
             destination = args.out / path.name
             os.replace(path, destination)
