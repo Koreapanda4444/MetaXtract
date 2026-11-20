@@ -25,6 +25,7 @@ mod query_builder;
 mod quick_access;
 mod records;
 mod recovery;
+mod redaction_form;
 mod relationships;
 mod scan;
 mod search;

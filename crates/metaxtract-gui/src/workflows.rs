@@ -266,11 +266,7 @@ impl Desktop {
                     crate::i18n::tr("Apply redaction profile"),
                 );
             }
-            ui.collapsing(crate::i18n::tr("Custom profile JSON"),|ui| {
-                ui.add(egui::TextEdit::multiline(&mut self.workflows.profile).code_editor().desired_rows(10).desired_width(f32::INFINITY));
-                if ui.button(crate::i18n::tr("Privacy preset")).clicked(){self.workflows.profile=serde_json::to_string_pretty(&RedactionProfile::privacy()).expect("built-in profile");}
-                ui.label(crate::i18n::tr("Remove/Mask rules select claim prefixes, raw namespaces/names, Privacy or AllMetadata."));
-            });
+            crate::redaction_form::form(ui, &mut self.workflows.profile);
         }
         match action {
             0 => {
