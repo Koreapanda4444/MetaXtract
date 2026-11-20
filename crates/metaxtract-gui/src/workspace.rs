@@ -36,7 +36,7 @@ impl Desktop {
                     }
                 }
             });
-        if let Some(scan) = scan {
+        if let Some(scan) = scan.filter(|_| !self.busy && !self.scan.running()) {
             self.active_scan = Some(scan);
             self.tab = Tab::Records;
         }

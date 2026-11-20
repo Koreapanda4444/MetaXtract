@@ -95,6 +95,7 @@ impl WorkflowsUi {
         self.action = action.min(17);
         self.category = workflow_category(self.action);
         self.result = None;
+        self.review_open = false;
         self.password = Default::default();
     }
 }
@@ -198,6 +199,7 @@ impl Desktop {
         ui.strong(actions[self.workflows.action]);
         if previous != self.workflows.action {
             self.workflows.result = None;
+            self.workflows.review_open = false;
             self.workflows.format = 0;
             self.workflows.password = Default::default();
         }

@@ -25,6 +25,7 @@ impl Desktop {
         settings.appearance.apply(&cc.egui_ctx, settings.scale);
         let (sender, receiver) = tasks::channel();
         let mut app = Self {
+            case_generation: 0,
             updates: Default::default(),
             commands: Default::default(),
             tab: if open.is_some() {
@@ -176,6 +177,7 @@ impl Desktop {
         }
         self.busy = true;
         self.status = label.into();
+        let ticket = (self.case_generation, self.active_scan.clone());
         let task_id = self.notifications.start(label);
         let started = std::time::Instant::now();
         let sender = self.sender.clone();
@@ -186,6 +188,11 @@ impl Desktop {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
                     .unwrap_or_else(|_| Err(io::Error::other("background operation panicked")));
                 let _ = sender.send(Box::new(move |app| {
+                    if ticket != (app.case_generation, app.active_scan.clone()) {
+                        app.notifications.finish(task_id, Some("View context changed. The background operation finished; review its saved output before retrying.".into()), started.elapsed());
+                        app.analysis.metrics_loaded = false;
+                        return;
+                    }
                     app.notifications.finish(
                         task_id,
                         result.as_ref().err().map(ToString::to_string),
@@ -218,6 +225,8 @@ impl Desktop {
         info: CaseInfo,
         history: storage::ScanHistoryPage,
     ) {
+        self.case_generation = self.case_generation.wrapping_add(1);
+        self.picker = None;
         let closing = self.scan.close_when_idle;
         self.scan = Default::default();
         self.records = Default::default();

@@ -127,6 +127,8 @@ impl Desktop {
                             ),
                         )
                         .clicked()
+                        && !self.busy
+                        && !self.scan.running()
                     {
                         self.active_scan = Some(scan.id.clone());
                     }
@@ -306,6 +308,17 @@ impl eframe::App for Desktop {
             }
             Tab::Records => self.workspace_view(ui),
         });
+        if self.picker.as_mut().is_some_and(|picker| {
+            !picker.matches_context((
+                self.case_generation,
+                self.active_scan.clone(),
+                self.workflows.action,
+            ))
+        }) {
+            self.picker = None;
+            self.status =
+                crate::i18n::tr("Path dialog dismissed because the active context changed").into();
+        }
         if let Some(picker) = &mut self.picker {
             let purpose = picker.purpose;
             let (open, paths) = picker.show(ctx);

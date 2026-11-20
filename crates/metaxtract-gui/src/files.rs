@@ -16,6 +16,7 @@ pub enum Purpose {
     Workflow(crate::workflows::Field),
 }
 pub struct Picker {
+    context: Option<(u64, Option<String>, usize)>,
     suggested: Option<String>,
     pub purpose: Purpose,
     result: Option<mpsc::Receiver<io::Result<Vec<PathBuf>>>>,
@@ -24,10 +25,19 @@ pub struct Picker {
 impl Picker {
     pub fn new(purpose: Purpose) -> Self {
         Self {
+            context: None,
             suggested: None,
             purpose,
             result: None,
             error: None,
+        }
+    }
+    pub fn matches_context(&mut self, value: (u64, Option<String>, usize)) -> bool {
+        if let Some(context) = &self.context {
+            context == &value
+        } else {
+            self.context = Some(value);
+            true
         }
     }
     pub fn suggested(mut self, name: &str) -> Self {
