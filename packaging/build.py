@@ -17,6 +17,7 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+import appimage
 import installers
 import linux
 import runtime
@@ -144,6 +145,7 @@ def assemble(root: Path, programs: dict[str, Path], native: Path) -> dict:
     if sys.platform.startswith("linux"):
         linux.desktop(root)
     copy_licenses(root, native)
+    distribution_sources = appimage.prepare(ROOT, root) if sys.platform.startswith("linux") else []
     if os.name == "nt":
         redist = runtime.windows_crt()
         while True:
@@ -186,7 +188,7 @@ def assemble(root: Path, programs: dict[str, Path], native: Path) -> dict:
             subprocess.run(["codesign", "--force", *flags, "--sign", identity, str(path)], check=True)
         subprocess.run(["codesign", "--force", *flags, "--sign", identity, str(root / "MetaXtract.app")], check=True)
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(root / "MetaXtract.app")], check=True)
-    return {"executables": executables, "runtime": checked,
+    return {"executables": executables, "runtime": checked, "distribution_sources": distribution_sources,
             "macos_signing": "developer-id" if os.environ.get("METAXTRACT_MACOS_IDENTITY") else "ad-hoc",
             "notarization_requested": bool(os.environ.get("METAXTRACT_NOTARY_PROFILE"))}
 
@@ -229,7 +231,8 @@ def sources(destination: Path, revision: str, dirty: bool) -> list[dict]:
             if process.wait(timeout=60):
                 raise ValueError("could not archive reviewed dependency source")
             included.append(dependency)
-        data = json.dumps({"git_commit": revision, "source_dirty": dirty, "native_sources": included}, indent=2).encode()
+        distribution_sources = appimage.add_sources(archive, ROOT) if sys.platform.startswith("linux") else []
+        data = json.dumps({"git_commit": revision, "source_dirty": dirty, "native_sources": included, "distribution_sources": distribution_sources}, indent=2).encode()
         info = tarfile.TarInfo("MetaXtract-sources/provenance.json")
         info.size = len(data)
         archive.addfile(info, io.BytesIO(data))

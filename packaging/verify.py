@@ -76,6 +76,17 @@ def check_sources(archive: Path, manifest: dict) -> None:
     if value["git_commit"] != manifest["git_commit"] or value["native_sources"] != manifest["native_sources"]:
         raise ValueError("source archive provenance differs")
 
+    if value.get("distribution_sources", []) != manifest.get("distribution_sources", []):
+        raise ValueError("distribution source provenance differs")
+    with tarfile.open(source) as stream:
+        for item in manifest.get("distribution_sources", []):
+            name = item["file"]
+            if Path(name).name != name:
+                raise ValueError("unsafe distribution source path")
+            with stream.extractfile("MetaXtract-sources/distribution/AppImage/" + name) as content:
+                if hashlib.file_digest(content, "sha256").hexdigest() != item["sha256"]:
+                    raise ValueError("distribution source checksum differs")
+
 
 def unpack(archive: Path, directory: Path) -> Path:
     expected = archive.with_name(archive.name + ".sha256").read_text(encoding="ascii").split()
@@ -348,7 +359,6 @@ def workflow(current: Path, previous: Path | None, gui: bool, graphics: Path | N
                    else root / "config") / "MetaXtract/desktop.json"
         if gui and not desktop.is_file():
             raise ValueError("desktop did not preserve its recent-case settings")
-        desktop_digest = digest(desktop) if gui else None
 
         if gui and new.get("executables", {}).get("launcher", sys.platform == "darwin"):
             validation = root / "Desktop workflow verification"
@@ -358,6 +368,9 @@ def workflow(current: Path, previous: Path | None, gui: bool, graphics: Path | N
             result = json.loads((validation / "desktop-workflows.json").read_text(encoding="utf-8"))
             if result.get("ok") is not True:
                 raise ValueError("Native desktop workflow failed: " + str(result))
+
+        # Take the preservation baseline after every intentional GUI settings change.
+        desktop_digest = digest(desktop) if gui else None
 
         # No global worker fallback is allowed when the bundled worker is missing.
         worker = app / new["executables"]["worker"]

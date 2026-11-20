@@ -91,3 +91,5 @@ emoji-icon 폰트는 Ubuntu Font License 1.0, SIL OFL 1.1, MIT·Bitstream 고지
 설치된 시스템 폰트 또는 `METAXTRACT_FONT_PATH`에서 읽으며 해당 폰트를 재배포하지 않습니다.
 
 선택 업데이트 확인은 고정한 ureq 3.1.2·rustls와 webpki-roots의 Mozilla 신뢰 앵커를 사용합니다. 신뢰 앵커 데이터의 CDLA-Permissive-2.0은 데이터와 전체 계약문을 함께 제공하는 조건으로 재배포를 허용합니다. 패키지 고지 수집기는 원본 webpki-roots LICENSE를 licenses/rust/에 포함합니다. rustls·ring의 Apache·MIT·ISC 원문 고지도 보존합니다. 업데이트 요청에 시스템 curl·브라우저 자동화·메타데이터 외부 프로그램을 사용하지 않습니다.
+
+Linux AppImage에는 type2-runtime 20251108과 정적으로 연결한 LGPL-2.1 libfuse 3.15.0, 허용적 라이선스의 squashfuse·musl·zstd·zlib·mimalloc이 추가됩니다. `licenses/appimage/`에 원문 고지를 보존합니다. Linux 대응 소스의 `distribution/AppImage/`에는 수정하지 않은 런타임·libfuse 패치·빌드 방법, 전체 libfuse·squashfuse 원본 압축과 교체·재연결 안내를 포함합니다. GPL libfuse 유틸리티는 실행 구성에 포함하지 않습니다. 다운로드는 메타데이터 엔진 의존성과 별도로 SHA-256을 고정합니다.
