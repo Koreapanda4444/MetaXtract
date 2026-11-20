@@ -132,6 +132,7 @@ impl Desktop {
     }
     pub fn analysis_view(&mut self, ui: &mut egui::Ui) {
         crate::components::heading(ui, crate::i18n::tr("Case analysis"));
+        self.preset_controls(ui);
         if self.case.is_none() {
             ui.label(crate::i18n::tr("Open a case first"));
             return;

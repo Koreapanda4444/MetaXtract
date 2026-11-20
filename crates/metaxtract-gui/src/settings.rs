@@ -4,6 +4,7 @@ use std::{io, path::PathBuf};
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    pub presets: Vec<crate::presets::Preset>,
     pub authorized_sources: Vec<NativePath>,
     pub recent_inputs: Vec<NativePath>,
     pub favorites: Vec<crate::quick_access::Favorite>,
@@ -87,6 +88,7 @@ fn default_scale() -> f32 {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            presets: vec![],
             authorized_sources: vec![],
             recent_inputs: vec![],
             favorites: vec![],

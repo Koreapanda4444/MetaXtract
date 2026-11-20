@@ -44,15 +44,16 @@ impl PathEntry {
     }
 }
 pub struct WorkflowsUi {
+    pub(crate) preset_name: String,
     category: usize,
-    scope: usize,
-    action: usize,
+    pub(crate) scope: usize,
+    pub(crate) action: usize,
     review_open: bool,
     paths: [PathEntry; 5],
-    selected: bool,
-    redact: bool,
-    profile: String,
-    format: usize,
+    pub(crate) selected: bool,
+    pub(crate) redact: bool,
+    pub(crate) profile: String,
+    pub(crate) format: usize,
     title: String,
     analyst: String,
     baseline: String,
@@ -66,6 +67,7 @@ pub struct WorkflowsUi {
 impl Default for WorkflowsUi {
     fn default() -> Self {
         Self {
+            preset_name: String::new(),
             category: 0,
             scope: 1,
             action: 0,
@@ -141,6 +143,7 @@ impl Desktop {
     }
     pub fn workflows_view(&mut self, ui: &mut egui::Ui) {
         crate::components::heading(ui, crate::i18n::tr("Export and tools"));
+        self.preset_controls(ui);
         let actions: [&str; 18] = [
             crate::i18n::tr("Export records"),
             crate::i18n::tr("Redaction profile"),
