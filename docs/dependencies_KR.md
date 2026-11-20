@@ -89,3 +89,5 @@ emoji-icon 폰트는 Ubuntu Font License 1.0, SIL OFL 1.1, MIT·Bitstream 고지
 `crates/metaxtract-gui/assets/third-party-notices.txt`에 보존합니다. 해당 조건에 따라 임베딩과
 재배포가 가능하며 원래 이름과 수정하지 않은 폰트 데이터를 유지합니다. 한국어 글리프는
 설치된 시스템 폰트 또는 `METAXTRACT_FONT_PATH`에서 읽으며 해당 폰트를 재배포하지 않습니다.
+
+선택 업데이트 확인은 고정한 ureq 3.1.2·rustls와 webpki-roots의 Mozilla 신뢰 앵커를 사용합니다. 신뢰 앵커 데이터의 CDLA-Permissive-2.0은 데이터와 전체 계약문을 함께 제공하는 조건으로 재배포를 허용합니다. 패키지 고지 수집기는 원본 webpki-roots LICENSE를 licenses/rust/에 포함합니다. rustls·ring의 Apache·MIT·ISC 원문 고지도 보존합니다. 업데이트 요청에 시스템 curl·브라우저 자동화·메타데이터 외부 프로그램을 사용하지 않습니다.

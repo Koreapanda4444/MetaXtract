@@ -86,3 +86,5 @@ the Ubuntu Font License 1.0, SIL OFL 1.1 and MIT/Bitstream notices in
 `crates/metaxtract-gui/assets/third-party-notices.txt`. These allow embedding and redistribution
 with their notices; original names and unmodified font data are preserved. Korean glyphs are
 loaded from an installed system font (or `METAXTRACT_FONT_PATH`), which is not redistributed.
+
+Optional update checks use pinned ureq 3.1.2 with rustls and embedded Mozilla trust anchors from webpki-roots. The trust-anchor data uses CDLA-Permissive-2.0, which permits redistribution when its complete agreement is made available with the data. The package notice collector includes the original webpki-roots LICENSE under licenses/rust/. rustls/ring retain their original Apache/MIT/ISC notices. No system curl, browser automation or metadata subprocess is used for update requests.
