@@ -1,0 +1,9 @@
+[package]
+name = "metaxtract-launcher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "MetaXtract"
+path = "src/main.rs"

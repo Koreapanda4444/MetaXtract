@@ -9,6 +9,7 @@ members = [
   "crates/metaxtract-app",
   "crates/metaxtract-cli",
   "crates/metaxtract-gui",
+  "crates/metaxtract-launcher",
 ]
 resolver = "3"
 

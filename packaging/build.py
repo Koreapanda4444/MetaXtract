@@ -20,7 +20,7 @@ from pathlib import Path
 import runtime
 
 ROOT = Path(__file__).resolve().parents[1]
-PROGRAMS = {"cli": "metaxtract", "gui": "metaxtract-gui", "worker": "metaxtract-worker"}
+PROGRAMS = {"cli": "metaxtract", "gui": "metaxtract-gui", "worker": "metaxtract-worker", "launcher": "MetaXtract"}
 
 
 def sha256(path: Path) -> str:
@@ -50,7 +50,7 @@ def build() -> tuple[dict[str, Path], Path]:
     if process.wait():
         raise ValueError("release build failed")
     if set(programs) != set(PROGRAMS.values()) or native is None:
-        raise ValueError("Cargo did not identify all three binaries and the native runtime")
+        raise ValueError("Cargo did not identify all desktop binaries and the native runtime")
     return programs, native
 
 
@@ -105,12 +105,15 @@ def mac_bundle(root: Path) -> tuple[Path, Path]:
 
 def assemble(root: Path, programs: dict[str, Path], native: Path) -> dict:
     binaries, libraries = (mac_bundle(root) if sys.platform == "darwin"
-                           else (root, root if os.name == "nt" else root / "lib"))
+                           else (root / "runtime/bin", root / ("runtime/bin" if os.name == "nt" else "runtime/lib")))
+    binaries.mkdir(parents=True, exist_ok=True)
     libraries.mkdir(parents=True, exist_ok=True)
     paths, executables = [], {}
     for role, name in PROGRAMS.items():
+        if role == "launcher" and sys.platform == "darwin":
+            continue
         source = programs[name]
-        destination = binaries / source.name
+        destination = (root if role == "launcher" else binaries) / source.name
         shutil.copy2(source, destination)
         paths.append(destination)
         executables[role] = destination.relative_to(root).as_posix()

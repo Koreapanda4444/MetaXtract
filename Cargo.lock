@@ -2049,6 +2049,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "metaxtract-launcher"
+version = "0.1.0"
+
+[[package]]
 name = "metaxtract-native"
 version = "0.1.0"
 dependencies = [
