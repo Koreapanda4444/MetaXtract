@@ -166,6 +166,8 @@ def assemble(root: Path, programs: dict[str, Path], native: Path) -> dict:
         text = (ROOT / "docs" / source).read_text(encoding="utf-8")
         (root / name).write_text(text.replace("(packaging.md)", "(README.md)").replace(
             "(packaging_KR.md)", "(README_KR.md)"), encoding="utf-8")
+    if sys.platform == "darwin":
+        shutil.copytree(root / "licenses", root / "MetaXtract.app/Contents/Resources/licenses")
     checked = runtime.inspect(root, paths)
     if sys.platform == "darwin":
         info_path = root / "MetaXtract.app/Contents/Info.plist"
@@ -175,11 +177,15 @@ def assemble(root: Path, programs: dict[str, Path], native: Path) -> dict:
             info["LSMinimumSystemVersion"] = checked["macos_minimum"]
         with info_path.open("wb") as stream:
             plistlib.dump(info, stream)
+        identity = os.environ.get("METAXTRACT_MACOS_IDENTITY", "-")
+        flags = [] if identity == "-" else ["--options", "runtime", "--timestamp"]
         for path in paths:
-            subprocess.run(["codesign", "--force", "--sign", "-", str(path)], check=True)
-        subprocess.run(["codesign", "--force", "--sign", "-", str(root / "MetaXtract.app")], check=True)
+            subprocess.run(["codesign", "--force", *flags, "--sign", identity, str(path)], check=True)
+        subprocess.run(["codesign", "--force", *flags, "--sign", identity, str(root / "MetaXtract.app")], check=True)
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(root / "MetaXtract.app")], check=True)
-    return {"executables": executables, "runtime": checked}
+    return {"executables": executables, "runtime": checked,
+            "macos_signing": "developer-id" if os.environ.get("METAXTRACT_MACOS_IDENTITY") else "ad-hoc",
+            "notarization_requested": bool(os.environ.get("METAXTRACT_NOTARY_PROFILE"))}
 
 
 def sources(destination: Path, revision: str, dirty: bool) -> list[dict]:
@@ -343,6 +349,9 @@ def main() -> int:
         if os.name == "nt":
             version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
             checksum_file(installers.windows(root, args.out, version))
+        if sys.platform == "darwin":
+            version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+            checksum_file(installers.macos(root, args.out, version))
         for path in (source, archive):
             destination = args.out / path.name
             os.replace(path, destination)

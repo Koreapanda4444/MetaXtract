@@ -63,3 +63,22 @@ def windows(root: Path, destination: Path, version: str) -> Path:
     script.write_text('\n'.join(lines) + '\n', encoding="utf-8")
     subprocess.run([compiler, str(script)], check=True)
     return target
+
+
+def macos(root: Path, destination: Path, version: str) -> Path:
+    app = root / "MetaXtract.app"
+    identity = os.environ.get("METAXTRACT_MACOS_IDENTITY", "-")
+    profile = os.environ.get("METAXTRACT_NOTARY_PROFILE")
+    if profile and identity == "-":
+        raise ValueError("Notarization requires a Developer ID signing identity")
+    subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+    stage = root.parent / "disk-image"
+    shutil.copytree(root, stage)
+    (stage / "Applications").symlink_to("/Applications", target_is_directory=True)
+    image = destination / f"MetaXtract-{version}-macOS.dmg"
+    subprocess.run(["hdiutil", "create", "-volname", "MetaXtract", "-srcfolder", str(stage), "-format", "UDZO", str(image)], check=True)
+    if profile:
+        subprocess.run(["xcrun", "notarytool", "submit", str(image), "--keychain-profile", profile, "--wait"], check=True)
+        subprocess.run(["xcrun", "stapler", "staple", str(image)], check=True)
+        subprocess.run(["xcrun", "stapler", "validate", str(image)], check=True)
+    return image
