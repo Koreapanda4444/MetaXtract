@@ -23,7 +23,7 @@ import linux
 import runtime
 
 ROOT = Path(__file__).resolve().parents[1]
-PROGRAMS = {"cli": "metaxtract", "gui": "metaxtract-gui", "worker": "metaxtract-worker", "launcher": "MetaXtract"}
+PROGRAMS = {"cli": "metaxtract", "gui": "metaxtract-gui", "worker": "metaxtract-worker", "launcher": "metaxtract-launcher"}
 
 
 def sha256(path: Path) -> str:
@@ -32,6 +32,8 @@ def sha256(path: Path) -> str:
 
 
 def build() -> tuple[dict[str, Path], Path]:
+    if len({name.casefold() for name in PROGRAMS.values()}) != len(PROGRAMS):
+        raise ValueError("Cargo binary names collide on case-insensitive filesystems")
     command = ["cargo", "build", "--workspace", "--release", "--locked", "--message-format=json"]
     process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, text=True, encoding="utf-8")
     programs, native = {}, None
@@ -121,7 +123,8 @@ def assemble(root: Path, programs: dict[str, Path], native: Path) -> dict:
         if role == "launcher" and sys.platform == "darwin":
             continue
         source = programs[name]
-        destination = (root if role == "launcher" else binaries) / source.name
+        destination = (root / ("MetaXtract.exe" if os.name == "nt" else "MetaXtract")
+                       if role == "launcher" else binaries / source.name)
         shutil.copy2(source, destination)
         paths.append(destination)
         executables[role] = destination.relative_to(root).as_posix()

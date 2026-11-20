@@ -35,6 +35,7 @@ def validate_repository() -> list[str]:
         for name, component in components.items()
         if (ROOT / component["path"] / "Cargo.toml").is_file()
     }
+    binary_names = {}
     for name, component in components.items():
         directory = ROOT / component["path"]
         if not directory.is_dir():
@@ -44,6 +45,14 @@ def validate_repository() -> list[str]:
         if not manifest.is_file():
             continue
         package = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        binaries = package.get("bin", [])
+        if not binaries and (directory / "src/main.rs").is_file():
+            binaries = [{"name": package["package"]["name"]}]
+        for binary in binaries:
+            key = binary["name"].casefold()
+            if key in binary_names:
+                errors.append(f"case-insensitive Cargo output collision: {binary_names[key]} / {name}")
+            binary_names[key] = name
         dependencies = set(package.get("dependencies", {})) & names.keys()
         forbidden = {names[dependency] for dependency in dependencies} - set(component["allows"])
         if forbidden:

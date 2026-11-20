@@ -5,5 +5,5 @@ edition.workspace = true
 rust-version.workspace = true
 
 [[bin]]
-name = "MetaXtract"
+name = "metaxtract-launcher"
 path = "src/main.rs"
