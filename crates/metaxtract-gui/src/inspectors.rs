@@ -15,6 +15,7 @@ pub enum InspectorTab {
 }
 #[derive(Default)]
 pub struct InspectUi {
+    summary: crate::summary::Summary,
     pub tab: InspectorTab,
     advanced_tab: Option<InspectorTab>,
     open_evidence: bool,
@@ -90,6 +91,7 @@ impl Desktop {
             self.inspect.advanced_tab = Some(InspectorTab::Raw);
             self.inspect.raw_indices = (0..record.observations.len()).collect();
             self.inspect.groups = crate::categories::groups(record);
+            self.inspect.summary = crate::summary::Summary::new(record);
             self.inspect.claim_indices = (0..record.claims.len()).collect();
         }
         ui.add(
@@ -131,6 +133,7 @@ impl Desktop {
                 .map(|(i, _)| i)
                 .collect();
             self.inspect.groups = crate::categories::groups(record);
+            self.inspect.summary = crate::summary::Summary::new(record);
             for (_, indices) in &mut self.inspect.groups {
                 indices.retain(|i| self.inspect.raw_indices.binary_search(i).is_ok());
             }
@@ -190,7 +193,7 @@ impl Desktop {
         let (_, record) = self.records.focused.as_ref().expect("focused record");
         match tab {
             InspectorTab::Summary => {
-                crate::summary::overview(ui, record);
+                crate::summary::overview(ui, record, &self.inspect.summary);
                 ui.separator();
                 for (category, indices) in &self.inspect.groups {
                     egui::CollapsingHeader::new(format!(

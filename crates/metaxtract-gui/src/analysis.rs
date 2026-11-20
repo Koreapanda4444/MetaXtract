@@ -12,6 +12,7 @@ use metaxtract_app::{
 use std::{io, path::PathBuf};
 
 pub struct AnalysisUi {
+    pub(crate) report_generation: u64,
     pub(crate) evolution: crate::evolution::EvolutionUi,
     pub(crate) relationships: crate::relationships::RelationshipsUi,
     pub(crate) findings: crate::finding_review::FindingsUi,
@@ -39,6 +40,7 @@ pub struct AnalysisUi {
 impl Default for AnalysisUi {
     fn default() -> Self {
         Self {
+            report_generation: 0,
             evolution: Default::default(),
             relationships: Default::default(),
             findings: Default::default(),
@@ -185,6 +187,8 @@ impl Desktop {
                             },
                             |s, r| {
                                 s.analysis.pair = Default::default();
+                                s.analysis.report_generation =
+                                    s.analysis.report_generation.wrapping_add(1);
                                 s.analysis.report = Some(r);
                                 s.analysis.detail = 0;
                             },

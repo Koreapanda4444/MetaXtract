@@ -3,6 +3,10 @@ use eframe::egui;
 use metaxtract_app::analysis::timestamp::parse_timestamp;
 #[derive(Default)]
 pub struct TimelineUi {
+    cache_key: Option<(u64, String, String, String, bool)>,
+    indices: Vec<usize>,
+    extent: Option<(i64, i64)>,
+    unresolved_count: usize,
     from: String,
     to: String,
     mime: String,
@@ -63,37 +67,62 @@ impl Desktop {
             ui.label(crate::i18n::tr("Start must precede end."));
             return;
         }
-        let types: std::collections::BTreeMap<_, _> = report
-            .records
-            .iter()
-            .map(|r| {
-                (
-                    r.path.to_string(),
-                    r.metadata
-                        .pointer("/source/detected_media_type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(""),
-                )
-            })
-            .collect();
-        let indices: Vec<_> = report
-            .timeline
-            .iter()
-            .enumerate()
-            .filter(|(_, e)| {
-                let resolved = e.valid && e.timestamp.unix_seconds.is_some();
-                (!state.unresolved || !resolved)
-                    && (state.mime.is_empty()
-                        || types
-                            .get(&e.path.to_string())
-                            .is_some_and(|m| m.contains(&state.mime)))
-                    && match e.timestamp.unix_seconds.filter(|_| e.valid) {
-                        Some(t) => from.is_none_or(|f| t >= f) && to.is_none_or(|v| t <= v),
-                        None => from.is_none() && to.is_none(),
-                    }
-            })
-            .map(|(i, _)| i)
-            .collect();
+        let key = (
+            self.analysis.report_generation,
+            state.from.clone(),
+            state.to.clone(),
+            state.mime.clone(),
+            state.unresolved,
+        );
+        if state.cache_key.as_ref() != Some(&key) {
+            let types: std::collections::BTreeMap<_, _> = report
+                .records
+                .iter()
+                .map(|r| {
+                    (
+                        r.path.to_string(),
+                        r.metadata
+                            .pointer("/source/detected_media_type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(""),
+                    )
+                })
+                .collect();
+            state.indices = report
+                .timeline
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| {
+                    let resolved = e.valid && e.timestamp.unix_seconds.is_some();
+                    (!state.unresolved || !resolved)
+                        && (state.mime.is_empty()
+                            || types
+                                .get(&e.path.to_string())
+                                .is_some_and(|m| m.contains(&state.mime)))
+                        && match e.timestamp.unix_seconds.filter(|_| e.valid) {
+                            Some(t) => from.is_none_or(|f| t >= f) && to.is_none_or(|v| t <= v),
+                            None => from.is_none() && to.is_none(),
+                        }
+                })
+                .map(|(i, _)| i)
+                .collect();
+
+            state.extent = None;
+            state.unresolved_count = 0;
+            for i in &state.indices {
+                if let Some(t) = report.timeline[*i]
+                    .timestamp
+                    .unix_seconds
+                    .filter(|_| report.timeline[*i].valid)
+                {
+                    state.extent = Some(state.extent.map_or((t, t), |(a, b)| (a.min(t), b.max(t))));
+                } else {
+                    state.unresolved_count += 1;
+                }
+            }
+            state.cache_key = Some(key);
+        }
+        let indices = &state.indices;
         state.zoom = state.zoom.clamp(1.0, 1000.0);
         ui.horizontal(|ui| {
             ui.add(
@@ -106,17 +135,8 @@ impl Desktop {
                 state.pan = 0.0;
             }
         });
-        let times: Vec<_> = indices
-            .iter()
-            .filter_map(|i| {
-                report.timeline[*i]
-                    .timestamp
-                    .unix_seconds
-                    .filter(|_| report.timeline[*i].valid)
-            })
-            .collect();
-        if let (Some(first), Some(last)) = (times.iter().min(), times.iter().max()) {
-            let span = (*last as f64 - *first as f64).max(1.0) / state.zoom;
+        if let Some((first, last)) = state.extent {
+            let span = (last as f64 - first as f64).max(1.0) / state.zoom;
             let (r, p) = ui.allocate_painter(
                 egui::vec2(ui.available_width().max(100.0), 165.0),
                 egui::Sense::click_and_drag(),
@@ -125,7 +145,7 @@ impl Desktop {
                 state.pan -=
                     ui.input(|i| i.pointer.delta().x) as f64 / r.rect.width() as f64 * span;
             }
-            let middle = (*first as f64 + *last as f64) / 2.0 + state.pan;
+            let middle = (first as f64 + last as f64) / 2.0 + state.pan;
             let start = middle - span / 2.0;
             let rect = r.rect.shrink2(egui::vec2(15.0, 28.0));
             p.rect_filled(r.rect, 4.0, ui.visuals().faint_bg_color);
@@ -173,7 +193,7 @@ impl Desktop {
                 }
             }
         }
-        ui.label(format!("{} events · {} unresolved; plotted at most 5,000. Drag to pan. Unknown zones stay unresolved.",indices.len(),indices.iter().filter(|i|report.timeline[**i].timestamp.unix_seconds.is_none()).count()));
+        ui.label(format!("{} events · {} unresolved; plotted at most 5,000. Drag to pan. Unknown zones stay unresolved.",indices.len(),state.unresolved_count));
         egui::ScrollArea::vertical()
             .id_salt("timeline-events")
             .max_height(220.0)
