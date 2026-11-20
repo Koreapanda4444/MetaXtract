@@ -4,6 +4,7 @@ use eframe::egui;
 impl Desktop {
     fn case_view(&mut self, ui: &mut egui::Ui) {
         crate::components::heading(ui, crate::i18n::tr("Case workspace"));
+        self.update_controls(ui);
         let Some(case) = self.case.clone() else {
             ui.add_space(28.0);
             crate::components::heading(ui, crate::i18n::tr("Quick analysis"));

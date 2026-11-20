@@ -13,6 +13,7 @@ pub enum Tab {
     Workflows,
 }
 pub struct Desktop {
+    pub updates: crate::updates::Updates,
     pub commands: crate::commands::CommandUi,
     pub tab: Tab,
     pub scan: crate::scan::ScanUi,
