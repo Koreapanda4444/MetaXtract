@@ -1984,7 +1984,7 @@ dependencies = [
 
 [[package]]
 name = "metaxtract-analysis"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "metaxtract-schema",
  "metaxtract-storage",
@@ -1997,7 +1997,7 @@ dependencies = [
 
 [[package]]
 name = "metaxtract-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "metaxtract-analysis",
  "metaxtract-core",
@@ -2012,7 +2012,7 @@ dependencies = [
 
 [[package]]
 name = "metaxtract-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "metaxtract-app",
  "serde",
@@ -2022,7 +2022,7 @@ dependencies = [
 
 [[package]]
 name = "metaxtract-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "cap-fs-ext",
@@ -2038,7 +2038,7 @@ dependencies = [
 
 [[package]]
 name = "metaxtract-gui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eframe",
  "metaxtract-app",
@@ -2050,11 +2050,11 @@ dependencies = [
 
 [[package]]
 name = "metaxtract-launcher"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "metaxtract-native"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cmake",
  "cxx",
@@ -2065,14 +2065,14 @@ dependencies = [
 
 [[package]]
 name = "metaxtract-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "metaxtract-storage"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "ed25519-dalek",
@@ -2090,7 +2090,7 @@ dependencies = [
 
 [[package]]
 name = "metaxtract-worker"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "metaxtract-core",
 ]

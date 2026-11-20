@@ -1,0 +1,26 @@
+name: Publish desktop release
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Publish verified versioned assets and corresponding sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFIED_RUN: ${{ github.event.workflow_run.id }}
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python packaging/release.py

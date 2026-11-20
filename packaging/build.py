@@ -325,7 +325,8 @@ def main() -> int:
         root = stage / "MetaXtract"
         root.mkdir()
         manifest = assemble(root, programs, native)
-        source = stage / ("MetaXtract-sources-" + target + ".tar.gz")
+        version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+        source = stage / ("MetaXtract-sources-" + version + "-" + target + ".tar.gz")
         included = sources(source, revision, dirty)
         manifest.update({"schema": 1, "target": target, "git_commit": revision, "source_dirty": dirty,
                          "native_sources": included, "source_archive": source.name,
@@ -334,7 +335,7 @@ def main() -> int:
                          "files": {p.relative_to(root).as_posix(): {"sha256": sha256(p), "bytes": p.stat().st_size}
                                    for p in sorted(root.rglob("*")) if p.is_file()}})
         (root / "package.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-        name = "MetaXtract-" + target
+        name = "MetaXtract-" + version + "-" + target
         if os.name == "nt":
             archive = stage / (name + ".zip")
             with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as stream:
