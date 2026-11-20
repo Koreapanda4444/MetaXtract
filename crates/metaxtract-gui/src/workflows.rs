@@ -44,6 +44,7 @@ impl PathEntry {
     }
 }
 pub struct WorkflowsUi {
+    category: usize,
     action: usize,
     paths: [PathEntry; 5],
     selected: bool,
@@ -63,6 +64,7 @@ pub struct WorkflowsUi {
 impl Default for WorkflowsUi {
     fn default() -> Self {
         Self {
+            category: 0,
             action: 0,
             paths: Default::default(),
             selected: false,
@@ -85,6 +87,7 @@ impl Default for WorkflowsUi {
 impl WorkflowsUi {
     pub(crate) fn select_action(&mut self, action: usize) {
         self.action = action.min(17);
+        self.category = workflow_category(self.action);
         self.result = None;
         self.password = Default::default();
     }
@@ -148,13 +151,37 @@ impl Desktop {
             crate::i18n::tr("Purge metadata cache"),
         ];
         let previous = self.workflows.action;
-        egui::ComboBox::from_id_salt("workflow-action")
-            .selected_text(actions[self.workflows.action])
-            .show_ui(ui, |ui| {
-                for (i, label) in actions.iter().enumerate() {
-                    ui.selectable_value(&mut self.workflows.action, i, *label);
+        ui.horizontal_wrapped(|ui| {
+            for (i, label) in [
+                "Export",
+                "Privacy and security",
+                "Case management",
+                "Diagnostics",
+            ]
+            .iter()
+            .enumerate()
+            {
+                if ui
+                    .selectable_value(&mut self.workflows.category, i, crate::i18n::tr(label))
+                    .changed()
+                {
+                    self.workflows.select_action(WORKFLOW_GROUPS[i][0]);
                 }
-            });
+            }
+        });
+        ui.separator();
+        ui.horizontal_wrapped(|ui| {
+            for &i in WORKFLOW_GROUPS[self.workflows.category] {
+                if ui
+                    .selectable_label(self.workflows.action == i, actions[i])
+                    .clicked()
+                {
+                    self.workflows.select_action(i);
+                }
+            }
+        });
+        ui.add_space(8.0);
+        ui.strong(actions[self.workflows.action]);
         if previous != self.workflows.action {
             self.workflows.result = None;
             self.workflows.format = 0;
@@ -536,4 +563,17 @@ impl Desktop {
             Outcome::Imported(v,info,history,scan)=>{s.info=Some(info);s.scans=history.items;s.history_next=history.next;s.active_scan=scan;s.records=Default::default();s.analysis.metrics_loaded=false;s.workflows.result=Some(v);}
         });
     }
+}
+
+const WORKFLOW_GROUPS: [&[usize]; 4] = [
+    &[0, 2, 15],
+    &[1, 3, 4, 5, 12, 13, 14, 16],
+    &[6, 7, 8, 9],
+    &[10, 11, 17],
+];
+fn workflow_category(action: usize) -> usize {
+    WORKFLOW_GROUPS
+        .iter()
+        .position(|group| group.contains(&action))
+        .unwrap_or(0)
 }
