@@ -406,6 +406,9 @@ def main() -> int:
     baseline = args.previous or (args.previous_if_present if args.previous_if_present and args.previous_if_present.exists() else None)
     previous = find_package(baseline) if baseline else None
     result = workflow(current, previous, args.gui_smoke, args.windows_opengl_directory)
+    if any(args.dist.glob("*.exe")) or any(args.dist.glob("*.dmg")) or any(args.dist.glob("*.deb")):
+        from platform_verify import verify_formats
+        result["native_formats"] = verify_formats(args.dist, args.gui_smoke, args.windows_opengl_directory)
     destination = args.dist / "installation-verification.json"
     destination.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result))

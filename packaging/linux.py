@@ -61,7 +61,7 @@ def formats(root: Path, destination: Path, version: str, abi: dict) -> list[Path
     shutil.copytree(root, appdir)
     shutil.copy2(appdir / "share/applications/metaxtract.desktop", appdir / "metaxtract.desktop")
     shutil.copy2(appdir / "share/icons/hicolor/128x128/apps/metaxtract.png", appdir / "metaxtract.png")
-    (appdir / "AppRun").write_text('#!/bin/sh\nexec "$(dirname -- "$0")/MetaXtract" "$@"\n', encoding="utf-8")
+    (appdir / "AppRun").write_text('#!/bin/sh\nexec "${0%/*}/MetaXtract" "$@"\n', encoding="utf-8")
     (appdir / "AppRun").chmod(0o755)
     image = destination / f"MetaXtract-{version}-x86_64.AppImage"
     env = dict(os.environ, APPIMAGE_EXTRACT_AND_RUN="1", ARCH="x86_64")
@@ -70,7 +70,12 @@ def formats(root: Path, destination: Path, version: str, abi: dict) -> list[Path
     application = package / "opt/MetaXtract"
     shutil.copytree(root, application)
     (package / "DEBIAN").mkdir()
-    dependencies = "libc6 (>= 2.39), libstdc++6 (>= 14), libx11-6, libxkbcommon0, libegl1, libgl1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libfontconfig1"
+    glibc = abi.get("glibc_minimum") or "2.39"
+    glibcxx = abi.get("glibcxx_minimum") or "3.4.30"
+    cpp = {30:"12",31:"13.1",32:"13.2",33:"14",34:"15",35:"16"}.get(int(glibcxx.split(".")[-1]))
+    if cpp is None:
+        raise ValueError("Review the libstdc++ package floor for " + glibcxx)
+    dependencies = f"libc6 (>= {glibc}), libstdc++6 (>= {cpp}), libx11-6, libxkbcommon0, libegl1, libgl1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libfontconfig1"
     (package / "DEBIAN/control").write_text(f"Package: metaxtract\nVersion: {version}\nArchitecture: amd64\nMaintainer: MetaXtract contributors\nSection: utils\nPriority: optional\nDepends: {dependencies}\nDescription: File metadata inspection and evidence analysis\n", encoding="utf-8")
     (package / "usr/bin").mkdir(parents=True)
     (package / "usr/bin/MetaXtract").symlink_to("/opt/MetaXtract/MetaXtract")

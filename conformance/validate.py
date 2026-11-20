@@ -58,9 +58,13 @@ def validate_repository() -> list[str]:
             continue
         for path in (ROOT / components[name]["path"] / "src").rglob("*.rs"):
             text = path.read_text(encoding="utf-8")
+            launcher = (path == ROOT / "crates/metaxtract-launcher/src/main.rs"
+                        and 'root.join("runtime/bin").join(name)' in text
+                        and "std::process::Command::new(target).args(args).status()" in text
+                        and "std::env::current_exe()?" in text)
             worker_client = path == ROOT / "crates/metaxtract-core/src/scan/worker.rs"
             if re.search(r"\bCommand\s*::\s*new|std::process::Command", text) and not (
-                worker_client and "Command::new(&self.path)" in text
+                launcher or worker_client and "Command::new(&self.path)" in text
                 and '"--protocol=1"' in text
             ):
                 errors.append(f"production runtime subprocess: {path.relative_to(ROOT)}")

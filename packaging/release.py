@@ -26,6 +26,14 @@ def main() -> None:
         raise ValueError("Verified CI did not provide all desktop formats")
     if len({p.name for p in assets}) != len(assets):
         raise ValueError("Release asset names are ambiguous")
+    if len([p for p in assets if "-sources-" in p.name]) != 3:
+        raise ValueError("All three matching corresponding-source archives are required")
+    for asset in assets:
+        expected = asset.with_name(asset.name + ".sha256").read_text(encoding="ascii").split()
+        with asset.open("rb") as stream:
+            actual = hashlib.file_digest(stream,"sha256").hexdigest()
+        if expected != [actual, asset.name]:
+            raise ValueError("Verified artifact checksum differs: " + asset.name)
     for archive in (p for p in assets if "-sources-" in p.name):
         if not archive.name.endswith(".tar.gz"):
             raise ValueError("Unexpected source asset")
