@@ -8,14 +8,17 @@ impl Desktop {
     pub(crate) fn explorer_search(&mut self, ui: &mut egui::Ui) {
         let mut changed = false;
         ui.horizontal(|ui| {
-            changed |= ui
-                .add(
-                    egui::TextEdit::singleline(&mut self.search.text)
-                        .desired_width((ui.available_width() - 110.0).max(100.0))
-                        .hint_text(crate::i18n::tr("Search files and metadata"))
-                        .char_limit(4096),
-                )
-                .changed();
+            let search_response = ui.add(
+                egui::TextEdit::singleline(&mut self.search.text)
+                    .desired_width((ui.available_width() - 110.0).max(100.0))
+                    .hint_text(crate::i18n::tr("Search files and metadata"))
+                    .char_limit(4096),
+            );
+            if self.commands.focus_search {
+                search_response.request_focus();
+                self.commands.focus_search = false;
+            }
+            changed |= search_response.changed();
             if ui.button(crate::i18n::tr("Reset filters")).clicked() {
                 self.search.text.clear();
                 self.search.visual = Default::default();

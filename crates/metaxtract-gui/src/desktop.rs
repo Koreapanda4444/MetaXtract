@@ -155,6 +155,7 @@ impl eframe::App for Desktop {
             self.busy = false;
             callback(self);
         }
+        self.command_shortcuts(ctx);
         self.dropped_files(ctx);
         self.poll_scan(ctx);
         self.poll_records(ctx);
@@ -190,6 +191,13 @@ impl eframe::App for Desktop {
                     if let Err(error) = self.settings.save() {
                         self.status = error.to_string();
                     }
+                }
+                if ui
+                    .button(crate::i18n::tr("Commands"))
+                    .on_hover_text("Ctrl/Cmd+K")
+                    .clicked()
+                {
+                    self.commands.open = true;
                 }
                 ui.menu_button(crate::i18n::tr("Appearance"), |ui| {
                     let before = (self.settings.appearance, self.settings.scale);
@@ -308,6 +316,7 @@ impl eframe::App for Desktop {
         self.persist_pending_queue();
         self.save_display_preferences(ctx, ctx.input(|i| i.viewport().close_requested()));
         self.notifications.show(ctx);
+        self.command_palette(ctx);
         if self.smoke {
             self.frames += 1;
             if self.frames >= 4 && !self.busy && !self.scan.running() {

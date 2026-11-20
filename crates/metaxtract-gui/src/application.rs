@@ -25,6 +25,7 @@ impl Desktop {
         settings.appearance.apply(&cc.egui_ctx, settings.scale);
         let (sender, receiver) = tasks::channel();
         let mut app = Self {
+            commands: Default::default(),
             tab: if open.is_some() {
                 settings.workspace.tab
             } else {

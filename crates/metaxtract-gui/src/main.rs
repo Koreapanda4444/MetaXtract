@@ -3,6 +3,7 @@
 mod analysis;
 mod application;
 mod categories;
+mod commands;
 mod components;
 mod dashboard;
 mod desktop;

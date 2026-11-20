@@ -82,6 +82,13 @@ impl Default for WorkflowsUi {
         }
     }
 }
+impl WorkflowsUi {
+    pub(crate) fn select_action(&mut self, action: usize) {
+        self.action = action.min(17);
+        self.result = None;
+        self.password = Default::default();
+    }
+}
 enum Outcome {
     Value(serde_json::Value),
     Open(Arc<CaseWorkspace>, s::CaseInfo, s::ScanHistoryPage),
