@@ -19,12 +19,18 @@ pub struct TemporarySession {
 impl TemporarySession {
     pub fn new() -> io::Result<Self> {
         let base = crate::settings::session_directory()?;
-        std::fs::create_dir_all(&base)?;
+        Self::create_in(&base)
+    }
+    fn create_in(base: &Path) -> io::Result<Self> {
+        std::fs::create_dir_all(base)?;
         let directory = tempfile::Builder::new()
             .prefix("analysis-")
-            .tempdir_in(base)?
-            .keep();
-        Ok(Self { directory })
+            .tempdir_in(base)?;
+        // CaseWorkspace uses canonical paths, including macOS /var -> /private/var.
+        // Keep the same spelling so opening this case retains its cleanup guard.
+        let path = directory.path().canonicalize()?;
+        let _ = directory.keep();
+        Ok(Self { directory: path })
     }
     pub fn restore(case: &Path) -> io::Result<Self> {
         let base = crate::settings::session_directory()?.canonicalize()?;
@@ -163,6 +169,21 @@ impl Desktop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn session_paths_match_cases_through_symlinked_parents() {
+        let parent = tempfile::tempdir().unwrap();
+        let actual = parent.path().join("actual");
+        std::fs::create_dir(&actual).unwrap();
+        let alias = parent.path().join("alias");
+        std::os::unix::fs::symlink(&actual, &alias).unwrap();
+        let session = TemporarySession::create_in(&alias).unwrap();
+        let case =
+            app::storage::CaseWorkspace::create(session.path().join("session.mxcase"), "test")
+                .unwrap();
+        assert!(case.path().starts_with(session.path()));
+        assert!(case.path().is_file());
+    }
     #[test]
     fn untrusted_recovery_paths_never_acquire_a_cleanup_guard() {
         let directory = tempfile::tempdir().unwrap();

@@ -75,8 +75,8 @@ def formats(root: Path, destination: Path, version: str, abi: dict) -> list[Path
     cpp = {30:"12",31:"13.1",32:"13.2",33:"14",34:"15",35:"16"}.get(int(glibcxx.split(".")[-1]))
     if cpp is None:
         raise ValueError("Review the libstdc++ package floor for " + glibcxx)
-    dependencies = f"libc6 (>= {glibc}), libstdc++6 (>= {cpp}), libx11-6, libxkbcommon0, libegl1, libgl1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libfontconfig1"
-    (package / "DEBIAN/control").write_text(f"Package: metaxtract\nVersion: {version}\nArchitecture: amd64\nMaintainer: MetaXtract contributors\nSection: utils\nPriority: optional\nDepends: {dependencies}\nDescription: File metadata inspection and evidence analysis\n", encoding="utf-8")
+    dependencies = f"libc6 (>= {glibc}), libstdc++6 (>= {cpp}), libx11-6, libx11-xcb1, libxcursor1, libxi6, libxrandr2, libxinerama1, libxcb1, libxcb-xkb1, libxkbcommon0, libxkbcommon-x11-0, libegl1, libgl1, libwayland-client0, libwayland-cursor0, libwayland-egl1, libfontconfig1, libudev1"
+    (package / "DEBIAN/control").write_text(f"Package: metaxtract\nVersion: {version}\nArchitecture: amd64\nMaintainer: MetaXtract contributors\nSection: utils\nPriority: optional\nDepends: {dependencies}\nRecommends: xdg-desktop-portal-gtk | xdg-desktop-portal-kde | xdg-desktop-portal-gnome, fonts-noto-cjk\nDescription: File metadata inspection and evidence analysis\n", encoding="utf-8")
     (package / "usr/bin").mkdir(parents=True)
     (package / "usr/bin/MetaXtract").symlink_to("/opt/MetaXtract/MetaXtract")
     shutil.copytree(root / "share", package / "usr/share")

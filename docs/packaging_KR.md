@@ -138,3 +138,5 @@ Windows·Linux의 내부 GUI·CLI·파서는 `runtime/bin/`, Linux 라이브러�
 Linux 실행 파일은 Ubuntu 24.04 실행기에서 빌드해 glibc 기준을 고정하고 설치 검증은 ubuntu-latest에서 수행해 이후 환경과의 호환성을 확인합니다. 실제 ABI 하한은 package.json을 기준으로 합니다. 릴리스에는 개별 .sha256 파일과 SHA256SUMS를 함께 제공합니다.
 
 게시에는 main의 `chore(release):` 준비 커밋이 필요합니다. 해당 CI는 실행 패키지·대응 소스를 새로 빌드하며 게시기는 준비 커밋이 최신 main인지 다시 확인한 뒤 실행 파일·체크섬을 올립니다.
+
+`--native-formats`는 깨끗한 일회용 검증 환경에서 사용합니다. 실제 셸·레지스트리 등록과 OS 패키지 관리자를 실행하므로 CI에서 이 옵션을 켜며, 일반 압축·GUI 검증은 전용 임시 공간을 사용합니다. DEB는 libxkbcommon-x11을 포함한 X11·Wayland 실행 라이브러리를 선언하고 데스크톱 포털 제공자·한국어 글꼴을 권장합니다.

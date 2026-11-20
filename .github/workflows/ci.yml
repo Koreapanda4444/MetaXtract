@@ -292,14 +292,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb fonts-noto-cjk libxkbcommon-x11-0 libegl1 libgl1-mesa-dri
-          xvfb-run -a python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke
+          xvfb-run -a python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke --native-formats
       - name: Verify standalone installation (macOS)
         if: runner.os == 'macOS'
-        run: python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke
+        run: python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke --native-formats
       - name: Verify standalone installation (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke --windows-opengl-directory "$env:METAXTRACT_CI_OPENGL"
+        run: python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke --native-formats --windows-opengl-directory "$env:METAXTRACT_CI_OPENGL"
       - uses: actions/upload-artifact@v4
         with:
           name: Rust-installation-${{ runner.os }}-${{ runner.arch }}

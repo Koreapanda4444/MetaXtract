@@ -138,3 +138,5 @@ Native-format verification checks NSIS install/reinstall/removal and embedded EX
 Linux release binaries build on the explicit Ubuntu 24.04 runner to keep the glibc baseline stable; installation checks continue on ubuntu-latest to exercise forward compatibility. The measured ABI floor in package.json remains authoritative. Published releases include individual .sha256 files as well as SHA256SUMS.
 
 Publication requires a `chore(release):` preparation commit on main. Its CI builds fresh native packages and matching sources; the publisher checks that the candidate is still the latest main commit before uploading assets and checksum files.
+
+Use `--native-formats` only on a clean disposable test machine: native-format checks exercise actual shell/registry registration and the OS package manager. CI enables this option; ordinary archive/GUI verification remains in its private workspace. The DEB declares X11/Wayland runtime libraries, including libxkbcommon-x11, and recommends a desktop portal provider and Korean fonts.

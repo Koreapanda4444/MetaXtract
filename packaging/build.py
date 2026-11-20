@@ -54,6 +54,15 @@ def build() -> tuple[dict[str, Path], Path]:
                 programs[name] = Path(message["executable"])
     if process.wait():
         raise ValueError("release build failed")
+    if os.name == "nt":
+        # The visible launcher lives above runtime/bin, so it must start without
+        # an app-local or globally installed VC runtime. Native parsers retain
+        # their dynamic CRT and approved DLLs beside them in runtime/bin.
+        subprocess.run(
+            ["cargo", "rustc", "-p", "metaxtract-launcher", "--bin", "metaxtract-launcher",
+             "--release", "--locked", "--", "-C", "target-feature=+crt-static"],
+            cwd=ROOT, check=True,
+        )
     if set(programs) != set(PROGRAMS.values()) or native is None:
         raise ValueError("Cargo did not identify all desktop binaries and the native runtime")
     return programs, native

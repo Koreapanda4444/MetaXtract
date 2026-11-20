@@ -153,6 +153,8 @@ def inspect(root: Path, files: list[Path]) -> dict:
                 continue
             if Path(name).name.lower() not in bundled:
                 raise ValueError(f"unbundled dependency: {path.name} -> {name}")
+            if os.name == "nt" and not (path.parent / name).is_file():
+                raise ValueError(f"non-adjacent Windows dependency: {path.name} -> {name}")
             if sys.platform.startswith("linux") and name != Path(name).name:
                 raise ValueError(f"non-local native dependency: {name}")
             if sys.platform == "darwin" and not name.startswith(("@rpath/", "@loader_path/", "@executable_path/")):

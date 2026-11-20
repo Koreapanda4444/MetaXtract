@@ -152,13 +152,20 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
         if os.name == "nt":
             (setup,) = assets.glob("*-Windows-Setup.exe")
             pe_resources(setup)
+            import winreg
+
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\MetaXtract"):
+                    raise ValueError(
+                        "Native installer checks require a clean disposable Windows profile"
+                    )
+            except FileNotFoundError:
+                pass
             app = base / "Installed application"
             run(setup, "/S", nsis_directory=app)
             manifest = runtime(app)
             for role in ("launcher", "gui"):
                 pe_resources(app / manifest["executables"][role])
-            import winreg
-
             key = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\MetaXtract"
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as registry:
                 if (
@@ -231,16 +238,40 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
             run(image, "--appimage-extract-and-run", "--smoke")
         (deb,) = assets.glob("*.deb")
         if shutil.which("sudo"):
+            if Path("/opt/MetaXtract").exists():
+                raise ValueError(
+                    "Native package checks require a clean disposable Linux installation"
+                )
             # Runner is disposable; dpkg owns only files declared by the package.
             subprocess.run(
-                ["sudo", "dpkg", "--install", str(deb)], check=True, timeout=120
+                [
+                    "sudo",
+                    "apt-get",
+                    "install",
+                    "--reinstall",
+                    "--no-install-recommends",
+                    "-y",
+                    str(deb),
+                ],
+                check=True,
+                timeout=180,
             )
             app = Path("/opt/MetaXtract")
             runtime(app)
             retained = app / "verification-user-evidence.txt"
             subprocess.run(["sudo", "cp", str(evidence), str(retained)], check=True)
             subprocess.run(
-                ["sudo", "dpkg", "--install", str(deb)], check=True, timeout=120
+                [
+                    "sudo",
+                    "apt-get",
+                    "install",
+                    "--reinstall",
+                    "--no-install-recommends",
+                    "-y",
+                    str(deb),
+                ],
+                check=True,
+                timeout=180,
             )
             runtime(app)
             subprocess.run(
@@ -252,6 +283,7 @@ def verify_formats(directory: Path, gui: bool, graphics: Path | None) -> dict:
             ):
                 raise ValueError("DEB removal changed unowned evidence")
             subprocess.run(["sudo", "rm", "--", str(retained)], check=True)
+            subprocess.run(["sudo", "rmdir", "--", str(app)], check=True)
             native = True
         else:
             run("dpkg-deb", "--extract", deb, base / "deb-extracted")

@@ -411,6 +411,7 @@ def main() -> int:
     parser.add_argument("--previous", type=Path, help="directory containing a previous successful native-host package")
     parser.add_argument("--previous-if-present", type=Path, help="CI baseline directory, if a previous artifact is available")
     parser.add_argument("--gui-smoke", action="store_true")
+    parser.add_argument("--native-formats", action="store_true", help="Exercise real installers on a clean disposable machine")
     parser.add_argument("--windows-opengl-directory", type=Path, help="CI-only Mesa graphics driver directory; never added to the package")
     args = parser.parse_args()
     current = find_package(args.dist)
@@ -419,7 +420,7 @@ def main() -> int:
     baseline = args.previous or (args.previous_if_present if args.previous_if_present and args.previous_if_present.exists() else None)
     previous = find_package(baseline) if baseline else None
     result = workflow(current, previous, args.gui_smoke, args.windows_opengl_directory)
-    if any(args.dist.glob("*.exe")) or any(args.dist.glob("*.dmg")) or any(args.dist.glob("*.deb")):
+    if args.native_formats:
         from platform_verify import verify_formats
         result["native_formats"] = verify_formats(args.dist, args.gui_smoke, args.windows_opengl_directory)
     destination = args.dist / "installation-verification.json"
