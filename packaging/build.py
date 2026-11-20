@@ -100,7 +100,12 @@ def mac_bundle(root: Path) -> tuple[Path, Path]:
         plistlib.dump({"CFBundleIdentifier": "org.metaxtract.desktop", "CFBundleName": "MetaXtract",
                       "CFBundleExecutable": "metaxtract-gui", "CFBundlePackageType": "APPL",
                       "CFBundleShortVersionString": version, "CFBundleVersion": version,
-                      "CFBundleIconFile": "MetaXtract.icns", "NSHighResolutionCapable": True}, stream)
+                      "CFBundleIconFile": "MetaXtract.icns", "NSHighResolutionCapable": True,
+                      "CFBundleDisplayName": "MetaXtract", "CFBundleInfoDictionaryVersion": "6.0",
+                      "LSApplicationCategoryType": "public.app-category.utilities",
+                      "NSHumanReadableCopyright": "MetaXtract contributors",
+                      "CFBundleDocumentTypes": [{"CFBundleTypeName": "MetaXtract case",
+                          "CFBundleTypeExtensions": ["mxcase"], "CFBundleTypeRole": "Editor"}]}, stream)
     return binaries, libraries
 
 
