@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <cstdint>
 #include <string>
 
 namespace metaxtract::native {
@@ -11,23 +12,25 @@ namespace metaxtract::native {
 // and short fragments in our own fixed-size buffer. No checks are disabled.
 class SanitizedSha256 final {
     decltype(QPDFCryptoProvider::getImpl()) hash_ = QPDFCryptoProvider::getImpl();
-    alignas(64) std::array<unsigned char, 64> block_{};
+    std::array<std::uint64_t, 8> block_{};
     std::size_t used_ = 0;
 public:
     SanitizedSha256() { hash_->SHA2_init(256); }
     void update(const unsigned char* data, std::size_t size) {
+        auto* block = reinterpret_cast<unsigned char*>(block_.data());
+        constexpr auto capacity = sizeof(block_);
         while (size != 0) {
-            const auto count = std::min(size, block_.size() - used_);
-            std::memcpy(block_.data() + used_, data, count);
+            const auto count = std::min(size, capacity - used_);
+            std::memcpy(block + used_, data, count);
             data += count; size -= count; used_ += count;
-            if (used_ == block_.size()) {
-                hash_->SHA2_update(block_.data(), block_.size());
+            if (used_ == capacity) {
+                hash_->SHA2_update(block, capacity);
                 used_ = 0;
             }
         }
     }
     std::string finish() {
-        if (used_ != 0) { hash_->SHA2_update(block_.data(), used_); }
+        if (used_ != 0) { hash_->SHA2_update(reinterpret_cast<const unsigned char*>(block_.data()), used_); }
         hash_->SHA2_finalize();
         constexpr char hex[] = "0123456789abcdef";
         std::string out;
