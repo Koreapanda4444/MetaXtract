@@ -69,6 +69,17 @@ fn invalid(s: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
 }
 pub fn analyze_record(record: &mut ExtractionRecord) -> io::Result<()> {
+    if record.source.detected_media_type.is_none()
+        && record.observations.iter().any(|o| {
+            o.provenance.parser.id == "c2pa.manifest"
+                && o.tag.name.as_deref() == Some("store_packet")
+                && o.provenance.source_range.is_some_and(|range| {
+                    range.offset() == 0 && range.length() == record.source.identity.size_bytes
+                })
+        })
+    {
+        record.source.detected_media_type = Some("application/c2pa".into());
+    }
     match analysis::media_associations::takeout_metadata(record) {
         Ok(Some(_)) => record.source.detected_media_type = Some("application/json".into()),
         Ok(None) => {}

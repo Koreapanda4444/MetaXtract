@@ -58,6 +58,21 @@ chain errors with their supporting observations. Certificate path validity is se
 CMS integrity. Revocation and a trusted signing timestamp remain unknown; this evaluation
 does not establish a legal signature profile, signer identity or document truth.
 
+Scan JPEG/PNG files with embedded Content Credentials or standalone `.c2pa` JUMBF stores,
+then use `analyze CASE SCAN --view c2pa` or **Analysis → Content Credentials (C2PA)**.
+The view preserves the manifest/claim/assertion inventory, raw CBOR/JSON packets and observation
+links. JPEG APP11 fragments require consistent headers, consecutive sequence numbers and
+contiguous source segments; PNG `caBX` CRCs are checked. Missing, duplicate, malformed and
+oversized data retain partial evidence with diagnostics. Unknown UUID boxes remain in the raw
+store and are not interpreted. Compressed manifests, other media carriers and remote manifest
+retrieval are outside this extraction adapter.
+
+Semantic CBOR display is bounded to 512 KiB per packet, depth 32 and 20,000 values per request.
+Map order and duplicate/non-text keys are retained; numeric encodings can normalize in the
+display while exact bytes remain in the linked raw packet. JSON assertions retain their text.
+Extraction reports signatures, certificate trust and content binding as unverified/unknown;
+declared actions, ingredients and creator names are not authenticated facts.
+
 ## Analysis and delivery
 
 Scan media and `.xmp` sidecars together, then use `analyze CASE SCAN --view relationships`

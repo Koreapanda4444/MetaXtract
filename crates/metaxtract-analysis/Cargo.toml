@@ -12,3 +12,4 @@ sha2.workspace = true
 metaxtract-storage.workspace = true
 tempfile.workspace = true
 zip.workspace = true
+ciborium.workspace = true

@@ -103,6 +103,13 @@ pub(crate) fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
     {
         result.extend(["images.structure", "images.metadata"]);
     }
+    if bytes.starts_with(b"\x89PNG")
+        || bytes.starts_with(b"\xff\xd8")
+        || bytes.get(4..8) == Some(b"jumb")
+        || lower.ends_with(".c2pa")
+    {
+        result.push("c2pa.manifest");
+    }
     if bytes.get(4..8) == Some(b"ftyp") {
         result.extend(["images.heif", "media.structure", "media.inspect"]);
     }

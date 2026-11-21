@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 mod analysis;
 mod application;
+mod c2pa;
 mod categories;
 mod commands;
 mod components;

@@ -1,5 +1,10 @@
 # Dependency policy
 
+C2PA semantic display uses exact-pinned ciborium 0.2.2 with a depth-limited reader and
+bounded packet/value counts. The Apache-2.0 LICENSE files for ciborium, ciborium-io and
+ciborium-ll were reviewed and are collected by the existing Rust notice packager. Native
+carrier/JUMBF extraction remains in C++; this dependency interprets retained CBOR claims.
+
 PDF CMS verification statically bundles OpenSSL 3.6.3 through exact-pinned `openssl`
 0.10.82 and checksummed `openssl-sys`/`openssl-src` packages. Their Apache-2.0/MIT notices
 and the bundled OpenSSL LICENSE were reviewed; the existing recursive Rust notice collector

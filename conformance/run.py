@@ -124,7 +124,7 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
                     fuzz_cases: int = 256, fuzz_seed: int = 0x4d58,
                     executable: Path | None = None) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
-    wanted = ["INFO\t2\t1\t24", "SCHEMA\tOK"]
+    wanted = ["INFO\t2\t1\t25", "SCHEMA\tOK"]
     request_labels = ["build info", "schema invariants"]
     extraction_cases = _read_json(ROOT / "conformance" / "corpus" / "images.json")["cases"]
     for corpus_path in sorted((ROOT / "conformance" / "corpus").glob("native-*.json")):
@@ -516,6 +516,28 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             root = Path(temporary)
             sources = root / "evidence"
             sources.mkdir()
+            c2pa_sources = root / "content-credentials"
+            c2pa_sources.mkdir()
+            c2pa_cases = _read_json(ROOT / "conformance/corpus/native-c2pa.json")["cases"][:2]
+            for c2pa_case in c2pa_cases:
+                (c2pa_sources / (c2pa_case["name"] + ".jpg")).write_bytes(base64.b64decode(c2pa_case["base64"]))
+            c2pa_hashes = {path.name: sha(path) for path in c2pa_sources.iterdir()}
+            c2pa_case_file = root / "content-credentials.mxcase"
+            c2pa_scan = invoke("scan", c2pa_sources, "--case", c2pa_case_file)["scan_id"]
+            credentials = invoke("analyze", c2pa_case_file, c2pa_scan, "--view", "c2pa")
+            if len(credentials) != 2:
+                raise ValueError("C2PA manifest sources were lost")
+            for credential in credentials:
+                labels = {box["label"] for box in credential["boxes"] if box["label"]}
+                if not {"c2pa.claim", "c2pa.signature", "c2pa.assertions", "c2pa.hash.data"} <= labels:
+                    raise ValueError("C2PA claim, signature or assertion inventory was lost")
+                if not any(box["decoded"] is not None and box["payload_observation"] is not None for box in credential["boxes"]):
+                    raise ValueError("C2PA semantic fields lost their raw packet evidence")
+                if credential["signature_integrity"] != "unverified" or credential["content_binding"] != "unverified":
+                    raise ValueError("C2PA extraction incorrectly implied authentication")
+            if c2pa_hashes != {path.name: sha(path) for path in c2pa_sources.iterdir()}:
+                raise ValueError("C2PA extraction changed the originals")
+            completed += 2
             for signed_case in _read_json(ROOT / "conformance/corpus/native-pdf-crypto.json")["cases"]:
                 signed_pdf = root / (signed_case["name"] + ".pdf")
                 signed_pdf.write_bytes(base64.b64decode(signed_case["base64"]))

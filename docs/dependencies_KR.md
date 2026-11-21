@@ -1,5 +1,10 @@
 # 의존성 정책
 
+C2PA 의미 표시는 정확히 고정한 ciborium 0.2.2를 사용하며 읽기 깊이·패킷 크기·값 개수를
+제한합니다. ciborium·ciborium-io·ciborium-ll의 Apache-2.0 LICENSE를 검토했고 기존
+Rust 고지 수집기로 배포에 포함합니다. 저장 형식과 JUMBF 원시 추출은 C++에서 담당하며
+이 의존성은 보존된 CBOR 주장을 해석합니다.
+
 PDF CMS 검증은 정확히 고정한 `openssl` 0.10.82와 체크섬으로 고정한 `openssl-sys`·
 `openssl-src`를 통해 OpenSSL 3.6.3을 정적으로 포함합니다. Apache-2.0·MIT 고지와
 내장 OpenSSL LICENSE를 검토했으며 기존 재귀 Rust 고지 수집기로 배포에 포함합니다.

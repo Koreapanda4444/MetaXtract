@@ -547,5 +547,13 @@
   "Serial number": "일련번호",
   "Certificate chain result": "인증서 체인 결과",
   "Certificate chain error code": "인증서 체인 오류 코드",
-  "Certificate chain fingerprints": "인증서 체인 지문"
+  "Certificate chain fingerprints": "인증서 체인 지문",
+  "Content Credentials (C2PA)": "콘텐츠 자격 증명 (C2PA)",
+  "Manifest and assertion fields are declarations. Extracting them does not verify signatures, signer trust or content truth.": "매니페스트와 주장 필드는 선언된 정보입니다. 추출만으로 서명·서명자 신뢰·내용의 진실이 검증되지는 않습니다.",
+  "Review Content Credentials in current scope": "현재 범위의 콘텐츠 자격 증명 검토",
+  "Older Content Credentials snapshot; review again for the current scope.": "이전 콘텐츠 자격 증명 결과입니다. 현재 범위로 다시 검토하세요.",
+  "This review covers the first 200 files. Narrow the filter for other files.": "처음 200개 파일을 검토합니다. 다른 파일은 필터 범위를 줄이세요.",
+  "No embedded Content Credentials in this selection.": "선택 범위에 내장 콘텐츠 자격 증명이 없습니다.",
+  "Original JUMBF inventory": "원본 JUMBF 목록",
+  "View truncated; complete raw packets remain in the case.": "화면 표시를 생략했습니다. 전체 원시 패킷은 케이스에 보존되어 있습니다."
 }

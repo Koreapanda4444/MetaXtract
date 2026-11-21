@@ -1,5 +1,12 @@
 # Conformance corpus
 
+C2PA coverage includes unchanged C/CA JPEG fixtures from the official SDK at
+`6b5b65343232de3cc50a1ca4254c4a27bfcafb26`, with SHA-256/Git blob identities and the
+original Apache notice. The CA sample exercises a multi-segment APP11 store. Independent
+synthetic tests cover missing/duplicate/noncontiguous fragments, PNG CRCs, JUMBF bounds,
+unknown UUIDs and resource ceilings. Application checks retain raw packet links and explicitly
+unverified authentication states; extraction alone is not a C2PA compliance certification.
+
 Extended JPEG XMP cases now verify linked, out-of-order fragment assembly and its MD5 packet
 identifier, missing/overlapping fragments, invalid digests, orphan packets and the member-size
 ceiling. Original fragment bytes and ordinary XMP observations remain available on failure.

@@ -14,6 +14,7 @@ use std::{io, path::PathBuf};
 pub struct AnalysisUi {
     pub(crate) report_generation: u64,
     pub(crate) evolution: crate::evolution::EvolutionUi,
+    pub(crate) c2pa: crate::c2pa::C2paUi,
     pub(crate) signatures: crate::pdf_signatures::SignaturesUi,
     pub(crate) relationships: crate::relationships::RelationshipsUi,
     pub(crate) findings: crate::finding_review::FindingsUi,
@@ -45,6 +46,7 @@ impl Default for AnalysisUi {
             evolution: Default::default(),
             relationships: Default::default(),
             signatures: Default::default(),
+            c2pa: Default::default(),
             findings: Default::default(),
             pair: Default::default(),
             timeline: Default::default(),
@@ -224,6 +226,7 @@ impl Desktop {
                 crate::i18n::tr("Relationships"),
                 crate::i18n::tr("Changes across scans"),
                 crate::i18n::tr("PDF signatures"),
+                crate::i18n::tr("Content Credentials (C2PA)"),
             ]
             .into_iter()
             .enumerate()
@@ -269,6 +272,10 @@ impl Desktop {
                     }
                 });
             }
+        }
+        if self.analysis.view == 8 {
+            self.c2pa_view(ui);
+            return;
         }
         if self.analysis.view == 7 {
             self.signatures_view(ui);

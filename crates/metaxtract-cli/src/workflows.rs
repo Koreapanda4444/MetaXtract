@@ -297,6 +297,7 @@ pub fn run(args: &Args) -> io::Result<Value> {
             let limits = a::AnalysisLimits::default();
             match args.flag("view").as_deref().unwrap_or("dashboard") {
                 "relationships" => value(a::relationships::build(&records, limits)?),
+                "c2pa" => value(a::c2pa::extract(&records, limits)?),
                 "signatures" => value(a::pdf_signatures::assess(&records, limits)?),
                 "timeline" => value(a::provenance::timeline(&records, limits)?),
                 "locations" => {
