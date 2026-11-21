@@ -476,3 +476,22 @@ reports actual cache hits. Root identity must match. Removal is asserted only fo
 complete compatible inventories; interrupted/limited/incompatible comparisons mark
 absent files unverified. Authenticated PDF sessions and checkpoint resume are separate
 from incremental rescans. Older scans without an inventory require a new baseline.
+
+Optional directory monitoring (75)
+----------------------------------
+Monitoring is off by default. Choose Scan queue → Monitor selected directory, or
+`metaxtract watch ROOT --case CASE [--interval-ms 5000 --polls N]`. CLI monitoring
+continues until interrupted unless a positive poll count is supplied. GUI polling
+runs in a background thread and offers pause/resume/stop; changing/closing the case
+or window drops the monitor. Resume requires a full rescan to cover the paused gap.
+Notifications are deduplicated and coalesced into one pending root rescan. Queue
+overflow requests a full rescan instead of silently losing events. Actual analysis
+reopens files and verifies identity/full hashes through the normal scanner/cache.
+
+Portable polling checks selected files using full SHA-256, not only timestamps.
+Default limits are 10,000 files, 20,000 directory entries, 32 MiB per hashed file,
+64 MiB hashed per poll and 10 seconds per poll. Coverage is explicitly incomplete
+when permissions, unsupported entries, size or time budgets prevent a complete
+snapshot; absent entries are not reported as confirmed removals in that state.
+Case/checkpoint/cache artifacts are excluded to avoid self-triggered rescans.
+No runtime dependency, background service or OS-specific event path is trusted.

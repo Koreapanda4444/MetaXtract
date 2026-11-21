@@ -554,6 +554,10 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             if removed["incremental"]["removed"] != 1:
                 raise ValueError("complete incremental rescan lost removal")
             completed += 3
+            watched = invoke("watch", incremental_root, "--case", incremental_case, "--polls", 1, "--interval-ms", 1000)
+            if watched["polls"] != 1 or watched["scans"] != 1 or not watched["coverage_complete"]:
+                raise ValueError("bounded opt-in directory monitoring changed an idle source")
+            completed += 1
             c2pa_sources = root / "content-credentials"
             c2pa_sources.mkdir()
             c2pa_cases = _read_json(ROOT / "conformance/corpus/native-c2pa.json")["cases"][:2]

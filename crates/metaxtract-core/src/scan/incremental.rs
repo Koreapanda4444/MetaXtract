@@ -66,7 +66,11 @@ impl ScanInventory {
             self.complete = false;
             return Ok(());
         };
-        if !hashes.digests.iter().any(|d| d.algorithm == DigestAlgorithm::Sha256 && d.bytes.len() == 32) {
+        if !hashes
+            .digests
+            .iter()
+            .any(|d| d.algorithm == DigestAlgorithm::Sha256 && d.bytes.len() == 32)
+        {
             self.complete = false;
             return Ok(());
         }
@@ -89,15 +93,22 @@ impl ScanInventory {
     }
 
     pub fn same_root(&self, other: &Self) -> bool {
-        self.version == 1 && other.version == 1 && self.root == other.root
-            && self.root_device == other.root_device && self.root_file_id == other.root_file_id
+        self.version == 1
+            && other.version == 1
+            && self.root == other.root
+            && self.root_device == other.root_device
+            && self.root_file_id == other.root_file_id
     }
 
     pub fn compare(&self, current: &Self, baseline: &str) -> io::Result<IncrementalSummary> {
         if !self.same_root(current) {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "incremental baseline belongs to another root or root identity"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "incremental baseline belongs to another root or root identity",
+            ));
         }
-        let compatible = self.engine == current.engine && self.options_sha256 == current.options_sha256;
+        let compatible =
+            self.engine == current.engine && self.options_sha256 == current.options_sha256;
         let complete = self.complete && current.complete && compatible;
         let mut out = IncrementalSummary {
             baseline: baseline.into(),
@@ -108,28 +119,53 @@ impl ScanInventory {
         };
         for (path, entry) in &current.files {
             let kind = match self.files.get(path) {
-                None => { out.added += 1; "added" }
-                Some(old) if old.stamp.device != entry.stamp.device || old.stamp.file_id != entry.stamp.file_id => {
-                    out.replaced += 1; "replaced"
+                None => {
+                    out.added += 1;
+                    "added"
+                }
+                Some(old)
+                    if old.stamp.device != entry.stamp.device
+                        || old.stamp.file_id != entry.stamp.file_id =>
+                {
+                    out.replaced += 1;
+                    "replaced"
                 }
                 Some(old) if old.digests != entry.digests || old.stamp != entry.stamp => {
-                    out.changed += 1; "changed"
+                    out.changed += 1;
+                    "changed"
                 }
-                Some(_) => { out.unchanged += 1; "unchanged" }
+                Some(_) => {
+                    out.unchanged += 1;
+                    "unchanged"
+                }
             };
             if kind != "unchanged" {
-                if out.changes.len() < 256 { out.changes.push((path.clone(), kind.into())); }
-                else { out.changes_truncated = true; }
+                if out.changes.len() < 256 {
+                    out.changes.push((path.clone(), kind.into()));
+                } else {
+                    out.changes_truncated = true;
+                }
             }
         }
         if complete {
-            for path in self.files.keys().filter(|p| !current.files.contains_key(*p)) {
+            for path in self
+                .files
+                .keys()
+                .filter(|p| !current.files.contains_key(*p))
+            {
                 out.removed += 1;
-                if out.changes.len() < 256 { out.changes.push((path.clone(), "removed".into())); }
-                else { out.changes_truncated = true; }
+                if out.changes.len() < 256 {
+                    out.changes.push((path.clone(), "removed".into()));
+                } else {
+                    out.changes_truncated = true;
+                }
             }
         } else {
-            out.unverified = self.files.keys().filter(|p| !current.files.contains_key(*p)).count() as u64;
+            out.unverified = self
+                .files
+                .keys()
+                .filter(|p| !current.files.contains_key(*p))
+                .count() as u64;
         }
         Ok(out)
     }
@@ -141,37 +177,63 @@ mod tests {
     use crate::schema::DigestAlgorithm;
     fn inventory() -> ScanInventory {
         ScanInventory {
-            version: 1, root: NativePath::Unix(b"/test".to_vec()), root_device: 1, root_file_id: 2,
-            engine: "engine".into(), options_sha256: "options".into(), complete: true,
-            files: BTreeMap::new(), cache_hits: 0, bytes: 0,
+            version: 1,
+            root: NativePath::Unix(b"/test".to_vec()),
+            root_device: 1,
+            root_file_id: 2,
+            engine: "engine".into(),
+            options_sha256: "options".into(),
+            complete: true,
+            files: BTreeMap::new(),
+            cache_hits: 0,
+            bytes: 0,
         }
     }
     fn entry(byte: u8) -> InventoryEntry {
         InventoryEntry {
             relative: NativePath::Unix(b"image.png".to_vec()),
-            stamp: FileStamp { device: 1, file_id: 3, size_bytes: 1, modified_ns: Some(7), created_ns: None, changed_ns: None },
-            digests: vec![ContentDigest { algorithm: DigestAlgorithm::Sha256, bytes: vec![byte; 32] }],
+            stamp: FileStamp {
+                device: 1,
+                file_id: 3,
+                size_bytes: 1,
+                modified_ns: Some(7),
+                created_ns: None,
+                changed_ns: None,
+            },
+            digests: vec![ContentDigest {
+                algorithm: DigestAlgorithm::Sha256,
+                bytes: vec![byte; 32],
+            }],
         }
     }
     #[test]
     fn full_hash_detects_changes_with_equal_size_and_restored_mtime() {
-        let mut old = inventory();old.files.insert("image.png".into(), entry(1));
-        let mut current = old.clone();current.files.insert("image.png".into(), entry(2));
+        let mut old = inventory();
+        old.files.insert("image.png".into(), entry(1));
+        let mut current = old.clone();
+        current.files.insert("image.png".into(), entry(2));
         let delta = old.compare(&current, "baseline").unwrap();
-        assert_eq!(delta.changed, 1);assert_eq!(delta.unchanged, 0);
+        assert_eq!(delta.changed, 1);
+        assert_eq!(delta.unchanged, 0);
         current.files.get_mut("image.png").unwrap().stamp.file_id = 4;
         assert_eq!(old.compare(&current, "baseline").unwrap().replaced, 1);
     }
     #[test]
     fn incomplete_or_incompatible_inventory_never_claims_removal() {
-        let mut old = inventory();old.files.insert("image.png".into(), entry(1));
+        let mut old = inventory();
+        old.files.insert("image.png".into(), entry(1));
         let mut current = inventory();
         assert_eq!(old.compare(&current, "baseline").unwrap().removed, 1);
         current.complete = false;
         assert_eq!(old.compare(&current, "baseline").unwrap().removed, 0);
         assert_eq!(old.compare(&current, "baseline").unwrap().unverified, 1);
-        current.complete = true;current.engine = "new engine".into();
-        assert!(!old.compare(&current, "baseline").unwrap().baseline_compatible);
+        current.complete = true;
+        current.engine = "new engine".into();
+        assert!(
+            !old.compare(&current, "baseline")
+                .unwrap()
+                .baseline_compatible
+        );
         current.root_file_id = 99;
         assert!(old.compare(&current, "baseline").is_err());
     }

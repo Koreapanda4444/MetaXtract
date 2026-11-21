@@ -1,6 +1,8 @@
 //! Bounded, read-only evidence discovery and processing.
 mod cache;
 mod incremental;
+mod monitor;
+pub use monitor::{ChangeBatch, DirectoryChange, DirectoryMonitor, MonitorOptions};
 pub use incremental::{IncrementalSummary, InventoryEntry, ScanInventory};
 mod checkpoint;
 mod credentials;

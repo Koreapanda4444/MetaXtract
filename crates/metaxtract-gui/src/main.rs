@@ -41,6 +41,7 @@ mod timeline;
 mod updates;
 mod validation;
 mod workflows;
+mod watch;
 mod workspace;
 use eframe::egui;
 use std::path::PathBuf;

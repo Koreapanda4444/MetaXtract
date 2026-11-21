@@ -47,6 +47,7 @@ impl Args {
                     "pdf-verification-time",
                 ],
             ),
+            "watch" => (2, 2, &["case", "interval-ms", "polls", "include-hidden"]),
             "sanitize" => (3, 3, &["allow-signature-invalidation", "remove"]),
             "verify" => (2, 2, &[]),
             "verify-originals" => (4, 4, &["query", "order"]),

@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod preview;
+pub mod monitor;
 pub mod sanitize;
 pub mod scan;
 pub mod workflows;

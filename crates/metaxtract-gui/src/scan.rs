@@ -40,6 +40,7 @@ pub struct ScanUi {
     pub include_hidden: bool,
     pub cache_enabled: bool,
     pub next_baseline: Option<String>,
+    pub watch: Option<crate::watch::WatchUi>,
     pub pdf_trust_roots: Option<PathBuf>,
     pdf_password: app::Zeroizing<String>,
     pub max_files: u64,
@@ -69,6 +70,7 @@ impl Default for ScanUi {
             include_hidden: false,
             cache_enabled: true,
             next_baseline: None,
+            watch: None,
             pdf_trust_roots: None,
             pdf_password: Default::default(),
             max_files: 1_000_000,
@@ -207,6 +209,15 @@ impl Desktop {
         }
     }
     pub fn poll_scan(&mut self, ctx: &egui::Context) {
+        let mut watch_error = None;
+        let changed_case = self.scan.watch.as_ref().is_some_and(|watch|
+            self.readonly || self.case.as_ref().is_none_or(|case| case.path() != watch.case_path));
+        if changed_case { self.scan.watch = None; }
+        if let Some(watch) = &mut self.scan.watch {
+            if let Err(error) = watch.poll() { watch_error = Some(error); }
+            ctx.request_repaint_after(Duration::from_millis(200));
+        }
+        if let Some(error) = watch_error { self.scan.watch = None;self.report_error(error); }
         let mut finished = None;
         if let Some(active) = &self.scan.active {
             while let Ok(event) = active.events.try_recv() {
@@ -240,6 +251,11 @@ impl Desktop {
             self.analysis.metrics_loaded = false;
             match result {
                 Ok(out) => {
+                    if let Some(watch) = &mut self.scan.watch {
+                        if completed_source.as_ref() == Some(&watch.root) && out.summary.stopped.is_none() {
+                            watch.baseline = Some(out.scan_id.clone());
+                        }
+                    }
                     self.scan.held |= out.summary.stopped.is_some();
                     let state = match out.summary.stopped {
                         Some(app::core::scan::StopReason::Cancelled) => QueueState::Cancelled,
@@ -302,6 +318,17 @@ impl Desktop {
                         app.history_next = history.next;
                     },
                 );
+            }
+        }
+        if !self.scan.running() && !self.busy && !self.scan.held && !self.scan.close_when_idle
+            && self.scan.queue.is_empty() {
+            let pending = self.scan.watch.as_mut().filter(|watch| watch.pending && !watch.paused).map(|watch| {
+                watch.pending = false;
+                (watch.root.clone(), watch.baseline.clone())
+            });
+            if let Some((root, baseline)) = pending {
+                self.scan.next_baseline = baseline;
+                self.start_scan(ctx, root, None);
             }
         }
         if !self.scan.running() && !self.busy && !self.scan.held && !self.scan.close_when_idle {
@@ -373,6 +400,27 @@ impl Desktop {
                     .prefix(crate::i18n::tr("Workers")),
             );
         });
+        ui.horizontal(|ui| {
+            if ui.add_enabled(self.case.is_some() && !self.readonly && self.scan.watch.is_none(),
+                egui::Button::new("Monitor selected directory")).clicked() {
+                let source = self.scan.source_path.clone().unwrap_or_else(|| PathBuf::from(&self.scan.source));
+                if let Some(case) = &self.case {
+                    match crate::watch::WatchUi::start(source, case.path().into(), self.scan.include_hidden, ui.ctx().clone()) {
+                        Ok(watch) => self.scan.watch = Some(watch),
+                        Err(error) => self.report_error(error),
+                    }
+                }
+            }
+            if let Some(watch) = &mut self.scan.watch {
+                if ui.button(if watch.paused { "Resume monitoring" } else { "Pause monitoring" }).clicked() { watch.toggle_pause(); }
+            }
+            if ui.add_enabled(self.scan.watch.is_some(), egui::Button::new("Stop monitoring")).clicked() { self.scan.watch = None; }
+        });
+        if let Some(watch) = &self.scan.watch {
+            ui.label(format!("Monitoring {} · {} · {} recent paths · rescan pending: {}",
+                watch.root.display(), if watch.paused { "paused" } else { "active" }, watch.latest_changes, watch.pending));
+            if !watch.coverage_complete { ui.label("Monitoring coverage is limited by access, source size or polling budgets. Use a full scan for complete analysis."); }
+        }
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(
@@ -494,7 +542,9 @@ impl Desktop {
             if let Some(delta) = &outcome.incremental {
                 ui.label(format!("Incremental: {} added · {} changed · {} replaced · {} unchanged · {} removed · {} cache hits",
                     delta.added, delta.changed, delta.replaced, delta.unchanged, delta.removed, delta.cache_hits));
-                if !delta.comparison_complete { ui.label("Comparison is incomplete; absent files are unverified, not confirmed removals."); }
+                if !delta.comparison_complete {
+                    ui.label("Comparison is incomplete; absent files are unverified, not confirmed removals.");
+                }
             }
             ui.collapsing(crate::i18n::tr("Scan failures"), |ui| {
                 for error in &outcome.errors {
@@ -586,18 +636,36 @@ impl Desktop {
             }
         });
         ui.separator();
-        if ui.add_enabled(!self.scan.running() && !self.busy && !self.readonly && self.active_scan.is_some(),
-            egui::Button::new("Rescan selected scan")).clicked() {
+        if ui
+            .add_enabled(
+                !self.scan.running() && !self.busy && !self.readonly && self.active_scan.is_some(),
+                egui::Button::new("Rescan selected scan"),
+            )
+            .clicked()
+        {
             let result = (|| -> io::Result<_> {
-                let id = self.active_scan.clone().ok_or_else(|| io::Error::other("Select a scan"))?;
-                let case = self.case.as_ref().ok_or_else(|| io::Error::other("Open a case"))?;
-                let receipt = case.scan_receipt(&id, "application.inventory")?
-                    .ok_or_else(|| io::Error::other("This scan has no inventory; create a new scan first"))?;
-                let inventory: app::core::scan::ScanInventory = serde_json::from_value(receipt).map_err(io::Error::other)?;
+                let id = self
+                    .active_scan
+                    .clone()
+                    .ok_or_else(|| io::Error::other("Select a scan"))?;
+                let case = self
+                    .case
+                    .as_ref()
+                    .ok_or_else(|| io::Error::other("Open a case"))?;
+                let receipt = case
+                    .scan_receipt(&id, "application.inventory")?
+                    .ok_or_else(|| {
+                        io::Error::other("This scan has no inventory; create a new scan first")
+                    })?;
+                let inventory: app::core::scan::ScanInventory =
+                    serde_json::from_value(receipt).map_err(io::Error::other)?;
                 Ok((id, inventory.root.to_path()?))
             })();
             match result {
-                Ok((id, root)) => { self.scan.next_baseline = Some(id); self.start_scan(ui.ctx(), root, None); }
+                Ok((id, root)) => {
+                    self.scan.next_baseline = Some(id);
+                    self.start_scan(ui.ctx(), root, None);
+                }
                 Err(error) => self.report_error(error),
             }
         }

@@ -59,6 +59,38 @@ fn trust(args: &Args) -> io::Result<Option<String>> {
 }
 pub fn run(args: &Args) -> io::Result<Value> {
     match args.word(0)?.as_str() {
+        "watch" => {
+            let case_path = args.flag_path("case").ok_or_else(|| invalid("watch requires --case PATH"))?;
+            if !case_path.exists() { s::CaseWorkspace::create(&case_path, "Monitored directory")?; }
+            let source = args.path(1)?;
+            let include_hidden = args.flags.contains_key("include-hidden");
+            let control = app::core::scan::ScanControl::new();
+            let mut monitor = app::monitor::start(source.clone(), &case_path, include_hidden, &control)?;
+            let interval = args.flag("interval-ms").map(|v| v.parse::<u64>().map_err(|_| invalid("invalid monitor interval"))).transpose()?.unwrap_or(5000);
+            if !(1000..=3_600_000).contains(&interval) { return Err(invalid("monitor interval must be 1000..3600000 ms")); }
+            let polls = args.flag("polls").map(|v| v.parse::<u64>().map_err(|_| invalid("invalid poll count"))).transpose()?;
+            if polls == Some(0) { return Err(invalid("poll count must be positive")); }
+            let mut request = app::scan::ScanRequest::new(source, case_path);
+            request.options.walk.include_hidden = include_hidden;
+            let mut outcome = app::scan::run(&request, app::core::scan::ScanControl::new(), |_| Ok(()))?;
+            let mut scanned = 1u64;
+            let mut count = 0u64;
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(interval));
+                monitor.poll(&control)?;
+                let batch = monitor.drain();
+                count += 1;
+                if batch.full_rescan_required || !batch.changes.is_empty() {
+                    request.baseline = Some(outcome.scan_id.clone());
+                    outcome = app::scan::run(&request, app::core::scan::ScanControl::new(), |_| Ok(()))?;
+                    scanned += 1;
+                    eprintln!("Directory changes verified; scan {} completed", outcome.scan_id);
+                }
+                if polls.is_some_and(|limit| count >= limit) { break; }
+            }
+            let coverage = monitor.drain().coverage_complete;
+            Ok(json!({"polls":count,"scans":scanned,"coverage_complete":coverage,"last_scan":outcome.scan_id}))
+        }
         "sanitize" => {
             let mut request = app::sanitize::SanitizeRequest::new(args.path(1)?, args.path(2)?);
             request.allow_signature_invalidation =
