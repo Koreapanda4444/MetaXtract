@@ -1,5 +1,18 @@
 # Conformance corpus
 
+The camera capture corpus adds nine unchanged libexif device metadata samples, including Canon,
+Fujifilm, Nikon, Olympus, Sanyo, Pentax and Casio variants and both TIFF byte orders. Their
+independent upstream `.parsed` Make/Model expectations, exact Git blob identities and SHA-256
+digests are retained. The upstream metadata-only JPEG fragments intentionally produce a partial
+malformed-image result while retaining their independently known EXIF fields. Captured-only
+validation checks their bytes; normal debug/release and
+sanitizer runs also extract them and include them in mutations. Upstream LGPL notices are in
+`licenses/libexif-COPYING.txt`. These are metadata captures, not authenticated camera photographs;
+actual encoded media/document samples and generated HEIF fixtures remain separately identified.
+Two unchanged AndroidX LGE Nexus 5 and Samsung SM-N900S smartphone JPEGs additionally check
+independent upstream manufacturer/model/capture timestamps (Apache-2.0; see androidx-NOTICE.txt).
+Coverage is bounded and does not promise every smartphone, device or format variant.
+
 [English](README.md) | [한국어](README_KR.md) | [Project README](../README.md)
 
 This directory replaces a generic root test tree for migration-critical verification. The corpus

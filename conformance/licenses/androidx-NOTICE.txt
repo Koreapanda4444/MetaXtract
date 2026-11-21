@@ -1,0 +1,9 @@
+Copyright 2024 The Android Open Source Project
+SPDX-License-Identifier: Apache-2.0
+
+Unmodified jpeg_with_exif_byte_order_ii.jpg and jpeg_with_exif_byte_order_mm.jpg
+from androidx/androidx commit 7fd498e00ec996faa46082757c2e3db0b537bdc6,
+exifinterface/exifinterface/src/androidTest/res/raw/.
+Independent values: src/androidTest/java/androidx/exifinterface/media/ExpectedAttributes.java
+within the same exifinterface module; Git blob b21fa45df136cccbea0965ba3aed4752bc6c4c3b.
+The Apache-2.0 license text is in qpdf-Apache-2.0.txt in this directory.

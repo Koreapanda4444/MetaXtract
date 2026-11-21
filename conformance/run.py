@@ -72,6 +72,19 @@ def _compare_frozen_baseline(expected: dict[str, Any]) -> list[str]:
     return ["frozen Python baseline and conformance plain-text projection differ"]
 
 
+def _validate_native_captures() -> list[str]:
+    failures = []
+    for path in sorted((ROOT / "conformance/corpus").glob("native-*.json")):
+        for case in _read_json(path)["cases"]:
+            if "sha256" not in case:
+                continue
+            data = base64.b64decode(case["base64"], validate=True)
+            blob = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+            if hashlib.sha256(data).hexdigest() != case["sha256"] or blob != case["upstream_blob"]:
+                failures.append("native capture identity differs: " + case["name"])
+    return failures
+
+
 def _fuzz_requests(count: int, seed: int) -> list[tuple[str, str]]:
     """Replay retained malformed seeds and deterministic mutations through the FFI."""
     seeds = []
@@ -108,7 +121,8 @@ def _fuzz_requests(count: int, seed: int) -> list[tuple[str, str]]:
 
 
 def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: bool,
-                    fuzz_cases: int = 256, fuzz_seed: int = 0x4d58) -> tuple[list[str], int]:
+                    fuzz_cases: int = 256, fuzz_seed: int = 0x4d58,
+                    executable: Path | None = None) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
     wanted = ["INFO\t2\t1\t22", "SCHEMA\tOK"]
     request_labels = ["build info", "schema invariants"]
@@ -241,17 +255,20 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
         command = ["cargo", "run", "--locked", "--quiet", "-p", "metaxtract-native", "--features", "conformance", "--example", "conformance"]
         if release:
             command.append("--release")
+        if executable is not None:
+            command = [str(executable.resolve(strict=True))]
         try:
             # Compilation of pinned native libraries is separate from the bounded
             # protocol runtime. Keep Cargo's DLL search setup when running.
-            build_command = command.copy()
-            build_command[1] = "build"
-            build = subprocess.run(build_command, cwd=ROOT, text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=1800)
-            if build.returncode:
-                detail = build.stderr.strip()
-                if len(detail) > 6000:
-                    detail = detail[:4000] + "\n... compiler output omitted ...\n" + detail[-2000:]
-                return [f"native conformance build failed ({build.returncode}): {detail}"], 0
+            if executable is None:
+                build_command = command.copy()
+                build_command[1] = "build"
+                build = subprocess.run(build_command, cwd=ROOT, text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=1800)
+                if build.returncode:
+                    detail = build.stderr.strip()
+                    if len(detail) > 6000:
+                        detail = detail[:4000] + "\n... compiler output omitted ...\n" + detail[-2000:]
+                    return [f"native conformance build failed ({build.returncode}): {detail}"], 0
             result = subprocess.run(command, cwd=ROOT, input="\n".join(requests) + "\n", text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=300)
         except (OSError, subprocess.TimeoutExpired) as exc:
             return [f"native conformance could not run: {exc}"], 0
@@ -650,17 +667,18 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
 
 def run(*, captured_only: bool = False, release: bool = False,
         fuzz_cases: int = 256, fuzz_seed: int = 0x4d58,
-        cli_executable: Path | None = None) -> dict[str, Any]:
+        cli_executable: Path | None = None, native_executable: Path | None = None) -> dict[str, Any]:
     corpus = _read_json(ROOT / "conformance" / "corpus" / "files.json")
     expected = _read_json(ROOT / "conformance" / "expected" / "python.json")
 
     failures = []
     failures.extend(_validate_captures(corpus, expected))
+    failures.extend(_validate_native_captures())
     failures.extend(_compare_frozen_baseline(expected))
     native_cases = 0
     application_cases = 0
     if not captured_only:
-        native_failures, native_cases = _compare_native(corpus, expected, release, fuzz_cases, fuzz_seed)
+        native_failures, native_cases = _compare_native(corpus, expected, release, fuzz_cases, fuzz_seed, native_executable)
         failures.extend(native_failures)
         failures.extend(_compare_cli(release, cli_executable))
         application_failures, application_cases = _compare_application_parity(release, cli_executable)
@@ -685,6 +703,7 @@ def main() -> int:
     parser.add_argument("--cli-only", action="store_true", help="check application command contracts")
     parser.add_argument("--acceptance-only", action="store_true", help="check application contracts and captured Python parity")
     parser.add_argument("--cli-executable", type=Path, help="use a packaged CLI instead of cargo run")
+    parser.add_argument("--native-executable", type=Path, help="use an already built native conformance helper; still check its API/schema and all requests")
     parser.add_argument("--fuzz-cases", type=int, default=256, help="deterministic mutation count (0..10000)")
     parser.add_argument("--fuzz-seed", type=lambda value: int(value, 0), default=0x4d58, help="reproducible mutation seed")
     args = parser.parse_args()
@@ -701,7 +720,7 @@ def main() -> int:
         return int(bool(failures))
     result = run(captured_only=args.captured_only, release=args.release,
                  fuzz_cases=args.fuzz_cases, fuzz_seed=args.fuzz_seed,
-                 cli_executable=args.cli_executable)
+                 cli_executable=args.cli_executable, native_executable=args.native_executable)
     if args.json:
         print(json.dumps(result, separators=(",", ":"), sort_keys=True))
     elif result["ok"]:

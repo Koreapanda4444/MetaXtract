@@ -1,5 +1,17 @@
 # 언어 전환 검증 자료
 
+카메라 검증 자료에 libexif의 원본 장치 메타데이터 샘플 9개를 추가했습니다. Canon,
+Fujifilm, Nikon, Olympus, Sanyo, Pentax, Casio 변형과 두 TIFF 바이트 순서를 포함하며,
+독립적인 상위 `.parsed` 보고서의 제조사·모델 기대값, Git blob 식별자와 SHA-256을 보존합니다.
+상위 자료는 메타데이터만 남긴 JPEG 조각이므로 불완전한 이미지 진단을 유지하면서 정상적인
+EXIF 필드도 보존하는지 확인합니다.
+`--captured-only`는 바이트를 확인하고 일반 디버그·릴리스·메모리 검사는 실제 추출과 변형
+검사에도 사용합니다. LGPL 고지는 `licenses/libexif-COPYING.txt`에 있습니다. 메타데이터
+캡처 자체가 카메라 촬영의 진위를 증명하지는 않습니다. 생성한 HEIF 자료와 실제 인코딩된
+영상·문서 자료는 별도로 구분합니다. AndroidX의 LGE Nexus 5·Samsung SM-N900S JPEG
+원본 2개도 상위 기대값을 이용해 제조사·모델·촬영 시각을 검사합니다(Apache-2.0;
+androidx-NOTICE.txt 참고). 모든 스마트폰·장치·포맷 변형의 지원을 보장하지는 않습니다.
+
 [English](README.md) | [한국어](README_KR.md) | [프로젝트 README](../README_KR.md)
 
 이 디렉터리는 범용 루트 테스트 폴더 대신 언어 전환에 꼭 필요한 검증 자료를 모읍니다.
