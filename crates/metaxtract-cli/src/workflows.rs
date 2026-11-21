@@ -122,7 +122,7 @@ pub fn run(args: &Args) -> io::Result<Value> {
         "sanitize" => {
             let mut request = app::sanitize::SanitizeRequest::new(args.path(1)?, args.path(2)?);
             request.allow_signature_invalidation =
-                args.flags.contains_key("allow-signature-invalidation");
+                args.flag("allow-signature-invalidation").as_deref() == Some("true");
             if let Some(selection) = args.flag("remove") {
                 request.options.sanitize_property_mask = app::sanitize::property_mask(&selection)?;
             }

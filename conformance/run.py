@@ -616,6 +616,7 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             signed_hash = sha(signed_pdf)
             signed_output = root / "signature-invalidated.pdf"
             invoke("sanitize", signed_pdf, signed_output, code=2)
+            invoke("sanitize", signed_pdf, signed_output, "--allow-signature-invalidation=false", code=2)
             if signed_output.exists():
                 raise ValueError("signature invalidation was published without explicit consent")
             signed_receipt = invoke("sanitize", signed_pdf, signed_output, "--allow-signature-invalidation")

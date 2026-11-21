@@ -120,6 +120,7 @@ impl Args {
                 "progress",
                 "password-stdin",
                 "pdf-password-stdin",
+                "allow-signature-invalidation",
                 "include-hidden",
                 "decode-previews",
             ]
