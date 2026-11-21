@@ -517,6 +517,8 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             sources = root / "evidence"
             sources.mkdir()
             for fixture in _read_json(ROOT / "conformance/corpus/native-sanitize.json")["cases"]:
+                if fixture["status"] != "OK":
+                    continue
                 extension = fixture["name"].rsplit("-", 1)[-1]
                 original = root / ("private." + extension)
                 clean = root / ("clean." + extension)

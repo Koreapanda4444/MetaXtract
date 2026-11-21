@@ -96,7 +96,19 @@ Plan plan(std::span<const std::uint8_t> bytes,Reader& r){
         range(bytes,0,12);out.format="webp";const auto extent=integer(bytes,4,4,true)+8;range(bytes,0,extent);out.trailing=bytes.size()-extent;std::uint64_t at=12;
         const std::set<std::string> keep{"VP8 ","VP8L","VP8X","ALPH","ANIM","ANMF","ICCP"};
         while(at<extent){r.entry();range(bytes,at,8);const auto length=integer(bytes,at+4,4,true);range(bytes,at,8+length+length%2);if(8+length+length%2>extent-at){throw Failure{ParseStatus::Malformed,"WebP chunk escapes RIFF",at};}const std::string type(bytes.begin()+static_cast<std::ptrdiff_t>(at),bytes.begin()+static_cast<std::ptrdiff_t>(at+4));const auto payload=bytes.subspan(static_cast<std::size_t>(at+8),static_cast<std::size_t>(length));
-            if(type=="EXIF"){out.exif.read(payload,r);++out.removed;}else if(keep.contains(type)){auto chunk=webp_chunk(type,payload);if(type=="VP8X"){if(length!=10){throw Failure{ParseStatus::Malformed,"Invalid VP8X",at};}chunk[8]&=static_cast<std::uint8_t>(~0x0cU);}out.kept.push_back(std::move(chunk));}else{++out.removed;if(type=="C2PA"||type=="JUMB"){out.credentials=true;}}
+            if(type=="EXIF"){out.exif.read(payload,r);++out.removed;}else if(keep.contains(type)){auto chunk=webp_chunk(type,payload);if(type=="ANMF"){
+                    range(payload,0,16);std::uint64_t frame_at=16;unsigned images=0;bool alpha=false;
+                    while(frame_at<payload.size()){
+                        r.entry();r.checkpoint();range(payload,frame_at,8);const auto inner_length=integer(payload,frame_at+4,4,true);range(payload,frame_at,8+inner_length+inner_length%2);
+                        const auto inner=payload.subspan(static_cast<std::size_t>(frame_at),4);const auto coded=payload.subspan(static_cast<std::size_t>(frame_at+8),static_cast<std::size_t>(inner_length));
+                        if(starts(inner,"ALPH")){if(alpha||images!=0||coded.empty()){throw Failure{ParseStatus::Malformed,"Invalid animated WebP alpha ordering",at};}alpha=true;}
+                        else if(starts(inner,"VP8 ")){if(++images!=1||coded.size()<10||coded[3]!=0x9d||coded[4]!=1||coded[5]!=0x2a){throw Failure{ParseStatus::Malformed,"Invalid animated WebP lossy frame",at};}}
+                        else if(starts(inner,"VP8L")){if(++images!=1||alpha||coded.size()<5||coded[0]!=0x2f||(coded[4]>>5U)!=0){throw Failure{ParseStatus::Malformed,"Invalid animated WebP lossless frame",at};}}
+                        else{throw Failure{ParseStatus::Unsupported,"Unknown animated WebP frame subchunk cannot be sanitized safely",at};}
+                        frame_at+=8+inner_length+inner_length%2;
+                    }
+                    if(images!=1){throw Failure{ParseStatus::Malformed,"Animated WebP frame image missing",at};}
+                }if(type=="VP8X"){if(length!=10){throw Failure{ParseStatus::Malformed,"Invalid VP8X",at};}chunk[8]&=static_cast<std::uint8_t>(~0x0cU);}out.kept.push_back(std::move(chunk));}else{++out.removed;if(type=="C2PA"||type=="JUMB"){out.credentials=true;}}
             at+=8+length+length%2;
         }return out;
     }

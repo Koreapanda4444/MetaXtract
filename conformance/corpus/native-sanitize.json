@@ -49,6 +49,35 @@
       },
       "read_max": 67108864,
       "observation_max": 10000
+    },
+    {
+      "name": "sanitize-animation-webp",
+      "parser": "images.sanitize",
+      "base64": "UklGRpoAAABXRUJQVlA4WAoAAAAGAAAAAgAAAQAAQU5JTQYAAAAAAAAAAABBTk1GWAAAAAAAAAAAAAIAAAEAAGQAAAJWUDhMPwAAAC8CQAAAL6AgbQNmT9dEzT/MhoIABBD1wP8TDlLQtg3TC6tUxp/F5j+AfxAPSbVnGyhkGwFO7R6CU7uI/sd4AQBYTVAgDgAAAFBSSVZBVEVfQVVUSE9S",
+      "status": "OK",
+      "fields": {
+        "format": [
+          "77656270"
+        ],
+        "sanitized_payload": [
+          "524946468400000057454250565038580a00000002000000020000010000414e494d06000000000000000000414e4d4658000000000000000000020000010000640000025650384c3f0000002f024000002fa0206d03664fd744cd3fcc8682000410f5c0ff130e52d0b60dd30bab54c69fc5e63f807f100f49b5671b28641b014eed1e8253bb88fec7780100"
+        ]
+      },
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "sanitize-unknown-frame-rejected",
+      "parser": "images.sanitize",
+      "base64": "UklGRpoAAABXRUJQVlA4WAoAAAACAAAAAgAAAQAAQU5JTQYAAAAAAAAAAABBTk1GbgAAAAAAAAAAAAIAAAEAAGQAAAJWUDhMPwAAAC8CQAAAL6AgbQNmT9dEzT/MhoIABBD1wP8TDlLQtg3TC6tUxp/F5j+AfxAPSbVnGyhkGwFO7R6CU7uI/sd4AQBYTVAgDgAAAFBSSVZBVEVfQVVUSE9S",
+      "status": "UnsupportedParser",
+      "fields": {
+        "sanitize_failed": [
+          "556e6b6e6f776e20616e696d617465642057656250206672616d65207375626368756e6b2063616e6e6f742062652073616e6974697a656420736166656c79"
+        ]
+      },
+      "read_max": 67108864,
+      "observation_max": 10000
     }
   ]
 }
