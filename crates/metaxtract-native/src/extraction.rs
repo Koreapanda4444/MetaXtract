@@ -169,12 +169,37 @@ pub fn extract_parser_authenticated(
     limits: ParserLimits,
     password: Option<&[u8]>,
 ) -> Result<ExtractionResult, NativeError> {
+    extract_with_policy(input, parser_id, limits, password, None)
+}
+
+/// Request a bounded, in-memory property transform inside the isolated worker.
+pub fn extract_parser_transform(
+    input: &BoundedInput,
+    parser_id: &str,
+    limits: ParserLimits,
+    mask: u32,
+) -> Result<ExtractionResult, NativeError> {
+    if mask == 0 || mask > 63 {
+        return Err(native_error(NativeErrorCode::InvalidRequest, false));
+    }
+    extract_with_policy(input, parser_id, limits, None, Some(mask))
+}
+
+fn extract_with_policy(
+    input: &BoundedInput,
+    parser_id: &str,
+    limits: ParserLimits,
+    password: Option<&[u8]>,
+    mask: Option<u32>,
+) -> Result<ExtractionResult, NativeError> {
     build_info()?;
     if parser_id.is_empty() || limits.max_wall_time_ms == 0 {
         return Err(native_error(NativeErrorCode::InvalidRequest, false));
     }
     let session = input.source.parser_session(limits.max_read_bytes);
-    let result = if let Some(password) = password {
+    let result = if let Some(mask) = mask {
+        ffi::bridge::ffi_extract_transform(&session, parser_id, limits.ffi(), mask)
+    } else if let Some(password) = password {
         if password.len() > 16384 || password.contains(&0) {
             return Err(native_error(NativeErrorCode::InvalidRequest, false));
         }

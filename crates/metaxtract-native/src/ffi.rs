@@ -278,6 +278,12 @@ pub(crate) mod bridge {
         fn ffi_worker_memory_limit(bytes: u64) -> bool;
         fn ffi_worker_memory_usage(pid: u32) -> u64;
         fn ffi_detect(source: &ReadSource, limits: FfiResourceLimits) -> FfiDetection;
+        fn ffi_extract_transform(
+            source: &ReadSource,
+            parser_id: &str,
+            limits: FfiResourceLimits,
+            mask: u32,
+        ) -> FfiExtraction;
         fn ffi_extract_authenticated(
             source: &ReadSource,
             parser_id: &str,

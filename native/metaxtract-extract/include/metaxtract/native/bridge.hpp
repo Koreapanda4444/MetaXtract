@@ -34,6 +34,7 @@ struct ReadSource;
 [[nodiscard]] bool ffi_worker_memory_limit(std::uint64_t bytes) noexcept;
 [[nodiscard]] std::uint64_t ffi_worker_memory_usage(std::uint32_t pid) noexcept;
 [[nodiscard]] FfiDetection ffi_detect(const ReadSource& source, FfiResourceLimits limits) noexcept;
+[[nodiscard]] FfiExtraction ffi_extract_transform(const ReadSource& source, rust::Str parser_id, FfiResourceLimits limits, std::uint32_t mask) noexcept;
 [[nodiscard]] FfiExtraction ffi_extract_authenticated(const ReadSource& source, rust::Str parser_id, FfiResourceLimits limits, rust::Slice<const std::uint8_t> password) noexcept;
 [[nodiscard]] FfiExtraction ffi_extract(const ReadSource& source, rust::Str parser_id, FfiResourceLimits limits) noexcept;
 [[nodiscard]] FfiParserRun ffi_run_parser(

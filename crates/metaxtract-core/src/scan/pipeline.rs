@@ -39,6 +39,11 @@ pub struct ScanOptions {
     pub pdf_trust: crate::PdfTrustPolicy,
     #[serde(default)]
     pub sanitize_copy: bool,
+    #[serde(default = "default_sanitize_mask")]
+    pub sanitize_property_mask: u32,
+}
+fn default_sanitize_mask() -> u32 {
+    63
 }
 fn default_window() -> usize {
     16
@@ -58,12 +63,16 @@ impl Default for ScanOptions {
             scan_wall_time_ms: None,
             pdf_trust: Default::default(),
             sanitize_copy: false,
+            sanitize_property_mask: 63,
         }
     }
 }
 impl ScanOptions {
     pub(crate) fn validate(&self) -> io::Result<()> {
         self.hash.validate()?;
+        if self.sanitize_copy && !(1..=63).contains(&self.sanitize_property_mask) {
+            return Err(invalid("select supported sanitized copy property groups"));
+        }
         self.pdf_trust.validate()?;
         if !(1..=32).contains(&self.workers)
             || !(1..=256).contains(&self.queue_capacity)
@@ -180,9 +189,22 @@ impl NativeExtractor {
                 limits.parser.input_limits(),
             )
             .map_err(|e| io::Error::other(e.to_string()))?;
-            let result =
-                metaxtract_native::extract_parser(&input, "images.sanitize", limits.parser)
-                    .map_err(|e| io::Error::other(e.to_string()))?;
+            let document = hashes.prefix.starts_with(b"%PDF-") || hashes.prefix.starts_with(b"PK");
+            if !document && options.sanitize_property_mask != 63 {
+                return Err(invalid("image copies require the full non-rendering metadata policy"));
+            }
+            let parser = if document {
+                "documents.sanitize"
+            } else {
+                "images.sanitize"
+            };
+            let result = metaxtract_native::extract_parser_transform(
+                &input,
+                parser,
+                limits.parser,
+                options.sanitize_property_mask,
+            )
+            .map_err(|e| io::Error::other(e.to_string()))?;
             crate::RecursiveExtraction {
                 usage: result.run,
                 nodes: vec![crate::RecursiveNode {

@@ -5,8 +5,8 @@
 
 namespace metaxtract::native {
 
-ParserContext::ParserContext(const RandomAccessInput& source, const ResourceLimits limits, const std::string_view password) noexcept
-    : source_(source), budget_(limits, source.size()), password_(password) {}
+ParserContext::ParserContext(const RandomAccessInput& source, const ResourceLimits limits, const std::string_view password, const std::uint32_t sanitize_mask) noexcept
+    : source_(source), budget_(limits, source.size()), password_(password), sanitize_mask_(sanitize_mask) {}
 
 std::uint64_t ParserContext::source_size() const noexcept {
     return source_.size();

@@ -59,6 +59,7 @@ pub struct WorkflowsUi {
     baseline: String,
     signing: bool,
     allow_signature_invalidation: bool,
+    property_mask: u32,
     trusted: bool,
     name: String,
     password: app::Zeroizing<String>,
@@ -84,6 +85,7 @@ impl Default for WorkflowsUi {
             baseline: String::new(),
             signing: false,
             allow_signature_invalidation: false,
+            property_mask: 63,
             trusted: true,
             name: "analyst".into(),
             password: app::Zeroizing::new(String::new()),
@@ -280,6 +282,15 @@ impl Desktop {
         }
         match action {
             18 => {
+                ui.label("Remove document properties (images require all groups):");
+                ui.horizontal_wrapped(|ui| {
+                    for (name, bit) in [("Author", 1), ("Title", 2), ("Description", 4), ("Dates", 8), ("Custom", 16), ("Application", 32)] {
+                        let mut selected = self.workflows.property_mask & bit != 0;
+                        if ui.checkbox(&mut selected, name).changed() {
+                            if selected { self.workflows.property_mask |= bit; } else { self.workflows.property_mask &= !bit; }
+                        }
+                    }
+                });
                 self.workflow_path_row(ui, Field::Input, crate::i18n::tr("Input"));
                 self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Output"));
                 ui.label("Create a new copy. Image pixels, orientation and color profiles remain. Visible content may contain personal information.");
@@ -683,6 +694,7 @@ impl Desktop {
         let signing = self.workflows.signing;
         let trusted = self.workflows.trusted;
         let allow_signature_invalidation = self.workflows.allow_signature_invalidation;
+        let property_mask = self.workflows.property_mask;
         let after = self.workflows.after;
         let password = std::mem::take(&mut self.workflows.password);
         self.workflows.result = None;
@@ -692,7 +704,7 @@ impl Desktop {
             let identity=||w::identity(path(Field::Key)?,&name,&password);
             let public=||if trusted {w::read_text(path(Field::Public)?,16384).map(Some)}else{Ok(None)};
             match action {
-                18=>{let mut request=app::sanitize::SanitizeRequest::new(path(Field::Input)?.clone(),path(Field::Output)?.clone());request.allow_signature_invalidation=allow_signature_invalidation;value(app::sanitize::create_copy(&request,app::core::scan::ScanControl::new())?)},
+                18=>{let mut request=app::sanitize::SanitizeRequest::new(path(Field::Input)?.clone(),path(Field::Output)?.clone());request.allow_signature_invalidation=allow_signature_invalidation;request.options.sanitize_property_mask=property_mask;value(app::sanitize::create_copy(&request,app::core::scan::ScanControl::new())?)},
                 0=>value(a::export::export_records(case()?,query.as_ref().expect("prepared query"),path(Field::Output)?,if format==0{a::export::ExportFormat::Jsonl}else{a::export::ExportFormat::Csv},profile.as_ref(),Default::default())?),
                 1=>{w::write_json(path(Field::Output)?,&profile.expect("prepared profile"))?;value(serde_json::json!({"profile_saved":true}))},
                 2=> {

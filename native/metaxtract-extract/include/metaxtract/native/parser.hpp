@@ -28,7 +28,8 @@ struct ParserCapability final {
 
 class ParserContext final {
 public:
-    ParserContext(const RandomAccessInput& source, ResourceLimits limits, std::string_view password = {}) noexcept;
+    ParserContext(const RandomAccessInput& source, ResourceLimits limits, std::string_view password = {}, std::uint32_t sanitize_mask = 63) noexcept;
+    [[nodiscard]] std::uint32_t sanitize_mask() const noexcept { return sanitize_mask_; }
     [[nodiscard]] std::string_view password() const noexcept { return password_; }
 
     [[nodiscard]] std::uint64_t source_size() const noexcept;
@@ -41,6 +42,7 @@ private:
     const RandomAccessInput& source_;
     ParserBudget budget_;
     std::string_view password_;
+    std::uint32_t sanitize_mask_;
     std::vector<Observation> values_;
 };
 

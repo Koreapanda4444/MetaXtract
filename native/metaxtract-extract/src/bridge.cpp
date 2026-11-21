@@ -270,7 +270,7 @@ FfiDetection ffi_detect(const ReadSource& source, const FfiResourceLimits limits
 FfiExtraction ffi_extract(const ReadSource& source, const rust::Str parser_id, const FfiResourceLimits limits) noexcept {
     return ffi_extract_authenticated(source, parser_id, limits, rust::Slice<const std::uint8_t>());
 }
-FfiExtraction ffi_extract_authenticated(const ReadSource& source, const rust::Str parser_id, const FfiResourceLimits limits, rust::Slice<const std::uint8_t> password) noexcept {
+static FfiExtraction extract_common(const ReadSource& source, const rust::Str parser_id, const FfiResourceLimits limits, rust::Slice<const std::uint8_t> password, std::uint32_t mask) noexcept {
     try {
         const RustInput input(source);
         if (!password.empty() && (password.size() > 16385 || password[password.size()-1] != 0 || std::find(password.begin(), password.end()-1, 0) != password.end()-1)) {
@@ -278,7 +278,7 @@ FfiExtraction ffi_extract_authenticated(const ReadSource& source, const rust::St
         }
         auto run = metaxtract::native::run_parser(metaxtract::native::default_registry(),
             std::string_view(parser_id.data(), parser_id.size()), input, convert_limits(limits),
-            password.empty() ? std::string_view{} : std::string_view(reinterpret_cast<const char*>(password.data()), password.size() - 1));
+            password.empty() ? std::string_view{} : std::string_view(reinterpret_cast<const char*>(password.data()), password.size() - 1), mask);
         rust::Vec<FfiObservation> values;
         for (auto& value : run.values) {
             rust::Vec<std::uint8_t> encoded;
@@ -306,6 +306,13 @@ FfiExtraction ffi_extract_authenticated(const ReadSource& source, const rust::St
         return {.run = {.status = 3, .recoverable = false, .read_bytes = 0, .allocation_bytes = 0,
             .decoded_bytes = 0, .entries = 0, .observations = 0}, .values = {}};
     }
+}
+
+FfiExtraction ffi_extract_authenticated(const ReadSource& source, rust::Str parser_id, FfiResourceLimits limits, rust::Slice<const std::uint8_t> password) noexcept {
+    return extract_common(source, parser_id, limits, password, 63);
+}
+FfiExtraction ffi_extract_transform(const ReadSource& source, rust::Str parser_id, FfiResourceLimits limits, std::uint32_t mask) noexcept {
+    return extract_common(source, parser_id, limits, rust::Slice<const std::uint8_t>(), mask);
 }
 
 FfiBudgetStatus ffi_validate_limits(

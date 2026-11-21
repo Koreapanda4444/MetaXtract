@@ -25,6 +25,6 @@ private:
     const ParserRegistry& registry,
     std::string_view parser_id,
     const RandomAccessInput& source,
-    ResourceLimits limits, std::string_view password = {}) noexcept;
+    ResourceLimits limits, std::string_view password = {}, std::uint32_t sanitize_mask = 63) noexcept;
 
 }

@@ -439,3 +439,16 @@ Embedded authenticity metadata requires `--allow-signature-invalidation` (or the
 GUI checkbox). Removing it invalidates the copy's provenance claims. Retained color
 profiles and visible content may still disclose information; this is not visual
 redaction or a guarantee of anonymity.
+
+Document property copies (72)
+-----------------------------
+The same command and GUI also accept unencrypted PDF, OOXML and ODF packages.
+Choose document property groups with `--remove author,title,description,dates,custom,application`;
+all groups are selected by default. PDF Info/catalog XMP and package property XML
+are rewritten; historical PDF objects and ZIP comments/extra fields are not copied.
+PDF protected object graphs (including encoded content/resources) and non-property
+package member bytes are compared before/after. Encrypted PDFs/ODF, ambiguous members,
+DTD property XML, unsupported layouts and exhausted budgets fail without publication.
+Document signatures require explicit invalidation consent. Signature fields may
+remain and are invalid for the transformed copy. Body text, comments, revisions,
+macros, attachments, nested metadata and visible content remain outside this scope.

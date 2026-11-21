@@ -42,6 +42,7 @@ add_library(metaxtract_extract STATIC
   src/exported_metadata.cpp
   src/c2pa.cpp
   src/image_sanitize.cpp
+  src/document_sanitize.cpp
   src/xml.cpp
   src/zip.cpp
   src/documents.cpp

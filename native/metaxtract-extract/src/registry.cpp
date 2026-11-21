@@ -12,6 +12,7 @@ std::unique_ptr<Parser> xmp_sidecar_parser();
 std::unique_ptr<Parser> exported_metadata_parser();
 std::unique_ptr<Parser> c2pa_manifest_parser();
 std::unique_ptr<Parser> image_sanitization_parser();
+std::unique_ptr<Parser> document_sanitization_parser();
 std::unique_ptr<Parser> raw_metadata_parser();
 std::unique_ptr<Parser> heif_metadata_parser();
 std::unique_ptr<Parser> audio_metadata_parser();
@@ -64,6 +65,7 @@ const ParserRegistry& default_registry() noexcept {
         result.add(exported_metadata_parser());
         result.add(c2pa_manifest_parser());
         result.add(image_sanitization_parser());
+        result.add(document_sanitization_parser());
         result.add(raw_metadata_parser());
         result.add(heif_metadata_parser());
         result.add(audio_metadata_parser());
@@ -95,8 +97,8 @@ ParserRun run_parser(
     const ParserRegistry& registry,
     const std::string_view parser_id,
     const RandomAccessInput& source,
-    const ResourceLimits limits, const std::string_view password) noexcept {
-    ParserContext context(source, limits, password);
+    const ResourceLimits limits, const std::string_view password, const std::uint32_t sanitize_mask) noexcept {
+    ParserContext context(source, limits, password, sanitize_mask);
     auto status = ParseStatus::Complete;
     if (limits.max_wall_time_ms == 0) {
         status = ParseStatus::InvalidRequest;

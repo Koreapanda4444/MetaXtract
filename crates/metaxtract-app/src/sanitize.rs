@@ -42,8 +42,9 @@ fn observed<'a>(record: &'a ExtractionRecord, key: &str) -> Option<&'a RawValue>
         .observations
         .iter()
         .find(|o| {
-            o.provenance.parser.id == "images.sanitize"
-                && o.tag.namespace == "sanitize.image"
+            ((o.provenance.parser.id == "images.sanitize" && o.tag.namespace == "sanitize.image")
+                || (o.provenance.parser.id == "documents.sanitize"
+                    && o.tag.namespace == "sanitize.document"))
                 && o.tag.name.as_deref() == Some(key)
         })
         .map(|o| o.interpreted_value.as_ref().unwrap_or(&o.raw_value))
@@ -143,7 +144,7 @@ pub fn create_copy(request: &SanitizeRequest, control: ScanControl) -> io::Resul
     let authenticity = number(record, "authenticity_metadata_removed")? != 0;
     if authenticity && !request.allow_signature_invalidation {
         return Err(invalid(
-            "embedded authenticity metadata would be removed; allow signature invalidation explicitly",
+            "embedded signatures would be invalidated; allow signature invalidation explicitly",
         ));
     }
     let Some(RawValue::Bytes(bytes)) = observed(record, "sanitized_payload") else {
@@ -179,7 +180,10 @@ pub fn create_copy(request: &SanitizeRequest, control: ScanControl) -> io::Resul
     control.checkpoint()?;
     let mut warnings=vec!["Color profiles, rendering metadata and visible content remain; this is not visual-content redaction or a guarantee of anonymity.".into()];
     if authenticity {
-        warnings.push("Embedded authenticity metadata was removed; its signatures no longer accompany this copy.".into());
+        warnings.push("Embedded signatures are invalidated by this copy. Retained document signature fields must not be treated as valid.".into());
+    }
+    if matches!(text(record, "format")?.as_str(), "pdf" | "ooxml" | "odf") {
+        warnings.push("Only selected document properties are removed. Body text, comments, revisions, attachments, macros and nested metadata remain.".into());
     }
     let receipt = SanitizedCopy {
         output: NativePath::from_path(&request.output),
@@ -198,4 +202,24 @@ pub fn create_copy(request: &SanitizeRequest, control: ScanControl) -> io::Resul
     };
     crate::workflows::write_bytes(&request.output, bytes)?;
     Ok(receipt)
+}
+
+pub fn property_mask(selection: &str) -> io::Result<u32> {
+    let mut mask = 0;
+    for name in selection.split(',') {
+        let bit = match name {
+            "author" => 1,
+            "title" => 2,
+            "description" => 4,
+            "dates" => 8,
+            "custom" => 16,
+            "application" => 32,
+            _ => return Err(invalid("unknown document property group")),
+        };
+        if mask & bit != 0 {
+            return Err(invalid("duplicate document property group"));
+        }
+        mask |= bit;
+    }
+    Ok(mask)
 }
