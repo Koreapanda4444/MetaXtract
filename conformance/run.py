@@ -585,18 +585,18 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             objects = [b"<< /Type /Catalog /Pages 2 0 R >>",
                        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
                        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R >>",
-                       b"<< /Length " + str(len(stream)).encode() + b" >>\\nstream\\n" + stream + b"\\nendstream",
+                       b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
                        b"<< /Author (PRIVATE_AUTHOR) /Title (RETAINED_TITLE) >>"]
-            data = bytearray(b"%PDF-1.7\\n")
+            data = bytearray(b"%PDF-1.7\n")
             offsets = []
             for number, obj in enumerate(objects, 1):
                 offsets.append(len(data))
-                data.extend(str(number).encode() + b" 0 obj\\n" + obj + b"\\nendobj\\n")
+                data.extend(str(number).encode() + b" 0 obj\n" + obj + b"\nendobj\n")
             xref = len(data)
-            data.extend(b"xref\\n0 6\\n0000000000 65535 f \\n")
+            data.extend(b"xref\n0 6\n0000000000 65535 f \n")
             for offset in offsets:
-                data.extend(f"{offset:010d} 00000 n \\n".encode())
-            data.extend(b"trailer\\n<< /Size 6 /Root 1 0 R /Info 5 0 R >>\\nstartxref\\n" + str(xref).encode() + b"\\n%%EOF\\n")
+                data.extend(f"{offset:010d} 00000 n \n".encode())
+            data.extend(b"trailer\n<< /Size 6 /Root 1 0 R /Info 5 0 R >>\nstartxref\n" + str(xref).encode() + b"\n%%EOF\n")
             pdf_source.write_bytes(data)
             pdf_hash = sha(pdf_source)
             for selection, retained_title in (("author", True), ("author,title,description,dates,custom,application", False)):

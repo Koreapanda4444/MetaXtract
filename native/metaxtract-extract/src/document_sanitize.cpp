@@ -39,6 +39,14 @@ std::uint32_t group(const std::string& expanded) {
 Bytes xml_properties(Reader& r, const Bytes& bytes, const std::string& kind, std::uint32_t mask, std::uint64_t& removed) {
     XmlBudgetScope scope(r.context.budget()); pugi::xml_document doc;
     if (!doc.load_buffer(bytes.data(),bytes.size(),pugi::parse_default|pugi::parse_comments|pugi::parse_pi|pugi::parse_doctype) || !doc.document_element()) { throw Failure{ParseStatus::Malformed,"Invalid metadata property XML",0}; }
+    const auto root=expanded_xml_name(doc.document_element(),doc.document_element().name());
+    const auto expected=[&](std::string_view uri,std::string_view name){return root=="{"+std::string(uri)+"}"+std::string(name);};
+    const bool valid=kind=="xmp"?(expected("adobe:ns:meta/","xmpmeta")||expected("adobe:ns:meta/","xapmeta")||expected("http://www.w3.org/1999/02/22-rdf-syntax-ns#","RDF")):
+        kind=="odf"?expected("urn:oasis:names:tc:opendocument:xmlns:office:1.0","document-meta"):
+        kind=="core"?(expected("http://schemas.openxmlformats.org/package/2006/metadata/core-properties","coreProperties")||expected("http://purl.oclc.org/ooxml/package/metadata/core-properties","coreProperties")):
+        kind=="app"?(expected("http://schemas.openxmlformats.org/officeDocument/2006/extended-properties","Properties")||expected("http://purl.oclc.org/ooxml/officeDocument/extendedProperties","Properties")):
+        kind=="custom"?(expected("http://schemas.openxmlformats.org/officeDocument/2006/custom-properties","Properties")||expected("http://purl.oclc.org/ooxml/officeDocument/customProperties","Properties")):false;
+    if(!valid){throw Failure{ParseStatus::Unsupported,"Unexpected document property XML root namespace",0};}
     auto node=doc.first_child(); std::uint32_t depth=1;
     while(node) {
         r.entry();r.checkpoint(); if(!r.context.budget().check_depth(depth) || depth>64){throw Failure{ParseStatus::Internal,"Metadata XML depth budget",0};}
@@ -112,9 +120,9 @@ Result pdf_copy(Reader& r,const Bytes& input,std::uint32_t mask) {
 }
 void little(Bytes& out,std::uint64_t n,unsigned width){for(unsigned i=0;i<width;++i){out.push_back(static_cast<std::uint8_t>(n>>(8U*i)));}}
 void append(Bytes& out,std::span<const std::uint8_t> bytes){out.insert(out.end(),bytes.begin(),bytes.end());}
-std::string part_kind(const std::string& name){if(name=="docProps/core.xml"){return "core";}if(name=="docProps/app.xml"){return "app";}if(name=="docProps/custom.xml"){return "custom";}if(name=="meta.xml"){return "odf";}return {};}
+std::string part_kind(const std::string& name,bool ooxml){if(ooxml&&name=="meta.xml"){return {};}if(!ooxml&&name.starts_with("docProps/")){return {};}if(name=="docProps/core.xml"){return "core";}if(name=="docProps/app.xml"){return "app";}if(name=="docProps/custom.xml"){return "custom";}if(name=="meta.xml"){return "odf";}return {};}
 struct Part{std::string name;Bytes bytes;};
-std::string package_digest(Reader& r,const std::vector<Part>& parts){Digest hash;for(const auto& part:parts){if(part_kind(part.name).empty()){hash.text(part.name,r);hash.bytes(part.bytes,r);}}return hash.finish();}
+std::string package_digest(Reader& r,const std::vector<Part>& parts,bool ooxml){Digest hash;for(const auto& part:parts){if(part_kind(part.name,ooxml).empty()){hash.text(part.name,r);hash.bytes(part.bytes,r);}}return hash.finish();}
 Bytes zip_write(Reader& r,const std::vector<Part>& parts){
     if(parts.size()>65535){throw Failure{ParseStatus::Unsupported,"ZIP64 sanitized packages are unsupported",0};}
     Bytes out,central;for(const auto& part:parts){
@@ -138,12 +146,12 @@ Result package_copy(Reader& r,std::uint32_t mask){
         parts.push_back({entry.name,std::move(bytes)});
     }
     if(ooxml==odf){throw Failure{ParseStatus::Unsupported,"Sanitized package must have one OOXML or ODF family",0};}
-    result.format=ooxml?"ooxml":"odf";result.before=package_digest(r,parts);
-    for(auto& part:parts){const auto kind=part_kind(part.name);if(!kind.empty()){part.bytes=xml_properties(r,part.bytes,kind,mask,result.removed);}}
+    result.format=ooxml?"ooxml":"odf";result.before=package_digest(r,parts,ooxml);
+    for(auto& part:parts){const auto kind=part_kind(part.name,ooxml);if(!kind.empty()){part.bytes=xml_properties(r,part.bytes,kind,mask,result.removed);}}
     result.bytes=zip_write(r,parts);if(!r.context.budget().check_member_size(result.bytes.size())){throw Failure{ParseStatus::Internal,"Sanitized package member budget",0};}
     Reader output(r.context,result.bytes,"sanitize.document.output","sanitized-copy");std::vector<Part> verified;
     for(const auto& entry:zip_directory(output)){verified.push_back({entry.name,zip_payload(output,entry)});}
-    result.after=package_digest(output,verified);return result;
+    result.after=package_digest(output,verified,ooxml);return result;
 }
 class SanitizeDocument final:public Parser {
 public:
