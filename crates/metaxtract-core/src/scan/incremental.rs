@@ -119,9 +119,13 @@ impl ScanInventory {
         };
         for (path, entry) in &current.files {
             let kind = match self.files.get(path) {
-                None => {
+                None if self.complete && compatible => {
                     out.added += 1;
                     "added"
+                }
+                None => {
+                    out.unverified += 1;
+                    "unverified"
                 }
                 Some(old)
                     if old.stamp.device != entry.stamp.device
@@ -161,7 +165,7 @@ impl ScanInventory {
                 }
             }
         } else {
-            out.unverified = self
+            out.unverified += self
                 .files
                 .keys()
                 .filter(|p| !current.files.contains_key(*p))
@@ -234,6 +238,13 @@ mod tests {
                 .unwrap()
                 .baseline_compatible
         );
+        let mut partial = old.clone();
+        partial.complete = false;
+        let mut added = old.clone();
+        added.files.insert("new.png".into(), entry(2));
+        let delta = partial.compare(&added, "baseline").unwrap();
+        assert_eq!(delta.added, 0);
+        assert_eq!(delta.unverified, 1);
         current.root_file_id = 99;
         assert!(old.compare(&current, "baseline").is_err());
     }
