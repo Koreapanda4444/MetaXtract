@@ -338,7 +338,12 @@ jobs:
               const failed = jobs.data.jobs.some(job => job.conclusion === 'failure');
               if (stalled || failed) {
                 core.info('Stopping superseded failed/stalled run ' + run.id);
-                await github.rest.actions.cancelWorkflowRun({...context.repo, run_id: run.id});
+                try {
+                  await github.rest.actions.cancelWorkflowRun({...context.repo, run_id: run.id});
+                } catch (error) {
+                  if (error.status !== 409) throw error;
+                  core.info('Run completed while cancellation was queued: ' + run.id);
+                }
               }
             }
 
