@@ -426,3 +426,16 @@ The redaction form supports privacy/all-metadata presets, selector rules, Remove
 **Notifications → Task and error history** retains up to 512 bounded entries across restarts, with search, errors-only filtering and copying. Interrupted tasks are identified after restart. Local `history.json` beside `desktop.json` may contain file paths and error text; handle it like investigation settings.
 
 The Case workspace's version panel offers **Check for updates**. Only a click contacts the official GitHub latest-release endpoint, with timeout/response limits and no evidence upload. Review the official download/checksum page; downloads and installation require your action. Close scans and back up cases before following the [installation guide](packaging.md).
+
+Sanitized image copies
+----------------------
+`metaxtract sanitize INPUT OUTPUT` (GUI: Export and tools → Create sanitized copy)
+creates a new JPEG, PNG or WebP. It removes non-rendering metadata, comments,
+previews and trailing bytes without re-encoding image data. Orientation, resolution,
+color profiles and animation remain. A native rendering digest is checked before
+Rust atomically publishes the new file; the original is reopened and SHA-256 checked.
+Existing destinations, symlinks and unsupported/ambiguous layouts are rejected.
+Embedded authenticity metadata requires `--allow-signature-invalidation` (or the
+GUI checkbox). Removing it invalidates the copy's provenance claims. Retained color
+profiles and visible content may still disclose information; this is not visual
+redaction or a guarantee of anonymity.

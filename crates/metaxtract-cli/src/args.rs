@@ -46,6 +46,7 @@ impl Args {
                     "pdf-verification-time",
                 ],
             ),
+            "sanitize" => (3, 3, &["allow-signature-invalidation"]),
             "verify" => (2, 2, &[]),
             "verify-originals" => (4, 4, &["query", "order"]),
             "export-evidence" => (5, 5, &["query", "order"]),
@@ -180,6 +181,7 @@ impl Args {
                         "pretty",
                         "password-stdin",
                         "pdf-password-stdin",
+                        "allow-signature-invalidation",
                         "include-hidden",
                         "decode-previews",
                     ]

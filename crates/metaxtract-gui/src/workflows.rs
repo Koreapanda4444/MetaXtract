@@ -58,6 +58,7 @@ pub struct WorkflowsUi {
     analyst: String,
     baseline: String,
     signing: bool,
+    allow_signature_invalidation: bool,
     trusted: bool,
     name: String,
     password: app::Zeroizing<String>,
@@ -82,6 +83,7 @@ impl Default for WorkflowsUi {
             analyst: String::new(),
             baseline: String::new(),
             signing: false,
+            allow_signature_invalidation: false,
             trusted: true,
             name: "analyst".into(),
             password: app::Zeroizing::new(String::new()),
@@ -92,7 +94,7 @@ impl Default for WorkflowsUi {
 }
 impl WorkflowsUi {
     pub(crate) fn select_action(&mut self, action: usize) {
-        self.action = action.min(17);
+        self.action = action.min(18);
         self.category = workflow_category(self.action);
         self.result = None;
         self.review_open = false;
@@ -145,7 +147,7 @@ impl Desktop {
     pub fn workflows_view(&mut self, ui: &mut egui::Ui) {
         crate::components::heading(ui, crate::i18n::tr("Export and tools"));
         self.preset_controls(ui);
-        let actions: [&str; 18] = [
+        let actions: [&str; 19] = [
             crate::i18n::tr("Export records"),
             crate::i18n::tr("Redaction profile"),
             crate::i18n::tr("Report"),
@@ -164,6 +166,7 @@ impl Desktop {
             crate::i18n::tr("Export original evidence ZIP"),
             crate::i18n::tr("Verify evidence ZIP"),
             crate::i18n::tr("Purge metadata cache"),
+            crate::i18n::tr("Create sanitized copy"),
         ];
         let previous = self.workflows.action;
         ui.horizontal_wrapped(|ui| {
@@ -276,6 +279,15 @@ impl Desktop {
             crate::redaction_form::form(ui, &mut self.workflows.profile);
         }
         match action {
+            18 => {
+                self.workflow_path_row(ui, Field::Input, crate::i18n::tr("Input"));
+                self.workflow_path_row(ui, Field::Output, crate::i18n::tr("Output"));
+                ui.label("Create a new copy. Image pixels, orientation and color profiles remain. Visible content may contain personal information.");
+                ui.checkbox(
+                    &mut self.workflows.allow_signature_invalidation,
+                    "Allow invalidating embedded authenticity signatures",
+                );
+            }
             0 => {
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut self.workflows.format, 0, "JSONL");
@@ -503,7 +515,7 @@ impl Desktop {
                 ui.text_edit_singleline(&mut self.workflows.name);
             });
         }
-        let destination_valid = if matches!(action, 0 | 2) {
+        let destination_valid = if matches!(action, 0 | 2 | 18) {
             match self.workflows.paths[Field::Output.index()].path() {
                 Ok(p) if p.exists() => {
                     ui.colored_label(
@@ -572,6 +584,19 @@ impl Desktop {
             ] {
                 if let Some(n) = result.get(key).and_then(serde_json::Value::as_u64) {
                     ui.label(format!("{key}: {n}"));
+                }
+            }
+            if let Some(path) = result
+                .get("output_display")
+                .and_then(serde_json::Value::as_str)
+            {
+                ui.label(format!("Saved: {path}"));
+            }
+            if let Some(warnings) = result.get("warnings").and_then(serde_json::Value::as_array) {
+                for warning in warnings {
+                    if let Some(text) = warning.as_str() {
+                        ui.label(text);
+                    }
                 }
             }
             ui.collapsing(crate::i18n::tr("Result details"), |ui| {
@@ -657,6 +682,7 @@ impl Desktop {
         let name = self.workflows.name.clone();
         let signing = self.workflows.signing;
         let trusted = self.workflows.trusted;
+        let allow_signature_invalidation = self.workflows.allow_signature_invalidation;
         let after = self.workflows.after;
         let password = std::mem::take(&mut self.workflows.password);
         self.workflows.result = None;
@@ -666,6 +692,7 @@ impl Desktop {
             let identity=||w::identity(path(Field::Key)?,&name,&password);
             let public=||if trusted {w::read_text(path(Field::Public)?,16384).map(Some)}else{Ok(None)};
             match action {
+                18=>{let mut request=app::sanitize::SanitizeRequest::new(path(Field::Input)?.clone(),path(Field::Output)?.clone());request.allow_signature_invalidation=allow_signature_invalidation;value(app::sanitize::create_copy(&request,app::core::scan::ScanControl::new())?)},
                 0=>value(a::export::export_records(case()?,query.as_ref().expect("prepared query"),path(Field::Output)?,if format==0{a::export::ExportFormat::Jsonl}else{a::export::ExportFormat::Csv},profile.as_ref(),Default::default())?),
                 1=>{w::write_json(path(Field::Output)?,&profile.expect("prepared profile"))?;value(serde_json::json!({"profile_saved":true}))},
                 2=> {
@@ -708,7 +735,7 @@ impl Desktop {
 
 const WORKFLOW_GROUPS: [&[usize]; 4] = [
     &[0, 2, 15],
-    &[1, 3, 4, 5, 12, 13, 14, 16],
+    &[1, 3, 4, 5, 12, 13, 14, 16, 18],
     &[6, 7, 8, 9],
     &[10, 11, 17],
 ];

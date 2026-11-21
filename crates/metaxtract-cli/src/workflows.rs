@@ -59,6 +59,15 @@ fn trust(args: &Args) -> io::Result<Option<String>> {
 }
 pub fn run(args: &Args) -> io::Result<Value> {
     match args.word(0)?.as_str() {
+        "sanitize" => {
+            let mut request = app::sanitize::SanitizeRequest::new(args.path(1)?, args.path(2)?);
+            request.allow_signature_invalidation =
+                args.flags.contains_key("allow-signature-invalidation");
+            value(app::sanitize::create_copy(
+                &request,
+                app::core::scan::ScanControl::new(),
+            )?)
+        }
         "doctor" | "diagnostics" => {
             let case = args
                 .flag_path("case")

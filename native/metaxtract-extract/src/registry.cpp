@@ -11,6 +11,7 @@ std::unique_ptr<Parser> image_metadata_parser();
 std::unique_ptr<Parser> xmp_sidecar_parser();
 std::unique_ptr<Parser> exported_metadata_parser();
 std::unique_ptr<Parser> c2pa_manifest_parser();
+std::unique_ptr<Parser> image_sanitization_parser();
 std::unique_ptr<Parser> raw_metadata_parser();
 std::unique_ptr<Parser> heif_metadata_parser();
 std::unique_ptr<Parser> audio_metadata_parser();
@@ -62,6 +63,7 @@ const ParserRegistry& default_registry() noexcept {
         result.add(xmp_sidecar_parser());
         result.add(exported_metadata_parser());
         result.add(c2pa_manifest_parser());
+        result.add(image_sanitization_parser());
         result.add(raw_metadata_parser());
         result.add(heif_metadata_parser());
         result.add(audio_metadata_parser());

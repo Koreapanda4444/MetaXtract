@@ -158,6 +158,9 @@ impl ExtractionBackend for CachedExtractor {
         context: &ExecutionContext,
     ) -> io::Result<ExtractionBatch> {
         context.checkpoint()?;
+        if options.sanitize_copy {
+            return self.inner.extract(evidence, hashes, options, context);
+        }
         let max =
             (options.max_result_bytes.saturating_mul(4)).min(codec::MAX_BLOB_BYTES as u64) as usize;
         let bytes = codec::encode(

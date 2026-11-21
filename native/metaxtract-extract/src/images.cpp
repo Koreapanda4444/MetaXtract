@@ -125,7 +125,7 @@ void inspect_png(Reader& reader, const bool metadata) {
         if (calculated != integer(checksum, 0, 4)) {
             throw Failure{ParseStatus::Malformed, "PNG chunk CRC mismatch: " + type, reader.base + at};
         }
-        Reader chunk(reader.context, reader.base, reader.size, reader.group + ".chunk" + std::to_string(count));
+        auto chunk = reader.window(0, reader.size, reader.group + ".chunk" + std::to_string(count));
         chunk.put("type", ValueKind::Text, type, at + 4, reader.read(at + 4, 4), "ASCII");
         chunk.number("length", at, 4);
         if (metadata) { png_metadata(chunk, type, at + 8, length); }
@@ -232,7 +232,7 @@ void inspect_jpeg(Reader& reader, const bool metadata) {
         const auto code = marker[1];
         const auto marker_at = at;
         at += 2;
-        Reader segment(reader.context, reader.base, reader.size, reader.group + ".segment" + std::to_string(segments));
+        auto segment = reader.window(0, reader.size, reader.group + ".segment" + std::to_string(segments));
         segment.number("marker", marker_at + 1, 1);
         ++segments;
         if (code == 0xd9) { ended = true; break; }
@@ -290,7 +290,7 @@ void inspect_jpeg(Reader& reader, const bool metadata) {
             if (icc_parts[index].first != index + 1) { throw Failure{ParseStatus::Malformed, "Duplicate or missing ICC fragment", reader.base}; }
             profile.insert(profile.end(), icc_parts[index].second.begin(), icc_parts[index].second.end());
         }
-        Reader icc(reader.context, reader.base, reader.size, reader.group + ".icc"); inspect_icc_data(icc, profile);
+        auto icc = reader.window(0, reader.size, reader.group + ".icc"); inspect_icc_data(icc, profile);
     }
     reader.derived("segment_count", segments);
     reader.derived("scan_count", scans);
@@ -311,7 +311,7 @@ void inspect_webp(Reader& reader, const bool metadata) {
         const auto padded = length + (length % 2);
         if (padded > extent - at - 8) { throw Failure{ParseStatus::Malformed, "WebP chunk escapes RIFF", reader.base + at}; }
         const std::string type(chunk.begin(), chunk.begin() + 4);
-        Reader field(reader.context, reader.base, reader.size, reader.group + ".chunk" + std::to_string(count));
+        auto field = reader.window(0, reader.size, reader.group + ".chunk" + std::to_string(count));
         field.put("type", ValueKind::Text, type, at, reader.read(at, 4), "ASCII");
         const auto payload = at + 8;
         if (metadata) { webp_metadata(field, type, payload, length); }
@@ -377,7 +377,7 @@ void inspect_gif(Reader& reader, const bool metadata) {
         if (code == 0x2c) {
             const auto body = reader.read(at, 9);
             if (integer(body, 4, 2, true) == 0 || integer(body, 6, 2, true) == 0) { throw Failure{ParseStatus::Malformed, "Empty GIF frame", reader.base + at}; }
-            Reader frame(reader.context, reader.base, reader.size, reader.group + ".frame" + std::to_string(frames));
+            auto frame = reader.window(0, reader.size, reader.group + ".frame" + std::to_string(frames));
             frame.number("left", at, 2, true);
             frame.number("top", at + 2, 2, true);
             frame.number("width", at + 4, 2, true);
@@ -391,7 +391,7 @@ void inspect_gif(Reader& reader, const bool metadata) {
             ++frames;
         } else if (code == 0x21) {
             const auto label = reader.read(at++, 1)[0];
-            Reader extension(reader.context, reader.base, reader.size, reader.group + ".extension" + std::to_string(extensions));
+            auto extension = reader.window(0, reader.size, reader.group + ".extension" + std::to_string(extensions));
             extension.put("label", ValueKind::Unsigned, std::to_string(label), at - 1, reader.read(at - 1, 1));
             if (label == 0xf9) {
                 const auto body = reader.read(at, 6);
@@ -454,12 +454,12 @@ void inspect_ico(Reader& reader, const bool metadata) {
         const auto length = integer(entry, 8, 4, true), offset = integer(entry, 12, 4, true);
         if (offset < 6 + count * 16 || length == 0) { throw Failure{ParseStatus::Malformed, "Icon image overlaps directory", reader.base + at}; }
         reader.require(offset, length);
-        Reader field(reader.context, reader.base, reader.size, reader.group + ".entry" + std::to_string(index));
+        auto field = reader.window(0, reader.size, reader.group + ".entry" + std::to_string(index));
         field.put("width", ValueKind::Unsigned, std::to_string(entry[0] == 0 ? 256 : entry[0]), at, reader.read(at, 1));
         field.put("height", ValueKind::Unsigned, std::to_string(entry[1] == 0 ? 256 : entry[1]), at + 1, reader.read(at + 1, 1));
         if (kind == 2) { field.number("hotspot_x", at + 4, 2, true); field.number("hotspot_y", at + 6, 2, true); }
         else { field.number("planes", at + 4, 2, true); field.number("bits_per_pixel", at + 6, 2, true); }
-        Reader child(reader.context, reader.base + offset, length, field.group + ".image");
+        auto child = reader.window(offset, length, field.group + ".image");
         if (!reader.context.budget().check_depth(1)) { throw Failure{ParseStatus::Internal, "Embedded image depth budget exceeded", reader.base + offset}; }
         if (starts(child.read(0, std::min<std::uint64_t>(8, length)), std::string_view("\x89PNG\r\n\x1a\n", 8))) {
             inspect_png(child, metadata);

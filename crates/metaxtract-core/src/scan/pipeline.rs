@@ -37,6 +37,8 @@ pub struct ScanOptions {
     pub scan_wall_time_ms: Option<u64>,
     #[serde(default)]
     pub pdf_trust: crate::PdfTrustPolicy,
+    #[serde(default)]
+    pub sanitize_copy: bool,
 }
 fn default_window() -> usize {
     16
@@ -55,6 +57,7 @@ impl Default for ScanOptions {
             file_wall_time_ms: 120_000,
             scan_wall_time_ms: None,
             pdf_trust: Default::default(),
+            sanitize_copy: false,
         }
     }
 }
@@ -171,16 +174,38 @@ impl NativeExtractor {
         limits.max_wall_time_ms = limits
             .max_wall_time_ms
             .min(context.remaining_ms().min(u64::from(u32::MAX)) as u32);
-        let tree = extract_file_recursive_with_pdf_policy(
-            evidence.file.try_clone()?,
-            hashes.prefix.clone(),
-            evidence.relative.name_bytes()?,
-            limits,
-            || context.checkpoint(),
-            password,
-            &options.pdf_trust,
-        )
-        .map_err(|e| io::Error::other(e.to_string()))?;
+        let tree = if options.sanitize_copy {
+            let input = metaxtract_native::BoundedInput::from_file(
+                evidence.file.try_clone()?,
+                limits.parser.input_limits(),
+            )
+            .map_err(|e| io::Error::other(e.to_string()))?;
+            let result =
+                metaxtract_native::extract_parser(&input, "images.sanitize", limits.parser)
+                    .map_err(|e| io::Error::other(e.to_string()))?;
+            crate::RecursiveExtraction {
+                usage: result.run,
+                nodes: vec![crate::RecursiveNode {
+                    identity: None,
+                    depth: 0,
+                    size_bytes: evidence.stamp.size_bytes,
+                    results: vec![result],
+                }],
+                input_bytes: evidence.stamp.size_bytes,
+                stopped: None,
+            }
+        } else {
+            extract_file_recursive_with_pdf_policy(
+                evidence.file.try_clone()?,
+                hashes.prefix.clone(),
+                evidence.relative.name_bytes()?,
+                limits,
+                || context.checkpoint(),
+                password,
+                &options.pdf_trust,
+            )
+            .map_err(|e| io::Error::other(e.to_string()))?
+        };
         let mut records = tree
             .canonical_records(evidence.evidence_path.clone())
             .map_err(|e| io::Error::other(e.to_string()))?;

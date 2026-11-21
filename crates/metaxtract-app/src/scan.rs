@@ -319,6 +319,11 @@ pub fn run(
     control: ScanControl,
     mut sink: impl FnMut(AppScanEvent) -> io::Result<()>,
 ) -> io::Result<ScanOutcome> {
+    if request.options.sanitize_copy {
+        return Err(invalid(
+            "use the sanitized copy workflow outside case scans",
+        ));
+    }
     if request.pdf_password.is_some() && request.resume.is_some() {
         return Err(invalid(
             "authenticated PDF scans require a new scan; re-enter the password",

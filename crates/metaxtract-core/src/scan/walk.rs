@@ -169,6 +169,10 @@ pub enum WalkEntry {
     },
 }
 impl ScanRoot {
+    pub fn is_single_file(&self) -> bool {
+        self.single_file.is_some()
+    }
+
     pub fn open(path: impl AsRef<Path>, policy: SymlinkPolicy) -> io::Result<Arc<Self>> {
         let path = path.as_ref();
         if policy == SymlinkPolicy::Skip && std::fs::symlink_metadata(path)?.is_symlink() {
