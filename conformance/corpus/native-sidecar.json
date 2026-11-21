@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "provenance": "Independently declared RDF/XMP namespace and document identifier packets; originals remain separate from associated source metadata.",
+  "cases": [
+    {
+      "name": "xmp-sidecar-rdf",
+      "base64": "PHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyI+PHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj48cmRmOkRlc2NyaXB0aW9uIHhtbG5zOm1tPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIG1tOkRvY3VtZW50SUQ9InV1aWQ6ZGV2aWNlLTEiIGRjOmNyZWF0b3I9IlNpZGVjYXIgQXV0aG9yIi8+PC9yZGY6UkRGPjwveDp4bXBtZXRhPg==",
+      "parser": "xmp.sidecar",
+      "fields": {
+        "{http://ns.adobe.com/xap/1.0/mm/}DocumentID": [
+          "757569643a6465766963652d31"
+        ],
+        "{http://purl.org/dc/elements/1.1/}creator": [
+          "5369646563617220417574686f72"
+        ]
+      },
+      "status": "OK",
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "xmp-sidecar-alternate-prefix",
+      "base64": "PHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyI+PHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj48cmRmOkRlc2NyaXB0aW9uIHhtbG5zOm5vdGU9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgbm90ZTpEb2N1bWVudElEPSJ1dWlkOmRldmljZS0xIiBkYzpjcmVhdG9yPSJTaWRlY2FyIEF1dGhvciIvPjwvcmRmOlJERj48L3g6eG1wbWV0YT4=",
+      "parser": "xmp.sidecar",
+      "fields": {
+        "{http://ns.adobe.com/xap/1.0/mm/}DocumentID": [
+          "757569643a6465766963652d31"
+        ],
+        "{http://purl.org/dc/elements/1.1/}creator": [
+          "5369646563617220417574686f72"
+        ]
+      },
+      "status": "OK",
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "xmp-sidecar-malformed",
+      "base64": "PHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyI+",
+      "parser": "xmp.sidecar",
+      "fields": {
+        "packet": []
+      },
+      "status": "MalformedData",
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "xmp-sidecar-unrelated-xml",
+      "base64": "PHNldHRpbmdzPjxuYW1lPm5vdCBYTVA8L25hbWU+PC9zZXR0aW5ncz4=",
+      "parser": "xmp.sidecar",
+      "fields": {
+        "packet": []
+      },
+      "status": "UnsupportedParser",
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "xmp-sidecar-member-budget",
+      "base64": "PHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyI+PHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj48cmRmOkRlc2NyaXB0aW9uIHhtbG5zOm1tPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIG1tOkRvY3VtZW50SUQ9InV1aWQ6ZGV2aWNlLTEiIGRjOmNyZWF0b3I9IlNpZGVjYXIgQXV0aG9yIi8+PC9yZGY6UkRGPjwveDp4bXBtZXRhPg==",
+      "parser": "xmp.sidecar",
+      "fields": {
+        "packet": []
+      },
+      "status": "MemberSizeExceeded",
+      "read_max": 67108864,
+      "observation_max": 10000,
+      "member_max": 64
+    }
+  ]
+}

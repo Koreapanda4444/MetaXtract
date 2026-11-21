@@ -5,6 +5,10 @@ use std::{
 };
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum RelationshipBasis {
+    ExternalMetadata {
+        metadata_file: usize,
+        evidence: crate::associations::AssociationBasis,
+    },
     ContentDigest {
         algorithm: DigestAlgorithm,
         digest: String,
@@ -129,7 +133,9 @@ pub fn build(
             }
         }
     }
-    Ok(RelationshipGraph { files, edges })
+    let mut graph = RelationshipGraph { files, edges };
+    crate::associations::append_xmp(&sorted, &mut graph, limits, &mut bytes)?;
+    Ok(graph)
 }
 #[cfg(test)]
 mod tests {

@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod associations;
 pub mod diff;
 pub mod duplicates;
 pub mod evolution;

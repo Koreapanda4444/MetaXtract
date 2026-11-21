@@ -296,6 +296,7 @@ pub fn run(args: &Args) -> io::Result<Value> {
             let records = app::collect(&case, &q)?;
             let limits = a::AnalysisLimits::default();
             match args.flag("view").as_deref().unwrap_or("dashboard") {
+                "relationships" => value(a::relationships::build(&records, limits)?),
                 "timeline" => value(a::provenance::timeline(&records, limits)?),
                 "locations" => {
                     let result = a::geo::location_analysis(&records, limits)?;

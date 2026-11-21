@@ -67,6 +67,13 @@ fn invalid(s: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
 }
 pub fn analyze_record(record: &mut ExtractionRecord) -> io::Result<()> {
+    if record
+        .observations
+        .iter()
+        .any(|o| o.provenance.parser.id == "xmp.sidecar" && o.tag.name.as_deref() == Some("packet"))
+    {
+        record.source.detected_media_type = Some("application/rdf+xml".into());
+    }
     let limits = analysis::AnalysisLimits::default();
     if record
         .observations

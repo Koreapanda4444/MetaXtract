@@ -1,5 +1,11 @@
 # Rust 앱
 
+미디어와 `.xmp` 사이드카를 함께 스캔한 뒤 `analyze CASE SCAN --view relationships`나
+데스크톱 관계 그래프를 사용하세요. XMP 필드는 자체 원본 파일·원시 패킷을 보존합니다.
+같은 폴더의 파일명 연결은 후보이며 원본이 여러 개면 모호성을 표시합니다. 공통 XMP
+DocumentID·OriginalDocumentID 연결은 양쪽 관찰값 식별자를 보존하는 선언된 메타데이터
+관계이며 촬영자 인증이 아닙니다. 원본의 필드를 덮어쓰지 않습니다.
+
 [English](application.md) | [한국어](application_KR.md)
 
 명령행 앱과 전용 파서를 함께 빌드합니다.

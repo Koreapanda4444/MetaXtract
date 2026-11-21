@@ -64,6 +64,9 @@ pub struct RecursiveExtraction {
 pub(crate) fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
     let mut result = Vec::new();
     let lower = String::from_utf8_lossy(name).to_ascii_lowercase();
+    if lower.ends_with(".xmp") {
+        result.push("xmp.sidecar");
+    }
     let archive = bytes.starts_with(b"PK")
         || bytes.starts_with(b"7z\xbc\xaf\x27\x1c")
         || bytes.starts_with(b"\x1f\x8b")

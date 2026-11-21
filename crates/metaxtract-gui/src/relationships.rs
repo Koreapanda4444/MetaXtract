@@ -21,6 +21,9 @@ pub struct RelationshipsUi {
 impl Desktop {
     pub(crate) fn relationships_view(&mut self, ui: &mut egui::Ui) {
         ui.heading(crate::i18n::tr("Cross-file relationships"));
+        ui.label(crate::i18n::tr(
+            "XMP links are candidates; original and sidecar evidence remain separate.",
+        ));
         ui.label(crate::i18n::tr("Blue: recorded digest and size agree. Gold: a shared metadata value; a relationship is unconfirmed. Groups use a spanning star. Shared values do not establish authorship or chronology."));
         if ui
             .add_enabled(
@@ -220,6 +223,27 @@ impl Desktop {
                 };
                 ui.collapsing(graph.files[other].to_string(), |ui| {
                     match &edge.basis {
+                        RelationshipBasis::ExternalMetadata {
+                            metadata_file,
+                            evidence,
+                        } => {
+                            ui.label(format!("XMP: {}", graph.files[*metadata_file]));
+                            match evidence {
+                                app::analysis::associations::AssociationBasis::XmpFilenameCandidate { ambiguous } => {
+                                    ui.label(crate::i18n::tr(if *ambiguous {
+                                        "Same-name XMP; multiple candidate originals"
+                                    } else { "Same-name XMP sidecar candidate" }));
+                                }
+                                app::analysis::associations::AssociationBasis::XmpDeclaredDocumentIdentifier {
+                                    identifier, source_observation, sidecar_observation,
+                                } => {
+                                    ui.label(crate::i18n::tr("Shared XMP document identifier"));
+                                    ui.monospace(identifier);
+                                    ui.label(crate::textf!("Source observation {} · sidecar observation {}", "원본 관찰값 {} · 사이드카 관찰값 {}", source_observation.get(), sidecar_observation.get()));
+                                }
+                            }
+                            ui.weak(crate::i18n::tr("Unconfirmed relationship"));
+                        }
                         RelationshipBasis::ContentDigest { algorithm, digest } => {
                             ui.label(format!("Recorded {algorithm:?}: {digest}"));
                         }

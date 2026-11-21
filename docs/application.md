@@ -25,6 +25,12 @@ The journal must differ from the case and output files are excluded from discove
 
 ## Analysis and delivery
 
+Scan media and `.xmp` sidecars together, then use `analyze CASE SCAN --view relationships`
+or the desktop relationship graph. XMP fields retain their own source file and raw packet.
+Same-folder filename matches are candidates; multiple originals stay explicitly ambiguous.
+Shared XMP DocumentID/OriginalDocumentID values retain both observation identifiers and are
+declared metadata relationships, not proof of authorship. Original fields are never overwritten.
+
 Use the scan ID returned by `scan` or `case history`:
 
 ```bash

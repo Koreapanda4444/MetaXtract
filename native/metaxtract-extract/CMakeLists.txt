@@ -38,6 +38,7 @@ add_library(metaxtract_extract STATIC
   src/images.cpp
   src/image_metadata.cpp
   src/extended_xmp.cpp
+  src/xmp_sidecar.cpp
   src/xml.cpp
   src/zip.cpp
   src/documents.cpp
