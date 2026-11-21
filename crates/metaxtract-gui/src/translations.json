@@ -555,5 +555,16 @@
   "This review covers the first 200 files. Narrow the filter for other files.": "처음 200개 파일을 검토합니다. 다른 파일은 필터 범위를 줄이세요.",
   "No embedded Content Credentials in this selection.": "선택 범위에 내장 콘텐츠 자격 증명이 없습니다.",
   "Original JUMBF inventory": "원본 JUMBF 목록",
-  "View truncated; complete raw packets remain in the case.": "화면 표시를 생략했습니다. 전체 원시 패킷은 케이스에 보존되어 있습니다."
+  "View truncated; complete raw packets remain in the case.": "화면 표시를 생략했습니다. 전체 원시 패킷은 케이스에 보존되어 있습니다.",
+  "Cryptographic checks do not establish signer trust or content truth. Full C2PA validity has not been established; declarations must not be attributed to a signer.": "암호학적 검증이 서명자 신뢰나 내용의 진실을 입증하지는 않습니다. 전체 C2PA 유효성은 미확인이므로 선언된 정보를 서명자의 사실로 귀속하지 마세요.",
+  "Claim signature matches the original claim bytes": "원본 주장 바이트에 대한 서명 일치",
+  "Referenced assertion hashes agree": "참조된 주장 해시 일치",
+  "File data hash agrees with the supported ranges": "지원하는 범위의 파일 데이터 해시 일치",
+  "Integrity check failed": "무결성 검사 실패",
+  "Verification reached a resource limit": "검증 자원 제한 도달",
+  "Ingredient or earlier manifest; current file binding is not evaluated": "재료 또는 이전 매니페스트로 현재 파일 바인딩은 평가하지 않음",
+  "The original asset is required for file binding": "파일 바인딩에 원본 미디어가 필요함",
+  "Unsupported verification scope": "지원하지 않는 검증 범위",
+  "Signer trust is unknown": "서명자 신뢰 미확인",
+  "Verification scope and limitations": "검증 범위와 한계"
 }

@@ -502,6 +502,7 @@ fn extract_input(
             } else {
                 extract_parser(&input, id, available)?
             };
+            metaxtract_native::verify_c2pa(&input, &mut result, available);
             metaxtract_native::verify_pdf_signatures_with_policy(
                 &input,
                 &mut result,

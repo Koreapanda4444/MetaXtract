@@ -33,6 +33,21 @@ fn brief(value: &C2paValue) -> String {
         C2paValue::Tag { number, .. } => format!("tag {number}"),
     }
 }
+fn verdict(value: &str) -> &'static str {
+    crate::i18n::tr(match value {
+        "valid_for_claim_bytes" => "Claim signature matches the original claim bytes",
+        "valid_referenced_assertion_hashes" => "Referenced assertion hashes agree",
+        "valid_for_supported_asset_ranges" => "File data hash agrees with the supported ranges",
+        "invalid" => "Integrity check failed",
+        "resource_limit" => "Verification reached a resource limit",
+        "not_current_asset_manifest" => {
+            "Ingredient or earlier manifest; current file binding is not evaluated"
+        }
+        "external_asset_required" => "The original asset is required for file binding",
+        status if status.starts_with("unsupported") => "Unsupported verification scope",
+        _ => "Unverified",
+    })
+}
 fn draw(ui: &mut egui::Ui, value: &C2paValue, remaining: &mut usize) {
     if *remaining == 0 {
         return;
@@ -71,7 +86,7 @@ fn draw(ui: &mut egui::Ui, value: &C2paValue, remaining: &mut usize) {
 impl Desktop {
     pub(crate) fn c2pa_view(&mut self, ui: &mut egui::Ui) {
         ui.heading(crate::i18n::tr("Content Credentials (C2PA)"));
-        ui.label(crate::i18n::tr("Manifest and assertion fields are declarations. Extracting them does not verify signatures, signer trust or content truth."));
+        ui.label(crate::i18n::tr("Cryptographic checks do not establish signer trust or content truth. Full C2PA validity has not been established; declarations must not be attributed to a signer."));
         if ui
             .add_enabled(
                 !self.busy,
@@ -165,6 +180,47 @@ impl Desktop {
             for report in &state.reports {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.strong(report.source.to_string());
+                    for verification in &report.verifications {
+                        egui::Frame::group(ui.style()).show(ui, |ui| {
+                            ui.label(&verification.manifest_label);
+                            ui.label(crate::textf!(
+                                "Claim signature: {}",
+                                "주장 서명: {}",
+                                verdict(&verification.signature_integrity)
+                            ));
+                            ui.label(crate::textf!(
+                                "Assertion hashes: {}",
+                                "주장 해시: {}",
+                                verdict(&verification.assertion_integrity)
+                            ));
+                            ui.label(crate::textf!(
+                                "File binding: {}",
+                                "파일 바인딩: {}",
+                                verdict(&verification.content_binding)
+                            ));
+                            ui.label(crate::i18n::tr("Signer trust is unknown"));
+                            if let Some(fingerprint) = &verification.certificate_sha256 {
+                                ui.monospace(format!("SHA-256: {fingerprint}"));
+                            }
+                            ui.collapsing(
+                                crate::i18n::tr("Verification scope and limitations"),
+                                |ui| {
+                                    ui.label(&verification.scope);
+                                    ui.label(format!(
+                                        "{} · {} · {}",
+                                        verification.signature_integrity,
+                                        verification.assertion_integrity,
+                                        verification.content_binding
+                                    ));
+                                    ui.weak(crate::textf!(
+                                        "{} supporting observations",
+                                        "근거 관찰값 {}개",
+                                        verification.supporting_observations.len()
+                                    ));
+                                },
+                            );
+                        });
+                    }
                     for issue in &report.issues {
                         ui.colored_label(egui::Color32::YELLOW, issue);
                     }

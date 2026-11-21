@@ -70,8 +70,26 @@ retrieval are outside this extraction adapter.
 Semantic CBOR display is bounded to 512 KiB per packet, depth 32 and 20,000 values per request.
 Map order and duplicate/non-text keys are retained; numeric encodings can normalize in the
 display while exact bytes remain in the linked raw packet. JSON assertions retain their text.
-Extraction reports signatures, certificate trust and content binding as unverified/unknown;
-declared actions, ingredients and creator names are not authenticated facts.
+Extraction alone does not authenticate declared actions, ingredients or creator names.
+The isolated worker adds separate scoped results for the COSE claim signature, referenced
+assertion hashes and file binding. ES256/384/512, PS256/384/512 and Ed25519 are supported with
+matching key types, curves and RSA-PSS parameters. Duplicate CBOR/header keys, unknown critical
+headers, mismatched claim payloads and ambiguous JUMBF references fail closed. Both legacy and
+v2 standard claims are supported; each assertion reference must resolve within its manifest.
+
+Simple `c2pa.hash.data` bindings support SHA-256/384/512 and require the exclusions to match
+exactly the embedded JPEG APP11 segments or PNG `caBX` chunk. A signed exclusion that also
+omits pixels is reported as an unsupported policy. Asset changes, altered assertions and altered
+claims produce distinct failures. Standalone stores require their original asset for binding;
+earlier/ingredient manifests are not bound to the current file. Compressed/update manifests,
+BMFF/box/Merkle/soft bindings, external references and redacted assertions remain explicitly
+unsupported. Verification is bounded to 32 manifests, 2 MiB CBOR packets, depth 32 and 50,000
+CBOR values within the stricter scan budgets.
+
+`valid_for_claim_bytes`, `valid_referenced_assertion_hashes` and
+`valid_for_supported_asset_ranges` describe these individual checks. Certificate trust,
+timestamps, revocation, ingredient provenance, complete C2PA profile validity and content truth
+remain unverified. The review warns against attributing the displayed declarations to a signer.
 
 ## Analysis and delivery
 

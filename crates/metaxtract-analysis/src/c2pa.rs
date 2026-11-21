@@ -40,6 +40,21 @@ pub struct C2paEvidence {
     pub signature_integrity: String,
     pub content_binding: String,
     pub certificate_trust: String,
+    pub assertion_integrity: String,
+    pub verifications: Vec<C2paVerification>,
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct C2paVerification {
+    pub manifest_label: String,
+    pub active: bool,
+    pub signature_integrity: String,
+    pub assertion_integrity: String,
+    pub content_binding: String,
+    pub certificate_trust: String,
+    pub algorithm: Option<String>,
+    pub certificate_sha256: Option<String>,
+    pub scope: String,
+    pub supporting_observations: Vec<ObservationId>,
 }
 fn value(o: &MetadataObservation) -> &RawValue {
     o.interpreted_value.as_ref().unwrap_or(&o.raw_value)
@@ -229,13 +244,64 @@ pub fn extract(
         if out.len() >= limits.max_results {
             return Err(invalid("C2PA result budget exceeded"));
         }
+        let mut verification_groups: BTreeMap<&str, Vec<&MetadataObservation>> = BTreeMap::new();
+        for o in &record.observations {
+            if o.provenance.parser.id == "c2pa.manifest"
+                && o.tag.namespace.starts_with("c2pa.verification.")
+            {
+                verification_groups
+                    .entry(&o.tag.namespace)
+                    .or_default()
+                    .push(o);
+            }
+        }
+        let mut verifications = Vec::new();
+        for observations in verification_groups.values() {
+            let read = |key: &str| {
+                let mut values = observations
+                    .iter()
+                    .filter(|o| o.tag.name.as_deref() == Some(key))
+                    .filter_map(|o| text(value(o)));
+                let first = values.next()?;
+                values.all(|v| v == first).then_some(first)
+            };
+            verifications.push(C2paVerification {
+                manifest_label: read("manifest_label").unwrap_or("unknown").into(),
+                active: read("active") == Some("true"),
+                signature_integrity: read("signature_integrity").unwrap_or("unverified").into(),
+                assertion_integrity: read("assertion_integrity").unwrap_or("unverified").into(),
+                content_binding: read("content_binding").unwrap_or("unverified").into(),
+                certificate_trust: read("certificate_trust")
+                    .filter(|v| v.starts_with("unknown"))
+                    .unwrap_or("unknown")
+                    .into(),
+                algorithm: read("signature_algorithm").map(str::to_owned),
+                certificate_sha256: read("signer_certificate_sha256").map(str::to_owned),
+                scope: read("validation_scope")
+                    .unwrap_or("verification scope unavailable")
+                    .into(),
+                supporting_observations: observations.iter().map(|o| o.id).collect(),
+            });
+        }
+        let mut active = verifications.iter().filter(|v| v.active);
+        let selected = active.next().filter(|_| active.next().is_none());
         out.push(C2paEvidence {
             source: record.source.path.clone(),
             boxes,
             issues,
-            signature_integrity: "unverified".into(),
-            content_binding: "unverified".into(),
-            certificate_trust: "unknown".into(),
+            signature_integrity: selected
+                .map_or("unverified", |v| v.signature_integrity.as_str())
+                .into(),
+            content_binding: selected
+                .map_or("unverified", |v| v.content_binding.as_str())
+                .into(),
+            certificate_trust: selected
+                .map_or("unknown", |v| v.certificate_trust.as_str())
+                .into(),
+            assertion_integrity: selected
+                .map_or("unverified", |v| v.assertion_integrity.as_str())
+                .into(),
+            verifications,
         });
     }
     out.sort_by_key(|r| r.source.to_string());

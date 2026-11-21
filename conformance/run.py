@@ -533,11 +533,28 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
                     raise ValueError("C2PA claim, signature or assertion inventory was lost")
                 if not any(box["decoded"] is not None and box["payload_observation"] is not None for box in credential["boxes"]):
                     raise ValueError("C2PA semantic fields lost their raw packet evidence")
-                if credential["signature_integrity"] != "unverified" or credential["content_binding"] != "unverified":
-                    raise ValueError("C2PA extraction incorrectly implied authentication")
+                if credential["signature_integrity"] != "valid_for_claim_bytes" or credential["assertion_integrity"] != "valid_referenced_assertion_hashes" or credential["content_binding"] != "valid_for_supported_asset_ranges":
+                    raise ValueError("C2PA scoped verification differs for the independent SDK fixture")
+                if not credential["certificate_trust"].startswith("unknown"):
+                    raise ValueError("C2PA cryptographic verification incorrectly implied signer trust")
             if c2pa_hashes != {path.name: sha(path) for path in c2pa_sources.iterdir()}:
                 raise ValueError("C2PA extraction changed the originals")
             completed += 2
+            for c2pa_case in _read_json(ROOT / "conformance/corpus/native-c2pa.json")["cases"]:
+                if "verification" not in c2pa_case:
+                    continue
+                path = root / (c2pa_case["name"] + ".png")
+                path.write_bytes(base64.b64decode(c2pa_case["base64"]))
+                original_hash = sha(path)
+                case_path = root / (c2pa_case["name"] + ".mxcase")
+                scan = invoke("scan", path, "--case", case_path)["scan_id"]
+                checked = invoke("analyze", case_path, scan, "--view", "c2pa")[0]
+                for field in ("signature_integrity", "assertion_integrity", "content_binding"):
+                    if checked[field] != c2pa_case["verification"][field]:
+                        raise ValueError("C2PA PNG verification differs: " + c2pa_case["name"] + " " + field)
+                if not checked["certificate_trust"].startswith("unknown") or sha(path) != original_hash:
+                    raise ValueError("C2PA checks changed the source or incorrectly implied signer trust")
+                completed += 1
             for signed_case in _read_json(ROOT / "conformance/corpus/native-pdf-crypto.json")["cases"]:
                 signed_pdf = root / (signed_case["name"] + ".pdf")
                 signed_pdf.write_bytes(base64.b64decode(signed_case["base64"]))

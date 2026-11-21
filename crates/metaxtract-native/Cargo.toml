@@ -10,6 +10,7 @@ metaxtract-schema.workspace = true
 serde.workspace = true
 zeroize.workspace = true
 openssl.workspace = true
+ciborium.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

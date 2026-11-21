@@ -2118,6 +2118,7 @@ name = "metaxtract-native"
 version = "0.2.0"
 dependencies = [
  "base64",
+ "ciborium",
  "cmake",
  "cxx",
  "cxx-build",

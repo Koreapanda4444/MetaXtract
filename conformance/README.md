@@ -5,7 +5,12 @@ C2PA coverage includes unchanged C/CA JPEG fixtures from the official SDK at
 original Apache notice. The CA sample exercises a multi-segment APP11 store. Independent
 synthetic tests cover missing/duplicate/noncontiguous fragments, PNG CRCs, JUMBF bounds,
 unknown UUIDs and resource ceilings. Application checks retain raw packet links and explicitly
-unverified authentication states; extraction alone is not a C2PA compliance certification.
+scoped verification states; extraction alone is not a C2PA compliance certification.
+
+Independent OpenSSL RSA-PSS and Python hash calculations verify the two SDK inputs. Separate
+OpenSSL-signed v2 PNG fixtures cover a valid binding and a maliciously broad pixel exclusion.
+Native tests cover all supported COSE algorithms and distinguish changed asset, assertion and
+claim bytes. Certificate trust, timestamps and full-profile compliance are never inferred.
 
 Extended JPEG XMP cases now verify linked, out-of-order fragment assembly and its MD5 packet
 identifier, missing/overlapping fragments, invalid digests, orphan packets and the member-size

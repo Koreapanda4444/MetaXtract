@@ -135,7 +135,7 @@ public:
                 if(!context.budget().check_member_size(r.size)) {throw Failure{ParseStatus::Internal,"C2PA store size budget",0};}
                 auto packet=r.window(0,r.size,"c2pa.store0");if(Store(packet,0).inspect()) {++stores;}
             } else {return ParseStatus::Unsupported;}
-            r.derived("store_count",stores);r.decoded("validation_scope",ValueKind::Text,"JUMBF_structure_and_raw_claims_assertions_only; signatures_and_content_truth_not_evaluated","c2pa");
+            r.derived("store_count",stores);r.decoded("structural_extraction_scope",ValueKind::Text,"JUMBF_structure_and_raw_packets_only; cryptographic_checks_are_separate","c2pa");
             if(stores>1) {r.diagnostic("multiple_stores","Multiple C2PA stores are ambiguous",0);return ParseStatus::Malformed;}
             return ParseStatus::Complete;
         } catch(const Failure& failure) {if(context.budget().status()==BudgetStatus::Ok) {r.diagnostic("invalid_c2pa",failure.message,std::min(failure.offset,r.size));}return failure.status;}

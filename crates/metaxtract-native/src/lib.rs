@@ -1,8 +1,10 @@
 #![deny(unsafe_code)]
 
+mod c2pa_verification;
 mod detection;
 mod extraction;
 mod pdf_certificates;
+pub use c2pa_verification::verify_c2pa;
 mod pdf_signatures;
 pub use pdf_certificates::PdfTrustPolicy;
 pub use pdf_signatures::{verify_pdf_signatures, verify_pdf_signatures_with_policy};
