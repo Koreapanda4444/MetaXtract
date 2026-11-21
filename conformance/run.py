@@ -520,8 +520,8 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
                 if fixture["status"] != "OK":
                     continue
                 extension = fixture["name"].rsplit("-", 1)[-1]
-                original = root / ("private." + extension)
-                clean = root / ("clean." + extension)
+                original = root / (fixture["name"] + "-private." + extension)
+                clean = root / (fixture["name"] + "-clean." + extension)
                 original.write_bytes(base64.b64decode(fixture["base64"]))
                 original_hash = sha(original)
                 receipt = invoke("sanitize", original, clean)
