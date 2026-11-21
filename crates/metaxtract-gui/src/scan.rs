@@ -210,14 +210,26 @@ impl Desktop {
     }
     pub fn poll_scan(&mut self, ctx: &egui::Context) {
         let mut watch_error = None;
-        let changed_case = self.scan.watch.as_ref().is_some_and(|watch|
-            self.readonly || self.case.as_ref().is_none_or(|case| case.path() != watch.case_path));
-        if changed_case { self.scan.watch = None; }
+        let changed_case = self.scan.watch.as_ref().is_some_and(|watch| {
+            self.readonly
+                || self
+                    .case
+                    .as_ref()
+                    .is_none_or(|case| case.path() != watch.case_path)
+        });
+        if changed_case {
+            self.scan.watch = None;
+        }
         if let Some(watch) = &mut self.scan.watch {
-            if let Err(error) = watch.poll() { watch_error = Some(error); }
+            if let Err(error) = watch.poll() {
+                watch_error = Some(error);
+            }
             ctx.request_repaint_after(Duration::from_millis(200));
         }
-        if let Some(error) = watch_error { self.scan.watch = None;self.report_error(error); }
+        if let Some(error) = watch_error {
+            self.scan.watch = None;
+            self.report_error(error);
+        }
         let mut finished = None;
         if let Some(active) = &self.scan.active {
             while let Ok(event) = active.events.try_recv() {
@@ -252,7 +264,9 @@ impl Desktop {
             match result {
                 Ok(out) => {
                     if let Some(watch) = &mut self.scan.watch {
-                        if completed_source.as_ref() == Some(&watch.root) && out.summary.stopped.is_none() {
+                        if completed_source.as_ref() == Some(&watch.root)
+                            && out.summary.stopped.is_none()
+                        {
                             watch.baseline = Some(out.scan_id.clone());
                         }
                     }
@@ -320,12 +334,21 @@ impl Desktop {
                 );
             }
         }
-        if !self.scan.running() && !self.busy && !self.scan.held && !self.scan.close_when_idle
-            && self.scan.queue.is_empty() {
-            let pending = self.scan.watch.as_mut().filter(|watch| watch.pending && !watch.paused).map(|watch| {
-                watch.pending = false;
-                (watch.root.clone(), watch.baseline.clone())
-            });
+        if !self.scan.running()
+            && !self.busy
+            && !self.scan.held
+            && !self.scan.close_when_idle
+            && self.scan.queue.is_empty()
+        {
+            let pending = self
+                .scan
+                .watch
+                .as_mut()
+                .filter(|watch| watch.pending && !watch.paused)
+                .map(|watch| {
+                    watch.pending = false;
+                    (watch.root.clone(), watch.baseline.clone())
+                });
             if let Some((root, baseline)) = pending {
                 self.scan.next_baseline = baseline;
                 self.start_scan(ctx, root, None);
@@ -401,25 +424,63 @@ impl Desktop {
             );
         });
         ui.horizontal(|ui| {
-            if ui.add_enabled(self.case.is_some() && !self.readonly && self.scan.watch.is_none(),
-                egui::Button::new("Monitor selected directory")).clicked() {
-                let source = self.scan.source_path.clone().unwrap_or_else(|| PathBuf::from(&self.scan.source));
+            if ui
+                .add_enabled(
+                    self.case.is_some() && !self.readonly && self.scan.watch.is_none(),
+                    egui::Button::new("Monitor selected directory"),
+                )
+                .clicked()
+            {
+                let source = self
+                    .scan
+                    .source_path
+                    .clone()
+                    .unwrap_or_else(|| PathBuf::from(&self.scan.source));
                 if let Some(case) = &self.case {
-                    match crate::watch::WatchUi::start(source, case.path().into(), self.scan.include_hidden, ui.ctx().clone()) {
+                    match crate::watch::WatchUi::start(
+                        source,
+                        case.path().into(),
+                        self.scan.include_hidden,
+                        ui.ctx().clone(),
+                    ) {
                         Ok(watch) => self.scan.watch = Some(watch),
                         Err(error) => self.report_error(error),
                     }
                 }
             }
             if let Some(watch) = &mut self.scan.watch {
-                if ui.button(if watch.paused { "Resume monitoring" } else { "Pause monitoring" }).clicked() { watch.toggle_pause(); }
+                if ui
+                    .button(if watch.paused {
+                        "Resume monitoring"
+                    } else {
+                        "Pause monitoring"
+                    })
+                    .clicked()
+                {
+                    watch.toggle_pause();
+                }
             }
-            if ui.add_enabled(self.scan.watch.is_some(), egui::Button::new("Stop monitoring")).clicked() { self.scan.watch = None; }
+            if ui
+                .add_enabled(
+                    self.scan.watch.is_some(),
+                    egui::Button::new("Stop monitoring"),
+                )
+                .clicked()
+            {
+                self.scan.watch = None;
+            }
         });
         if let Some(watch) = &self.scan.watch {
-            ui.label(format!("Monitoring {} · {} · {} recent paths · rescan pending: {}",
-                watch.root.display(), if watch.paused { "paused" } else { "active" }, watch.latest_changes, watch.pending));
-            if !watch.coverage_complete { ui.label("Monitoring coverage is limited by access, source size or polling budgets. Use a full scan for complete analysis."); }
+            ui.label(format!(
+                "Monitoring {} · {} · {} recent paths · rescan pending: {}",
+                watch.root.display(),
+                if watch.paused { "paused" } else { "active" },
+                watch.latest_changes,
+                watch.pending
+            ));
+            if !watch.coverage_complete {
+                ui.label("Monitoring coverage is limited by access, source size or polling budgets. Use a full scan for complete analysis.");
+            }
         }
         ui.horizontal(|ui| {
             if ui

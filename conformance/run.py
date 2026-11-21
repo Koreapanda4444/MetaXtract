@@ -558,6 +558,56 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             if watched["polls"] != 1 or watched["scans"] != 1 or not watched["coverage_complete"]:
                 raise ValueError("bounded opt-in directory monitoring changed an idle source")
             completed += 1
+            # Independently serialized document fixtures exercise protected-content preservation.
+            document = root / "private.docx"
+            body = b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>VISIBLE BODY</w:t></w:r></w:p></w:body></w:document>'
+            content_types = b'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
+            properties = b'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator>PRIVATE_AUTHOR</dc:creator><dc:title>RETAINED_TITLE</dc:title></cp:coreProperties>'
+            with zipfile.ZipFile(document, "w", zipfile.ZIP_DEFLATED) as package:
+                package.writestr("[Content_Types].xml", content_types)
+                package.writestr("word/document.xml", body)
+                package.writestr("docProps/core.xml", properties)
+            doc_hash = sha(document)
+            for selection, retained_title in (("author", True), ("author,title,description,dates,custom,application", False)):
+                clean_doc = root / ("clean-" + selection.split(",")[-1] + ".docx")
+                receipt = invoke("sanitize", document, clean_doc, "--remove", selection)
+                with zipfile.ZipFile(clean_doc) as package:
+                    if package.read("word/document.xml") != body or package.read("[Content_Types].xml") != content_types:
+                        raise ValueError("sanitized package changed protected non-property content")
+                    clean_properties = package.read("docProps/core.xml")
+                    if b"PRIVATE_AUTHOR" in clean_properties or (b"RETAINED_TITLE" in clean_properties) != retained_title:
+                        raise ValueError("selective document property removal differs")
+                if sha(document) != doc_hash or not receipt["original_unchanged"]:
+                    raise ValueError("sanitized package changed its original")
+                completed += 1
+            pdf_source = root / "private.pdf"
+            stream = b"q 0 0 10 10 re f Q"
+            objects = [b"<< /Type /Catalog /Pages 2 0 R >>",
+                       b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                       b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R >>",
+                       b"<< /Length " + str(len(stream)).encode() + b" >>\\nstream\\n" + stream + b"\\nendstream",
+                       b"<< /Author (PRIVATE_AUTHOR) /Title (RETAINED_TITLE) >>"]
+            data = bytearray(b"%PDF-1.7\\n")
+            offsets = []
+            for number, obj in enumerate(objects, 1):
+                offsets.append(len(data))
+                data.extend(str(number).encode() + b" 0 obj\\n" + obj + b"\\nendobj\\n")
+            xref = len(data)
+            data.extend(b"xref\\n0 6\\n0000000000 65535 f \\n")
+            for offset in offsets:
+                data.extend(f"{offset:010d} 00000 n \\n".encode())
+            data.extend(b"trailer\\n<< /Size 6 /Root 1 0 R /Info 5 0 R >>\\nstartxref\\n" + str(xref).encode() + b"\\n%%EOF\\n")
+            pdf_source.write_bytes(data)
+            pdf_hash = sha(pdf_source)
+            for selection, retained_title in (("author", True), ("author,title,description,dates,custom,application", False)):
+                clean_pdf = root / ("clean-" + selection.split(",")[-1] + ".pdf")
+                invoke("sanitize", pdf_source, clean_pdf, "--remove", selection)
+                clean_data = clean_pdf.read_bytes()
+                if b"PRIVATE_AUTHOR" in clean_data or (b"RETAINED_TITLE" in clean_data) != retained_title or stream not in clean_data:
+                    raise ValueError("PDF property removal or protected stream preservation differs")
+                if sha(pdf_source) != pdf_hash:
+                    raise ValueError("sanitized PDF changed its original")
+                completed += 1
             c2pa_sources = root / "content-credentials"
             c2pa_sources.mkdir()
             c2pa_cases = _read_json(ROOT / "conformance/corpus/native-c2pa.json")["cases"][:2]

@@ -1,6 +1,9 @@
 //! Shared monitor configuration excludes the case, checkpoint and metadata cache.
 use crate::core::scan::*;
-use std::{io, path::{Path, PathBuf}};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 pub fn start(
     source: PathBuf,

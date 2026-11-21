@@ -390,6 +390,43 @@ pub fn run(
         );
     }
     let mut progress = ScanSummary::default();
+    let mut options = request.options.clone();
+    options.workers = request.workers;
+    for path in [case.path(), request.journal_path.as_path()] {
+        for suffix in ["", "-journal", "-wal", "-shm"] {
+            let mut p = path.as_os_str().to_owned();
+            p.push(suffix);
+            if let Some(relative) = root.relative_to_root(Path::new(&p)) {
+                options.walk.excluded.push(relative);
+            }
+        }
+    }
+    options.hash.sha256 = true;
+    let mut inventory = ScanInventory::new(&root, &options, engine_fingerprint())?;
+    let baseline: Option<ScanInventory> = request
+        .baseline
+        .as_ref()
+        .map(|id| {
+            let info = case
+                .scan_info(id)?
+                .ok_or_else(|| invalid("unknown incremental baseline"))?;
+            if info.status != ScanStatus::Completed {
+                return Err(invalid("incremental baseline must be completed"));
+            }
+            let receipt = case
+                .scan_receipt(id, "application.inventory")?
+                .ok_or_else(|| invalid("baseline has no inventory; create a new scan first"))?;
+            serde_json::from_value(receipt).map_err(io::Error::other)
+        })
+        .transpose()?;
+    if baseline
+        .as_ref()
+        .is_some_and(|old| !old.same_root(&inventory))
+    {
+        return Err(invalid(
+            "incremental baseline belongs to another root or root identity",
+        ));
+    }
     let (scan, resuming) = if let Some((run, id)) = &request.resume {
         let receipt = case
             .scan_receipt(id, "application.session")?
@@ -438,43 +475,6 @@ pub fn run(
             false,
         )
     };
-    let mut options = request.options.clone();
-    options.workers = request.workers;
-    for path in [case.path(), request.journal_path.as_path()] {
-        for suffix in ["", "-journal", "-wal", "-shm"] {
-            let mut p = path.as_os_str().to_owned();
-            p.push(suffix);
-            if let Some(relative) = root.relative_to_root(Path::new(&p)) {
-                options.walk.excluded.push(relative);
-            }
-        }
-    }
-    options.hash.sha256 = true;
-    let mut inventory = ScanInventory::new(&root, &options, engine_fingerprint())?;
-    let baseline: Option<ScanInventory> = request
-        .baseline
-        .as_ref()
-        .map(|id| {
-            let info = case
-                .scan_info(id)?
-                .ok_or_else(|| invalid("unknown incremental baseline"))?;
-            if info.status != ScanStatus::Completed {
-                return Err(invalid("incremental baseline must be completed"));
-            }
-            let receipt = case
-                .scan_receipt(id, "application.inventory")?
-                .ok_or_else(|| invalid("baseline has no inventory; create a new scan first"))?;
-            serde_json::from_value(receipt).map_err(io::Error::other)
-        })
-        .transpose()?;
-    if baseline
-        .as_ref()
-        .is_some_and(|old| !old.same_root(&inventory))
-    {
-        return Err(invalid(
-            "incremental baseline belongs to another root or root identity",
-        ));
-    }
     if resuming {
         inventory.complete = false;
     }
