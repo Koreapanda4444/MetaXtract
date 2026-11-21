@@ -441,3 +441,14 @@ DTD property XML, unsupported layouts and exhausted budgets fail without publica
 Document signatures require explicit invalidation consent. Signature fields may
 remain and are invalid for the transformed copy. Body text, comments, revisions,
 macros, attachments, nested metadata and visible content remain outside this scope.
+
+Verified publication (73)
+-------------------------
+Sanitized output is first written to a private temporary file next to its destination.
+The bundled normal parsers independently re-extract original and candidate, compare
+detected format, verify the candidate's SHA-256 and require complete, stable root
+records. The receipt lists changed/removed and remaining observed fields (up to 256
+per list; truncation is explicit), without copying private values into the receipt.
+Rust then checks the original's identity/full hashes again and atomically publishes
+with no-clobber semantics. Failure or cancellation drops the candidate. A successful
+receipt proves these checks, not that every possible identifying fact was found.

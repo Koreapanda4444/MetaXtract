@@ -516,6 +516,24 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             root = Path(temporary)
             sources = root / "evidence"
             sources.mkdir()
+            for fixture in _read_json(ROOT / "conformance/corpus/native-sanitize.json")["cases"]:
+                extension = fixture["name"].rsplit("-", 1)[-1]
+                original = root / ("private." + extension)
+                clean = root / ("clean." + extension)
+                original.write_bytes(base64.b64decode(fixture["base64"]))
+                original_hash = sha(original)
+                receipt = invoke("sanitize", original, clean)
+                expected_bytes = bytes.fromhex(fixture["fields"]["sanitized_payload"][0])
+                if clean.read_bytes() != expected_bytes or sha(original) != original_hash:
+                    raise ValueError("sanitized copy changed source or protected image data")
+                if not receipt["original_unchanged"] or not receipt["verification"]["after_observations"]:
+                    raise ValueError("sanitized copy lacks independent verification")
+                if not receipt["verification"]["removed_or_changed_fields"]:
+                    raise ValueError("removed private properties were not reported")
+                invoke("sanitize", original, clean, code=2)
+                if list(root.glob(".metaxtract-sanitize-*")):
+                    raise ValueError("sanitized copy left temporary output")
+                completed += 1
             c2pa_sources = root / "content-credentials"
             c2pa_sources.mkdir()
             c2pa_cases = _read_json(ROOT / "conformance/corpus/native-c2pa.json")["cases"][:2]
