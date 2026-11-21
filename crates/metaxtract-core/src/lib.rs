@@ -6,13 +6,15 @@ mod detection;
 mod evidence;
 mod images;
 pub mod scan;
+pub use metaxtract_native::PdfTrustPolicy;
 
 pub use backend_claims::{
     BackendClaimLimit, BackendClaimLimits, BackendClaims, independent_backend_claims,
 };
 pub use containers::{
     NestedIdentity, RecursiveExtraction, RecursiveLimits, RecursiveNode, extract_file_recursive,
-    extract_file_recursive_authenticated, extract_file_recursive_controlled, extract_recursive,
+    extract_file_recursive_authenticated, extract_file_recursive_controlled,
+    extract_file_recursive_with_pdf_policy, extract_recursive,
 };
 
 pub use detection::{ContentAssessment, TypeConflict, TypeConflictKind, assess_content};

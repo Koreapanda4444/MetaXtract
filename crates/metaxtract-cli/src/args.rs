@@ -29,6 +29,8 @@ impl Args {
                     "max-tree-bytes",
                     "max-expansion-ratio",
                     "pdf-password-stdin",
+                    "pdf-trust-roots",
+                    "pdf-verification-time",
                 ],
             ),
             "inspect" => (
@@ -40,6 +42,8 @@ impl Args {
                     "max-tree-bytes",
                     "max-expansion-ratio",
                     "pdf-password-stdin",
+                    "pdf-trust-roots",
+                    "pdf-verification-time",
                 ],
             ),
             "verify" => (2, 2, &[]),

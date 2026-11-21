@@ -39,6 +39,7 @@ pub struct ScanUi {
     pub decode_previews: bool,
     pub include_hidden: bool,
     pub cache_enabled: bool,
+    pub pdf_trust_roots: Option<PathBuf>,
     pdf_password: app::Zeroizing<String>,
     pub max_files: u64,
     pub queue: VecDeque<PathBuf>,
@@ -66,6 +67,7 @@ impl Default for ScanUi {
             decode_previews: false,
             include_hidden: false,
             cache_enabled: true,
+            pdf_trust_roots: None,
             pdf_password: Default::default(),
             max_files: 1_000_000,
             queue: VecDeque::new(),
@@ -137,6 +139,15 @@ impl Desktop {
                 password.as_bytes().to_vec(),
             )) {
                 Ok(password) => request.pdf_password = Some(std::sync::Arc::new(password)),
+                Err(error) => {
+                    self.status = error.to_string();
+                    return;
+                }
+            }
+        }
+        if let Some(path) = &self.scan.pdf_trust_roots {
+            match app::read_bytes(path, 128 * 1024) {
+                Ok(bytes) => request.options.pdf_trust.anchors_pem = bytes,
                 Err(error) => {
                     self.status = error.to_string();
                     return;
@@ -317,6 +328,25 @@ impl Desktop {
         ui.horizontal(|ui| {
             ui.label(crate::i18n::tr("PDF password (next scan only)"));
             ui.add(egui::TextEdit::singleline(&mut *self.scan.pdf_password).password(true));
+        });
+        ui.horizontal(|ui| {
+            if ui
+                .button(crate::i18n::tr("Choose PDF trust roots (PEM)"))
+                .clicked()
+            {
+                self.picker = Some(crate::files::Picker::new(
+                    crate::files::Purpose::PdfTrustRoots,
+                ));
+            }
+            if let Some(path) = &self.scan.pdf_trust_roots {
+                ui.label(path.to_string_lossy());
+            }
+            if ui
+                .button(crate::i18n::tr("Clear PDF trust roots"))
+                .clicked()
+            {
+                self.scan.pdf_trust_roots = None;
+            }
         });
         ui.checkbox(
             &mut self.scan.decode_previews,

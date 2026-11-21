@@ -337,7 +337,10 @@ pub fn run(
     let journal = NativePath::from_path(&request.journal_path.canonicalize()?);
     let mut backend: Arc<dyn ExtractionBackend> =
         BundledWorker::adjacent_with_pdf_password(request.pdf_password.clone())?;
-    if request.cache_enabled && request.pdf_password.is_none() {
+    if request.cache_enabled
+        && request.pdf_password.is_none()
+        && request.options.pdf_trust.anchors_pem.is_empty()
+    {
         let cache_path = crate::workflows::cache_path(case.path());
         if cache_path.exists() {
             let cache = ScanRoot::open(&cache_path, SymlinkPolicy::Skip)?;

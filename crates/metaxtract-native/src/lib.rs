@@ -2,8 +2,10 @@
 
 mod detection;
 mod extraction;
+mod pdf_certificates;
 mod pdf_signatures;
-pub use pdf_signatures::verify_pdf_signatures;
+pub use pdf_certificates::PdfTrustPolicy;
+pub use pdf_signatures::{verify_pdf_signatures, verify_pdf_signatures_with_policy};
 #[allow(unsafe_code)]
 mod ffi;
 

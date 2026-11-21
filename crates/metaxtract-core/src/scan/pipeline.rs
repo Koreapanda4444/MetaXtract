@@ -6,7 +6,7 @@ use super::{
     walk::invalid,
 };
 use crate::{
-    RecursiveLimits, extract_file_recursive_authenticated,
+    RecursiveLimits, extract_file_recursive_with_pdf_policy,
     schema::{
         Diagnostic, DiagnosticSeverity, DiagnosticStage, EvidencePath, ExtractionRecord,
         ExtractionStatus, SourceDescriptor, SourceKind,
@@ -35,6 +35,8 @@ pub struct ScanOptions {
     pub max_result_bytes: u64,
     pub file_wall_time_ms: u64,
     pub scan_wall_time_ms: Option<u64>,
+    #[serde(default)]
+    pub pdf_trust: crate::PdfTrustPolicy,
 }
 fn default_window() -> usize {
     16
@@ -52,12 +54,14 @@ impl Default for ScanOptions {
             max_result_bytes: 256 * 1024 * 1024,
             file_wall_time_ms: 120_000,
             scan_wall_time_ms: None,
+            pdf_trust: Default::default(),
         }
     }
 }
 impl ScanOptions {
     pub(crate) fn validate(&self) -> io::Result<()> {
         self.hash.validate()?;
+        self.pdf_trust.validate()?;
         if !(1..=32).contains(&self.workers)
             || !(1..=256).contains(&self.queue_capacity)
             || !(1..=256).contains(&self.scheduling_window)
@@ -167,13 +171,14 @@ impl NativeExtractor {
         limits.max_wall_time_ms = limits
             .max_wall_time_ms
             .min(context.remaining_ms().min(u64::from(u32::MAX)) as u32);
-        let tree = extract_file_recursive_authenticated(
+        let tree = extract_file_recursive_with_pdf_policy(
             evidence.file.try_clone()?,
             hashes.prefix.clone(),
             evidence.relative.name_bytes()?,
             limits,
             || context.checkpoint(),
             password,
+            &options.pdf_trust,
         )
         .map_err(|e| io::Error::other(e.to_string()))?;
         let mut records = tree

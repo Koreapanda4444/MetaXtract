@@ -9,6 +9,7 @@ pub mod findings;
 pub mod geo;
 pub mod media_associations;
 pub mod normalize;
+pub mod pdf_signatures;
 pub mod provenance;
 pub mod redaction;
 pub mod relationships;

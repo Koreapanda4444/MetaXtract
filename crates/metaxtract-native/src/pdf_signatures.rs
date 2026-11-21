@@ -122,6 +122,15 @@ pub fn verify_pdf_signatures(
     result: &mut ExtractionResult,
     limits: ParserLimits,
 ) {
+    verify_pdf_signatures_with_policy(input, result, limits, &crate::PdfTrustPolicy::default());
+}
+
+pub fn verify_pdf_signatures_with_policy(
+    input: &BoundedInput,
+    result: &mut ExtractionResult,
+    limits: ParserLimits,
+    policy: &crate::PdfTrustPolicy,
+) {
     if result.parser_id != "pdf.security" {
         return;
     }
@@ -238,9 +247,22 @@ pub fn verify_pdf_signatures(
                 "unverifiable_byte_range"
             }
         };
+        let mut certificate_fields = Vec::new();
+        let mut certificate_trust = "unknown_not_evaluated";
+        if status == "valid_for_signed_revision" {
+            if let Some(RawValue::Bytes(padded)) =
+                fields.get("signature_contents").map(|o| &o.value)
+            {
+                if let Some(der) = detached_der(padded) {
+                    let evaluation = crate::pdf_certificates::assess_certificates(der, policy);
+                    certificate_trust = evaluation.status;
+                    certificate_fields = evaluation.fields;
+                }
+            }
+        }
         for (key, value) in [
             ("cms_integrity", status),
-            ("certificate_trust", "unknown_no_trust_anchors"),
+            ("certificate_trust", certificate_trust),
             ("cms_crypto_library", openssl::version::version()),
             (
                 "verification_scope",
@@ -251,6 +273,13 @@ pub fn verify_pdf_signatures(
                 break;
             }
             added.push(observed(&namespace, key, value, stream.clone()));
+            result.run.observations += 1;
+        }
+        for (key, value) in certificate_fields {
+            if result.run.observations >= limits.max_observations {
+                break;
+            }
+            added.push(observed(&namespace, &key, &value, stream.clone()));
             result.run.observations += 1;
         }
     }

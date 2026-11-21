@@ -11,6 +11,7 @@ pub enum Purpose {
     Csv,
     Jsonl,
     Preview,
+    PdfTrustRoots,
     GeoJson,
     Kml,
     Workflow(crate::workflows::Field),

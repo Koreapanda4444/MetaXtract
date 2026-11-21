@@ -21,7 +21,9 @@
         "unsigned_tail_bytes": [
           "0"
         ]
-      }
+      },
+      "trust_roots_pem": "-----BEGIN CERTIFICATE-----\nMIIDMzCCAhugAwIBAgIUF7hyLhdtgzeHtCP7BK4NiSqwYAgwDQYJKoZIhvcNAQEL\nBQAwKTEnMCUGA1UEAwweTWV0YVh0cmFjdCBzeW50aGV0aWMgc2lnbmF0dXJlMB4X\nDTI2MTEyMTAyNTQzM1oXDTI2MTIyMTAyNTQzM1owKTEnMCUGA1UEAwweTWV0YVh0\ncmFjdCBzeW50aGV0aWMgc2lnbmF0dXJlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\nMIIBCgKCAQEAp+I9Z/UYfa+EP+e5OrieMr5UleEFQlBw0+DIeOo/CKzebJEzpRN8\nGyhBVFlDgHYt62Xtl45uGSRf1AREMbm6M2ovc5Y2wMUZAGZbTLpYT9CAlCKZyUw/\nR7T/T1LbRmdgv0+BWmHc7e5oiFfmvMVBV8VrounRsw4q2mCYfy7eKF991hICTWmv\nkIhJDSTXhOpCbSTjimWfHa45r5hEUbiHrjavby5DerUlSA7ww830xKRV51hrtAxg\noCQljSNSP1JSvpfxqZTYWVwLj1Ywqh01ZRBpa4kYvP3+lUwb6IxC3Lb3xzKQbxrX\na+0IE6SUshBveckPhYo2+DMUDDKN9TCcTQIDAQABo1MwUTAdBgNVHQ4EFgQUxPXi\n1xEdp5rDxO2S1J0sr8+BAvEwHwYDVR0jBBgwFoAUxPXi1xEdp5rDxO2S1J0sr8+B\nAvEwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAKzh9e99n2Ei4\nxRHD+Oon59t5qgtiSajf9dNxGGe8fNyimw66eMpScS/oD9JBcEi0NtWNBULMl5q9\nef+iwzWSDsmHec9Ku5QdRSyTbrGXa6SMkeP0hhipDeXRFWg2OcACW18j6UDAjbzN\npU4zpAjr2FlSxsIad+EWuWWxvVt2ZhOqofo8EYpOFPMBggiB3rt+IX1mpspyZ3lk\n0qls5KiKgB0Gn7ThFX71i82DUdG2otMqTJ9Dw7SmobcribQYdTonXKASKkxw3ffd\nIGScdj3fxDuMzIZJEUWZBr0Ry6TEVJEr5M57U+WYJasAhjmR2GYlFpJugrOVlsW1\nsQuh+l8KGw==\n-----END CERTIFICATE-----\n",
+      "certificate_evaluation_unix_seconds": 1795233273
     },
     {
       "name": "detached-cms-tampered",

@@ -526,11 +526,33 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
                 expected_integrity = "invalid" if "tampered" in signed_case["name"] else "valid_for_signed_revision"
                 if fields.get("cms_integrity") != expected_integrity:
                     raise ValueError("CMS integrity verification differs: " + signed_case["name"])
-                if fields.get("certificate_trust") != "unknown_no_trust_anchors":
+                if fields.get("certificate_trust") != ("unknown_not_evaluated" if expected_integrity == "invalid" else "unknown_no_trust_anchors"):
                     raise ValueError("CMS integrity incorrectly implied certificate trust")
                 if sha(signed_pdf) != signed_hash:
                     raise ValueError("signature verification changed the original")
                 completed += 1
+                if "trust_roots_pem" in signed_case:
+                    anchors = root / "explicit-trust.pem"
+                    anchors.write_text(signed_case["trust_roots_pem"], encoding="ascii")
+                    at = signed_case["certificate_evaluation_unix_seconds"]
+                    trusted_case = root / "certificate-review.mxcase"
+                    scan = invoke("scan", signed_pdf, "--case", trusted_case,
+                                  "--pdf-trust-roots", anchors, "--pdf-verification-time", at)["scan_id"]
+                    review = invoke("analyze", trusted_case, scan, "--view", "signatures")
+                    if len(review) != 1 or review[0]["certificate_path"] != "ValidToConfiguredAnchor" or not review[0]["covers_current_file"]:
+                        raise ValueError("explicit certificate anchor was not evaluated through the isolated worker")
+                    if not review[0]["revocation"].startswith("unknown") or not review[0]["supporting_observations"]:
+                        raise ValueError("certificate assessment lost its scope or observation evidence")
+                    expired = invoke("inspect", signed_pdf, "--pdf-trust-roots", anchors,
+                                     "--pdf-verification-time", 2200000000)
+                    expired_fields = {o["tag"].get("name"): _raw_value(o.get("interpreted_value") or o["raw_value"])
+                                      for r in expired["records"] for o in r["observations"]}
+                    if expired_fields.get("cms_integrity") != "valid_for_signed_revision" or expired_fields.get("certificate_trust") != "untrusted_or_invalid_chain":
+                        raise ValueError("expired certificate was confused with invalid CMS integrity")
+                    unanchored = invoke("scan", signed_pdf, "--case", trusted_case)["scan_id"]
+                    if invoke("analyze", trusted_case, unanchored, "--view", "signatures")[0]["certificate_path"] != "Unknown":
+                        raise ValueError("a configured-anchor result leaked into an unanchored scan")
+                    completed += 3
             protected = root / "protected.pdf"
             protected_case = next(c for c in _read_json(ROOT / "conformance/corpus/native-pdf-security.json")["cases"]
                                   if c["name"] == "pdf-locked-rc4-retains-raw-encryption")

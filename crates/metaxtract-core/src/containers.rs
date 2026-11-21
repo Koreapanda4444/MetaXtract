@@ -231,7 +231,14 @@ pub fn extract_recursive(
     name: Vec<u8>,
     limits: RecursiveLimits,
 ) -> Result<RecursiveExtraction, NativeError> {
-    extract_input(WorkInput::Bytes(bytes), name, limits, &|| Ok(()), None)
+    extract_input(
+        WorkInput::Bytes(bytes),
+        name,
+        limits,
+        &|| Ok(()),
+        None,
+        &crate::PdfTrustPolicy::default(),
+    )
 }
 
 pub fn extract_file_recursive(
@@ -261,6 +268,26 @@ pub fn extract_file_recursive_authenticated(
     checkpoint: impl Fn() -> io::Result<()>,
     password: Option<&[u8]>,
 ) -> Result<RecursiveExtraction, NativeError> {
+    extract_file_recursive_with_pdf_policy(
+        file,
+        prefix,
+        name,
+        limits,
+        checkpoint,
+        password,
+        &crate::PdfTrustPolicy::default(),
+    )
+}
+
+pub fn extract_file_recursive_with_pdf_policy(
+    file: File,
+    prefix: Vec<u8>,
+    name: Vec<u8>,
+    limits: RecursiveLimits,
+    checkpoint: impl Fn() -> io::Result<()>,
+    password: Option<&[u8]>,
+    pdf_trust: &crate::PdfTrustPolicy,
+) -> Result<RecursiveExtraction, NativeError> {
     let size = file
         .metadata()
         .map_err(|_| capacity_error(NativeErrorCode::ReadFailure))?
@@ -274,6 +301,7 @@ pub fn extract_file_recursive_authenticated(
         limits,
         &checkpoint,
         password,
+        pdf_trust,
     )
 }
 
@@ -301,6 +329,7 @@ fn extract_input(
     limits: RecursiveLimits,
     checkpoint: &impl Fn() -> io::Result<()>,
     password: Option<&[u8]>,
+    pdf_trust: &crate::PdfTrustPolicy,
 ) -> Result<RecursiveExtraction, NativeError> {
     if limits.max_nodes == 0
         || limits.max_wall_time_ms == 0
@@ -466,7 +495,12 @@ fn extract_input(
             } else {
                 extract_parser(&input, id, available)?
             };
-            metaxtract_native::verify_pdf_signatures(&input, &mut result, available);
+            metaxtract_native::verify_pdf_signatures_with_policy(
+                &input,
+                &mut result,
+                available,
+                pdf_trust,
+            );
             if let Some(error) = &mut result.error {
                 if error.code == NativeErrorCode::DecodeBudgetExceeded
                     && root_expansion_limit < limits.parser.max_decoded_bytes

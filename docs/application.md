@@ -43,6 +43,21 @@ unsupported subfilters and resource limits have distinct outcomes. Checks are bo
 Certificate trust remains unknown without explicit trust anchors. Timestamps, revocation
 and the truth of the document contents are not established by a valid CMS signature.
 
+Add `--pdf-trust-roots roots.pem` to `scan` or `inspect` to evaluate the certificate path
+against that PEM bundle (up to 16 certificates / 128 KiB). Desktop scans provide **Choose
+PDF trust roots (PEM)** and **Clear PDF trust roots**. The evaluator uses no system roots,
+network issuer discovery, OCSP or CRLs. It checks a strict X.509 path, signatures, validity
+at the recorded evaluation time, chain constraints and signing key usage. A restricted EKU
+requires a separate document policy and remains unknown. `--pdf-verification-time UNIX_SECONDS`
+sets an explicit UTC evaluation time; otherwise the worker records the current time.
+Configured-anchor scans bypass the metadata cache so a later run reevaluates validity.
+
+Use `analyze CASE SCAN --view signatures` or **Analysis → PDF signatures** to review integrity,
+current-file coverage, certificate path, subjects, issuers, validity dates, fingerprints and
+chain errors with their supporting observations. Certificate path validity is separate from
+CMS integrity. Revocation and a trusted signing timestamp remain unknown; this evaluation
+does not establish a legal signature profile, signer identity or document truth.
+
 ## Analysis and delivery
 
 Scan media and `.xmp` sidecars together, then use `analyze CASE SCAN --view relationships`

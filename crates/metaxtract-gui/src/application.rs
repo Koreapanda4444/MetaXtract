@@ -329,6 +329,7 @@ impl Desktop {
             Purpose::GeoJson => self.export_geo(ctx, path, false),
             Purpose::Kml => self.export_geo(ctx, path, true),
             Purpose::Preview => self.load_preview(ctx, path),
+            Purpose::PdfTrustRoots => self.scan.pdf_trust_roots = Some(path),
             Purpose::Csv => self.export_selection(ctx, path, true),
             Purpose::Jsonl => self.export_selection(ctx, path, false),
             Purpose::Quick => self.quick_analysis(ctx, path),

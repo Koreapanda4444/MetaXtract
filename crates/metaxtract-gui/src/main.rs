@@ -19,6 +19,7 @@ mod ingestion;
 mod inspectors;
 mod metadata_search;
 mod notifications;
+mod pdf_signatures;
 mod presets;
 mod preview;
 mod provenance_graph;
