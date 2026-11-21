@@ -14,7 +14,7 @@ where identified, pinned upstream samples; passing a corpus is bounded evidence 
 | HEIF/HEIC/AVIF and camera RAW | `images.heif`, `images.raw` | [HEIF/RAW corpus](../conformance/corpus/native-heif-raw.json): items, extents, embedded metadata, LibRaw fields; no general HEIF/RAW image rendering |
 | MP3, FLAC, WAV, AIFF, Ogg/Opus and library-supported tags | `audio.metadata` | [Audio corpus](../conformance/corpus/native-audio.json): original and TagLib fields; codec-frame validity is separate |
 | MP4/MOV, Matroska/WebM, AVI and MPEG streams | `media.structure`, `media.details`, `media.inspect`, `media.decode` | [Media corpus](../conformance/corpus/native-media-library.json): container/track claims and bounded first-frame decoding; AV1 software decoding is unavailable |
-| PDF | `pdf.metadata`, `pdf.security`, `pdf.preview` | [PDF corpus](../conformance/corpus/native-pdf-security.json): objects, revisions, security structures; signatures are not authenticated and preview text has font limits |
+| PDF | `pdf.metadata`, `pdf.security`, `pdf.preview` | [PDF corpus](../conformance/corpus/native-pdf-security.json): objects, revisions, security structures; detached CMS integrity is verified separately from certificate trust; preview text has font limits |
 | OOXML/ODF and legacy Office/OLE | `document.package`, `document.ole`, `document.preview` | [Document corpus](../conformance/corpus/native-documents.json), [OLE corpus](../conformance/corpus/native-ole.json): properties, parts, streams, comments; no macro execution or full rendering |
 | EML/MIME | `email.mime` | [Mail corpus](../conformance/corpus/native-email.json): headers, routes, bodies and attachments; mail authentication is not verified |
 | ZIP, TAR, 7z and compressed streams | `container.archive` | [Archive corpus](../conformance/corpus/native-archives.json): bounded recursive regular members; links, unsafe names and encryption remain explicit |
@@ -249,7 +249,8 @@ reported as requiring library resolution; metadata parsing still uses qpdf's ful
 
 Unknown stream filters, malformed trees and budget exhaustion preserve earlier observations
 and report incomplete extraction. Empty-password encryption can be opened by qpdf; protected
-documents report password_required and remain partial. Password entry is not yet exposed.
+documents report password_required and remain partial unless a user-supplied session password
+is accepted. See [application password input](application.md).
 
 The adapter charges a 32 MiB working allowance, checks read/traversal/output limits and inserts
 parser-local budget checks before qpdf's internal buffer and string growth, including object-stream
@@ -271,14 +272,19 @@ maliciousness. Historical replaced/deleted objects are not reconstructed.
 Encryption inspection preserves raw Standard/security-handler and crypt-filter dictionaries even
 when the document requires a password. Empty-password RC4/AES documents additionally expose
 library-resolved methods and permission flags. No password or derived encryption key is returned.
-Password entry remains pending.
+Session password input uses the isolated worker's anonymous credential pipe.
 
 Signature inspection retains dictionaries, certificate/signature bytes, signing claims and
 ByteRange values. It checks integer counts, ordering, source bounds, final covered offset,
 unsigned tail size and whether a two-range exclusion matches the source offset and bytes of the
 Contents hex string. Compressed or indirect Contents report the offset check as unavailable.
-These are structural facts. cryptographic_verification is always not_performed: CMS digests,
-certificate trust, revocation and signer authenticity are not validated.
+These are structural facts, marked `structural_verification_scope`. The Rust native backend
+additionally verifies detached CMS signed attributes, content digests and signatures against
+the exact checked ByteRange bytes inside the isolated worker. `cms_integrity` distinguishes
+valid signed revisions, invalid signatures, unsupported subfilters, malformed CMS and limits.
+Later unsigned bytes remain explicitly outside the signature. Encrypted/compressed signature
+Contents without an exact original gap cannot be authenticated. Certificate trust is unknown;
+revocation, timestamps, signer identity and content truth require separate evaluation.
 
 Revision output follows actual cross-reference sections, not EOF string counts. Forward Prev
 links are retained for linearized PDFs rather than rejected as out of order. The incremental count

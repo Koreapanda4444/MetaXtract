@@ -466,6 +466,7 @@ fn extract_input(
             } else {
                 extract_parser(&input, id, available)?
             };
+            metaxtract_native::verify_pdf_signatures(&input, &mut result, available);
             if let Some(error) = &mut result.error {
                 if error.code == NativeErrorCode::DecodeBudgetExceeded
                     && root_expansion_limit < limits.parser.max_decoded_bytes

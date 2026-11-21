@@ -1,5 +1,11 @@
 # 의존성 정책
 
+PDF CMS 검증은 정확히 고정한 `openssl` 0.10.82와 체크섬으로 고정한 `openssl-sys`·
+`openssl-src`를 통해 OpenSSL 3.6.3을 정적으로 포함합니다. Apache-2.0·MIT 고지와
+내장 OpenSSL LICENSE를 검토했으며 기존 재귀 Rust 고지 수집기로 배포에 포함합니다.
+시스템 OpenSSL 라이브러리나 명령행 실행 파일을 사용하지 않습니다. 빌드에는 Perl과
+C 컴파일러가 필요하고 제품에서는 격리 작업 프로세스 안에서 CMS를 검증합니다.
+
 Rust 케이스 전송은 버전을 고정한 `zip`과 `ed25519-dalek`을 사용하며 하위
 패키지의 체크섬을 `Cargo.lock`으로 고정합니다. 하위 `fiat-crypto`의
 MIT/Apache-2.0/BSD-1-Clause 라이선스 파일을 검토했습니다. BSD-1-Clause는

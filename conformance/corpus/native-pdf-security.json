@@ -57,9 +57,6 @@
         "unsigned_tail_bytes": [
           "0"
         ],
-        "cryptographic_verification": [
-          "6e6f745f706572666f726d6564"
-        ],
         "signature_field": [
           "1"
         ],
@@ -68,6 +65,9 @@
         ],
         "covered_end_is_current_eof": [
           "1"
+        ],
+        "structural_verification_scope": [
+          "627974655f72616e6765735f616e645f636f6e74656e74735f6761705f6f6e6c79"
         ]
       }
     },
@@ -120,8 +120,8 @@
         "signature_count": [
           "1"
         ],
-        "cryptographic_verification": [
-          "6e6f745f706572666f726d6564"
+        "structural_verification_scope": [
+          "627974655f72616e6765735f616e645f636f6e74656e74735f6761705f6f6e6c79"
         ]
       }
     },

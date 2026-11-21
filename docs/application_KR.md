@@ -46,6 +46,16 @@ OLD_SCAN NEW_SCAN`은 저장된 스캔을 비교합니다. 케이스 명령으�
 잘못된 암호는 암호화 근거와 인증 실패 진단을 남깁니다. 복호화 지원이 PDF 권한 제거를
 뜻하지 않습니다.
 
+PDF 검사에서는 분리형 `adbe.pkcs7.detached`·`ETSI.CAdES.detached` 서명의
+`cms_integrity`도 표시합니다. 실제 Contents 영역과 정확히 일치하고 순서가 올바른
+ByteRange 네 항목을 확인한 뒤 해당 원본 바이트의 CMS 서명 속성·해시·서명을 검증합니다.
+`valid_for_signed_revision`은 이후 덧붙인 미서명 영역을 포함하지 않으므로
+`unsigned_tail_bytes`·`covered_end_is_current_eof`도 확인해야 합니다. 잘못된 CMS,
+지원하지 않는 SubFilter, 자원 제한은 구분합니다. 최대 서명 32개·CMS 2 MiB·서명 대상
+64 MiB와 스캔의 더 엄격한 자원 제한을 적용합니다. 명시적인 신뢰 기준 인증서가 없으면
+인증서 신뢰는 미확인입니다. 서명이 유효해도 타임스탬프·폐기 여부·문서 내용의 진실을
+입증하지 않습니다.
+
 ## 분석과 결과 전달
 
 `scan` 또는 `case history`가 반환하는 스캔 ID를 사용합니다.

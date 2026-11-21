@@ -35,6 +35,7 @@ base64 = "=0.22.1"
 pkcs8 = { version = "=0.10.2", features = ["encryption", "pem", "std"] }
 rand_core = { version = "=0.6.4", features = ["getrandom"] }
 zeroize = "=1.9.1"
+openssl = { version = "=0.10.82", features = ["vendored"] }
 tempfile = "=3.23.0"
 metaxtract-schema = { path = "crates/metaxtract-schema" }
 metaxtract-native = { path = "crates/metaxtract-native" }

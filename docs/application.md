@@ -33,6 +33,16 @@ bypass the metadata cache and require a new scan rather than checkpoint resume. 
 password again for a later queued scan. Incorrect passwords retain the encryption evidence
 and report authentication failure; supported decryption does not remove PDF permissions.
 
+PDF inspection also reports `cms_integrity` for detached `adbe.pkcs7.detached` and
+`ETSI.CAdES.detached` signatures. The verifier requires an exact checked Contents gap and
+four ordered ByteRange entries, then verifies CMS signed attributes and the digest/signature
+against those original bytes. `valid_for_signed_revision` does not cover a later unsigned
+tail; inspect `unsigned_tail_bytes` and `covered_end_is_current_eof`. Malformed CMS,
+unsupported subfilters and resource limits have distinct outcomes. Checks are bounded to
+32 signatures, 2 MiB CMS and 64 MiB signed bytes, within the scan's stricter budgets.
+Certificate trust remains unknown without explicit trust anchors. Timestamps, revocation
+and the truth of the document contents are not established by a valid CMS signature.
+
 ## Analysis and delivery
 
 Scan media and `.xmp` sidecars together, then use `analyze CASE SCAN --view relationships`

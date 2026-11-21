@@ -516,6 +516,21 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             root = Path(temporary)
             sources = root / "evidence"
             sources.mkdir()
+            for signed_case in _read_json(ROOT / "conformance/corpus/native-pdf-crypto.json")["cases"]:
+                signed_pdf = root / (signed_case["name"] + ".pdf")
+                signed_pdf.write_bytes(base64.b64decode(signed_case["base64"]))
+                signed_hash = sha(signed_pdf)
+                inspected = invoke("inspect", signed_pdf)
+                fields = {o["tag"].get("name"): _raw_value(o.get("interpreted_value") or o["raw_value"])
+                          for r in inspected["records"] for o in r["observations"]}
+                expected_integrity = "invalid" if "tampered" in signed_case["name"] else "valid_for_signed_revision"
+                if fields.get("cms_integrity") != expected_integrity:
+                    raise ValueError("CMS integrity verification differs: " + signed_case["name"])
+                if fields.get("certificate_trust") != "unknown_no_trust_anchors":
+                    raise ValueError("CMS integrity incorrectly implied certificate trust")
+                if sha(signed_pdf) != signed_hash:
+                    raise ValueError("signature verification changed the original")
+                completed += 1
             protected = root / "protected.pdf"
             protected_case = next(c for c in _read_json(ROOT / "conformance/corpus/native-pdf-security.json")["cases"]
                                   if c["name"] == "pdf-locked-rc4-retains-raw-encryption")

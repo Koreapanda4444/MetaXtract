@@ -1,5 +1,11 @@
 # Dependency policy
 
+PDF CMS verification statically bundles OpenSSL 3.6.3 through exact-pinned `openssl`
+0.10.82 and checksummed `openssl-sys`/`openssl-src` packages. Their Apache-2.0/MIT notices
+and the bundled OpenSSL LICENSE were reviewed; the existing recursive Rust notice collector
+ships them with distributions. No system OpenSSL library or command-line executable is used.
+Builds require Perl and a C compiler; the production worker performs CMS checks in process.
+
 Rust case transport uses exact-pinned `zip` and `ed25519-dalek` releases with
 checksummed transitive packages in `Cargo.lock`. The transitive `fiat-crypto`
 MIT/Apache-2.0/BSD-1-Clause license files were reviewed; BSD-1-Clause permits

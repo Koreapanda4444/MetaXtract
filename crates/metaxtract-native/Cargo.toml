@@ -9,6 +9,7 @@ cxx.workspace = true
 metaxtract-schema.workspace = true
 serde.workspace = true
 zeroize.workspace = true
+openssl.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

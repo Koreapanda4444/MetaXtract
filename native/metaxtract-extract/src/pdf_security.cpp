@@ -44,7 +44,7 @@ class Objects final {
     void signature(QPDFObjectHandle dictionary, const std::string& id) {
         Reader r(source_.context, 0, source_.size, "pdf.signature" + std::to_string(signatures_++));
         value(r, "signature_object", ValueKind::Text, id, id);
-        value(r, "cryptographic_verification", ValueKind::Text, "not_performed", id);
+        value(r, "structural_verification_scope", ValueKind::Text, "byte_ranges_and_contents_gap_only", id);
         auto contents = dictionary.getKey("/Contents");
         if (contents.isString()) { value(r, "signature_contents", ValueKind::DecodedBytes, contents.getStringValue(), id); }
         for (const auto* key : {"/Filter", "/SubFilter", "/Name", "/Reason", "/Location", "/M", "/ContactInfo", "/Cert", "/Reference", "/Prop_Build"}) {
