@@ -31,6 +31,14 @@ Same-folder filename matches are candidates; multiple originals stay explicitly 
 Shared XMP DocumentID/OriginalDocumentID values retain both observation identifiers and are
 declared metadata relationships, not proof of authorship. Original fields are never overwritten.
 
+The same graph associates Live Photo stills and movies using Apple MakerNote/QuickTime content
+identifiers. Filename-only pairs remain candidates, and contradictory identifiers block that
+fallback. Scan Google Takeout JSON beside the originals: its declared title identifies the file
+within that folder even when the JSON filename was truncated. Reported capture time comes from
+`photoTakenTime`, not export creation time. Reported coordinates retain their JSON source;
+zero/zero is flagged as ambiguous. Raw JSON is preserved, malformed exports receive diagnostics,
+and album-only JSON does not establish a media association. All links remain unconfirmed.
+
 Use the scan ID returned by `scan` or `case history`:
 
 ```bash

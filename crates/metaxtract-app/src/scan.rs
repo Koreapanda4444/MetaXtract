@@ -67,6 +67,28 @@ fn invalid(s: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
 }
 pub fn analyze_record(record: &mut ExtractionRecord) -> io::Result<()> {
+    match analysis::media_associations::takeout_metadata(record) {
+        Ok(Some(_)) => record.source.detected_media_type = Some("application/json".into()),
+        Ok(None) => {}
+        Err(error) => {
+            record.diagnostics.push(Diagnostic {
+                code: "analysis.exported_metadata.invalid".into(),
+                severity: DiagnosticSeverity::Warning,
+                stage: DiagnosticStage::Parse,
+                message: error.to_string(),
+                parser: None,
+                source: record.source.path.clone(),
+                source_range: None,
+                related_observations: record
+                    .observations
+                    .iter()
+                    .filter(|o| o.provenance.parser.id == "metadata.export")
+                    .map(|o| o.id)
+                    .collect(),
+                recoverable: true,
+            });
+        }
+    }
     if record
         .observations
         .iter()

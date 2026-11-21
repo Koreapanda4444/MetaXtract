@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "provenance": "Independently serialized Apple MakerNote ContentIdentifier at maker-note-relative offsets and raw exported JSON packets. Native JSON capture deliberately does not assert schema validation; Rust analysis tests malformed, album-only and unsafe title objects.",
+  "cases": [
+    {
+      "name": "apple-content-identifier-big",
+      "parser": "images.metadata",
+      "base64": "/9j/4QB5RXhpZgAASUkqAAgAAAABAGmHBAABAAAAGgAAAAAAAAABAHySBwBFAAAALAAAAAAAAABBcHBsZSBpT1MAAAFNTQABABEAAgAAACUAAAAgAAAAAEFCQ0QwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMQD/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAACAAMDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDmqKKK9M/aD//Z",
+      "fields": {
+        "apple_content_identifier": [
+          "41424344303030302d303030302d303030302d303030302d303030303030303030303031"
+        ]
+      },
+      "status": "OK",
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "apple-content-identifier-little",
+      "parser": "images.metadata",
+      "base64": "/9j/4QB5RXhpZgAASUkqAAgAAAABAGmHBAABAAAAGgAAAAAAAAABAHySBwBFAAAALAAAAAAAAABBcHBsZSBpT1MAAAFJSQEAEQACACUAAAAgAAAAAAAAAEFCQ0QwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMQD/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAACAAMDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDmqKKK9M/aD//Z",
+      "fields": {
+        "apple_content_identifier": [
+          "41424344303030302d303030302d303030302d303030302d303030303030303030303031"
+        ]
+      },
+      "status": "OK",
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "exported-json-packet",
+      "parser": "metadata.export",
+      "base64": "eyJ0aXRsZSI6InBob3RvLmpwZyIsInBob3RvVGFrZW5UaW1lIjp7InRpbWVzdGFtcCI6IjEifX0=",
+      "fields": {
+        "validation_scope": [
+          "7261775f7061636b65745f6f6e6c793b20736368656d6120616e642072656c6174696f6e7368697073206576616c756174656420627920616e616c79736973"
+        ]
+      },
+      "status": "OK",
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "exported-json-array",
+      "parser": "metadata.export",
+      "base64": "W10=",
+      "fields": {
+        "json_packet": []
+      },
+      "status": "UnsupportedParser",
+      "read_max": 67108864,
+      "observation_max": 10000
+    },
+    {
+      "name": "exported-json-unvalidated-broken",
+      "parser": "metadata.export",
+      "base64": "e2Jyb2tlbg==",
+      "fields": {
+        "validation_scope": [
+          "7261775f7061636b65745f6f6e6c793b20736368656d6120616e642072656c6174696f6e7368697073206576616c756174656420627920616e616c79736973"
+        ]
+      },
+      "status": "OK",
+      "read_max": 67108864,
+      "observation_max": 10000
+    }
+  ]
+}

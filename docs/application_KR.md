@@ -6,6 +6,14 @@
 DocumentID·OriginalDocumentID 연결은 양쪽 관찰값 식별자를 보존하는 선언된 메타데이터
 관계이며 촬영자 인증이 아닙니다. 원본의 필드를 덮어쓰지 않습니다.
 
+Live Photo는 Apple MakerNote와 QuickTime의 공통 콘텐츠 식별자로 사진·동영상을 연결합니다.
+파일명만 같으면 후보로 표시하며 양쪽 식별자가 다르면 파일명 연결도 제외합니다.
+Google Takeout JSON을 원본과 함께 스캔하면 같은 폴더 안에서 선언된 `title`로 연결하므로
+JSON 파일명이 잘렸어도 처리합니다. 촬영 시각은 내보내기 생성 시각 대신 `photoTakenTime`을
+사용합니다. 위치는 JSON 출처를 유지하며 위도·경도 0/0은 모호한 값으로 표시합니다.
+원시 JSON을 보존하고 잘못된 내보내기에는 진단을 남깁니다. 앨범 정보만 있는 JSON은
+연결하지 않습니다. 모든 연결은 확인되지 않은 메타데이터 근거입니다.
+
 [English](application.md) | [한국어](application_KR.md)
 
 명령행 앱과 전용 파서를 함께 빌드합니다.

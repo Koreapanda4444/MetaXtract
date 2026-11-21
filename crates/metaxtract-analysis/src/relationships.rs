@@ -5,6 +5,9 @@ use std::{
 };
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum RelationshipBasis {
+    RelatedMedia {
+        evidence: crate::media_associations::MediaAssociationBasis,
+    },
     ExternalMetadata {
         metadata_file: usize,
         evidence: crate::associations::AssociationBasis,
@@ -135,6 +138,7 @@ pub fn build(
     }
     let mut graph = RelationshipGraph { files, edges };
     crate::associations::append_xmp(&sorted, &mut graph, limits, &mut bytes)?;
+    crate::media_associations::append_media(&sorted, &mut graph, limits, &mut bytes)?;
     Ok(graph)
 }
 #[cfg(test)]

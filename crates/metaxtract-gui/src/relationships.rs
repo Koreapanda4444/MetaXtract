@@ -223,6 +223,23 @@ impl Desktop {
                 };
                 ui.collapsing(graph.files[other].to_string(), |ui| {
                     match &edge.basis {
+                        RelationshipBasis::RelatedMedia { evidence } => {
+                            use app::analysis::media_associations::MediaAssociationBasis;
+                            match evidence {
+                                MediaAssociationBasis::LivePhotoFilenameCandidate => { ui.label(crate::i18n::tr("Possible Live Photo components: same folder and basename")); }
+                                MediaAssociationBasis::LivePhotoDeclaredIdentifier { identifier, still_observation, movie_observation } => {
+                                    ui.label(crate::i18n::tr("Shared Live Photo content identifier")); ui.monospace(identifier);
+                                    ui.label(crate::textf!("Still field {} · movie field {}", "사진 관찰값 {} · 영상 관찰값 {}", still_observation.get(), movie_observation.get()));
+                                }
+                                MediaAssociationBasis::TakeoutDeclaredTitle { metadata } => {
+                                    ui.label(crate::i18n::tr("Exported metadata references this filename")); ui.monospace(&metadata.title);
+                                    if let Some(time) = metadata.reported_capture_seconds { ui.label(crate::textf!("Reported capture time (UTC seconds): {}", "외부 자료의 촬영 시각(UTC 초): {}", time)); }
+                                    if let Some(point) = metadata.reported_location { ui.label(format!("{}, {} ({})", point.latitude, point.longitude, metadata.location_source.as_deref().unwrap_or(""))); }
+                                    if metadata.zero_location_ambiguous { ui.weak(crate::i18n::tr("Zero coordinates may be an export placeholder")); }
+                                }
+                            }
+                            ui.weak(crate::i18n::tr("Unconfirmed relationship"));
+                        }
                         RelationshipBasis::ExternalMetadata {
                             metadata_file,
                             evidence,

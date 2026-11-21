@@ -67,6 +67,9 @@ pub(crate) fn selected_parsers(bytes: &[u8], name: &[u8]) -> Vec<&'static str> {
     if lower.ends_with(".xmp") {
         result.push("xmp.sidecar");
     }
+    if lower.ends_with(".json") {
+        result.push("metadata.export");
+    }
     let archive = bytes.starts_with(b"PK")
         || bytes.starts_with(b"7z\xbc\xaf\x27\x1c")
         || bytes.starts_with(b"\x1f\x8b")

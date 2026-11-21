@@ -7,6 +7,7 @@ pub mod evolution;
 pub mod export;
 pub mod findings;
 pub mod geo;
+pub mod media_associations;
 pub mod normalize;
 pub mod provenance;
 pub mod redaction;

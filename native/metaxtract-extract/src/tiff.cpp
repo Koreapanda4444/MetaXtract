@@ -65,6 +65,24 @@ unsigned type_width(const std::uint64_t type) {
     }
 }
 
+void apple_note(Reader& note) {
+    const auto header = note.read(0, 16);
+    const bool little = starts(header, "II", 12);
+    if (!little && !starts(header, "MM", 12)) { note.diagnostic("apple_byte_order", "Unsupported Apple maker-note byte order", 12); return; }
+    const auto count = integer(header, 14, 2, little);
+    note.require(16, count * 12 + 4);
+    for (std::uint64_t i = 0; i < count; ++i) {
+        note.entry(); const auto at = 16 + i * 12; const auto item = note.read(at, 12);
+        if (integer(item, 0, 2, little) != 17 || integer(item, 2, 2, little) != 2) { continue; }
+        const auto length = integer(item, 4, 4, little);
+        if (!length || length > 256) { note.diagnostic("apple_identifier_size", "Unsupported Apple content-identifier length", at); continue; }
+        const auto offset = length <= 4 ? at + 8 : integer(item, 8, 4, little);
+        auto bytes = note.read(offset, length); std::string value(bytes.begin(), bytes.end());
+        while (!value.empty() && value.back() == '\0') { value.pop_back(); }
+        note.put("apple_content_identifier", ValueKind::Text, value, offset, std::move(bytes), "ASCII", 17, true);
+    }
+}
+
 }
 
 void inspect_tiff(Reader& reader, const bool metadata, const std::uint32_t depth) {
@@ -208,11 +226,17 @@ void inspect_tiff(Reader& reader, const bool metadata, const std::uint32_t depth
                 else if (tag == 34675) { inspect_icc(packet); }
                 else { inspect_iptc(packet); }
             }
-            if (metadata && tag == 37500 && length >= 18 && starts(raw, std::string_view("Nikon\0\2\0\0\0", 10))) {
+            const auto nikon_note = metadata && tag == 37500 && length >= 18 && starts(raw, std::string_view("Nikon\0\2\0\0\0", 10));
+            const auto apple = metadata && tag == 37500 && length >= 16 && starts(raw, std::string_view("Apple iOS\0", 10));
+            directory.put(key, kind, std::move(value), value_at, std::move(raw), encoding, tag, true);
+            if (nikon_note) {
                 auto note = directory.window(value_at + 10, length - 10, directory.group + ".maker_note.nikon");
                 inspect_tiff(note, true, item.depth + 1);
             }
-            directory.put(key, kind, std::move(value), value_at, std::move(raw), encoding, tag, true);
+            if (apple) {
+                if (!directory.context.budget().check_depth(item.depth + 1)) { throw Failure{ParseStatus::Internal, "Apple maker-note depth limit", directory.base}; }
+                auto note = directory.window(value_at, length, directory.group + ".maker_note.apple"); apple_note(note);
+            }
         }
         if (metadata && thumbnail_length != 0) {
             directory.put("thumbnail_jpeg", ValueKind::Bytes, "", thumbnail_offset, directory.read(thumbnail_offset, thumbnail_length));

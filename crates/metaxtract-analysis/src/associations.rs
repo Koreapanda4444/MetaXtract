@@ -44,7 +44,7 @@ fn identifiers(record: &ExtractionRecord) -> BTreeMap<String, ObservationId> {
         })
         .collect()
 }
-fn charge(bytes: &mut usize, amount: usize, limits: AnalysisLimits) -> io::Result<()> {
+pub(crate) fn charge(bytes: &mut usize, amount: usize, limits: AnalysisLimits) -> io::Result<()> {
     *bytes = bytes.saturating_add(amount);
     if *bytes > limits.max_bytes {
         return Err(invalid("association byte budget exceeded"));
@@ -67,6 +67,13 @@ pub(crate) fn append_xmp(
         }
         if sidecar(record) {
             metadata.push(index);
+            continue;
+        }
+        if record
+            .observations
+            .iter()
+            .any(|o| o.provenance.parser.id == "metadata.export")
+        {
             continue;
         }
         let path = record.source.path.root_path().as_str();

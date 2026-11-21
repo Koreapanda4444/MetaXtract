@@ -124,7 +124,7 @@ def _compare_native(corpus: dict[str, Any], expected: dict[str, Any], release: b
                     fuzz_cases: int = 256, fuzz_seed: int = 0x4d58,
                     executable: Path | None = None) -> tuple[list[str], int]:
     requests = ["INFO", "SCHEMA"]
-    wanted = ["INFO\t2\t1\t23", "SCHEMA\tOK"]
+    wanted = ["INFO\t2\t1\t24", "SCHEMA\tOK"]
     request_labels = ["build info", "schema invariants"]
     extraction_cases = _read_json(ROOT / "conformance" / "corpus" / "images.json")["cases"]
     for corpus_path in sorted((ROOT / "conformance" / "corpus").glob("native-*.json")):
