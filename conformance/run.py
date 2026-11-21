@@ -504,7 +504,7 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
         if input_text and input_text.strip() not in ("623", "") and input_text.strip() in p.stdout + p.stderr:
             raise ValueError("credential appeared in CLI output")
         if p.returncode != code:
-            raise ValueError(f"acceptance {args[0]} exit {p.returncode}: {p.stderr[-1800:]} {p.stdout[:1000]}")
+            raise ValueError(f"acceptance {args[:4]} exit {p.returncode}: {p.stderr[-1800:]} {p.stdout[:1000]}")
         envelope = json.loads(p.stdout or p.stderr.splitlines()[-1])
         return envelope.get("result", envelope)
 
@@ -608,6 +608,18 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
                 if sha(pdf_source) != pdf_hash:
                     raise ValueError("sanitized PDF changed its original")
                 completed += 1
+            signed_pdf = root / "already-signed.pdf"
+            signed_fixture = _read_json(ROOT / "conformance/corpus/native-pdf-crypto.json")["cases"][0]
+            signed_pdf.write_bytes(base64.b64decode(signed_fixture["base64"]))
+            signed_hash = sha(signed_pdf)
+            signed_output = root / "signature-invalidated.pdf"
+            invoke("sanitize", signed_pdf, signed_output, code=2)
+            if signed_output.exists():
+                raise ValueError("signature invalidation was published without explicit consent")
+            signed_receipt = invoke("sanitize", signed_pdf, signed_output, "--allow-signature-invalidation")
+            if not any("invalidated" in warning for warning in signed_receipt["warnings"]) or sha(signed_pdf) != signed_hash:
+                raise ValueError("signed PDF copy did not preserve its original and invalidation warning")
+            completed += 1
             c2pa_sources = root / "content-credentials"
             c2pa_sources.mkdir()
             c2pa_cases = _read_json(ROOT / "conformance/corpus/native-c2pa.json")["cases"][:2]

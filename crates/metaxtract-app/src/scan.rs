@@ -572,7 +572,9 @@ pub fn run(
                 .as_ref()
                 .map(|old| old.compare(&inventory, request.baseline.as_deref().unwrap_or("")))
                 .transpose()?;
-            case.append_records_with_receipt(&scan, &[], "application.inventory", &inventory)?;
+            if summary.stopped.is_none() && !resuming {
+                case.append_records_with_receipt(&scan, &[], "application.inventory", &inventory)?;
+            }
             let status = match summary.stopped {
                 None => ScanStatus::Completed,
                 Some(StopReason::Cancelled) => ScanStatus::Cancelled,
