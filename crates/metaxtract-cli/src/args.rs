@@ -9,11 +9,12 @@ impl Args {
             return Ok(());
         }
         let (min, max, allowed): (usize, usize, &[&str]) = match self.word(0)?.as_str() {
-            "scan" => (
+            "scan" | "rescan" => (
                 2,
                 2,
                 &[
                     "case",
+                    "baseline",
                     "workers",
                     "journal",
                     "resume",

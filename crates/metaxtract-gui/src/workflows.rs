@@ -284,10 +284,21 @@ impl Desktop {
             18 => {
                 ui.label("Remove document properties (images require all groups):");
                 ui.horizontal_wrapped(|ui| {
-                    for (name, bit) in [("Author", 1), ("Title", 2), ("Description", 4), ("Dates", 8), ("Custom", 16), ("Application", 32)] {
+                    for (name, bit) in [
+                        ("Author", 1),
+                        ("Title", 2),
+                        ("Description", 4),
+                        ("Dates", 8),
+                        ("Custom", 16),
+                        ("Application", 32),
+                    ] {
                         let mut selected = self.workflows.property_mask & bit != 0;
                         if ui.checkbox(&mut selected, name).changed() {
-                            if selected { self.workflows.property_mask |= bit; } else { self.workflows.property_mask &= !bit; }
+                            if selected {
+                                self.workflows.property_mask |= bit;
+                            } else {
+                                self.workflows.property_mask &= !bit;
+                            }
                         }
                     }
                 });
@@ -612,15 +623,33 @@ impl Desktop {
             }
             if let Some(verification) = result.get("verification") {
                 ui.strong("Verified before saving");
-                ui.label(format!("Observations: {} → {}", verification["before_observations"], verification["after_observations"]));
-                for (key, label) in [("removed_or_changed_fields", "Removed or changed"), ("retained_fields", "Remaining observed fields"), ("new_or_changed_fields", "New or changed")] {
+                ui.label(format!(
+                    "Observations: {} → {}",
+                    verification["before_observations"], verification["after_observations"]
+                ));
+                for (key, label) in [
+                    ("removed_or_changed_fields", "Removed or changed"),
+                    ("retained_fields", "Remaining observed fields"),
+                    ("new_or_changed_fields", "New or changed"),
+                ] {
                     ui.collapsing(label, |ui| {
-                        if let Some(fields) = verification.get(key).and_then(serde_json::Value::as_array) {
-                            for field in fields { if let Some(text) = field.as_str() { ui.label(text); } }
+                        if let Some(fields) =
+                            verification.get(key).and_then(serde_json::Value::as_array)
+                        {
+                            for field in fields {
+                                if let Some(text) = field.as_str() {
+                                    ui.label(text);
+                                }
+                            }
                         }
                     });
                 }
-                if let Some(scope) = verification.get("scope").and_then(serde_json::Value::as_str) { ui.label(scope); }
+                if let Some(scope) = verification
+                    .get("scope")
+                    .and_then(serde_json::Value::as_str)
+                {
+                    ui.label(scope);
+                }
             }
             ui.collapsing(crate::i18n::tr("Result details"), |ui| {
                 json_view(ui, result)

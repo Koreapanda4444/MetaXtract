@@ -171,8 +171,17 @@ pub fn create_copy(request: &SanitizeRequest, control: ScanControl) -> io::Resul
         .iter()
         .find(|h| h.algorithm == DigestAlgorithm::Sha256)
         .ok_or_else(|| invalid("original SHA-256 is unavailable"))?;
-    let parent = request.output.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| std::path::Path::new("."));
-    let suffix = request.input.extension().and_then(|s| s.to_str()).map(|s| format!(".{s}")).unwrap_or_default();
+    let parent = request
+        .output
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let suffix = request
+        .input
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| format!(".{s}"))
+        .unwrap_or_default();
     let mut candidate = tempfile::Builder::new()
         .prefix(".metaxtract-sanitize-")
         .suffix(&suffix)
@@ -183,18 +192,34 @@ pub fn create_copy(request: &SanitizeRequest, control: ScanControl) -> io::Resul
     inspect_options.sanitize_copy = false;
     inspect_options.recursive.max_nodes = request.options.recursive.max_nodes;
     let source_record = inspect_copy(root.clone(), inspect_options.clone(), control.clone())?;
-    if source_record.hashes.as_ref().is_none_or(|h| !h.stable || h.digests != hashes.digests) {
-        return Err(invalid("original changed during before/after metadata verification"));
+    if source_record
+        .hashes
+        .as_ref()
+        .is_none_or(|h| !h.stable || h.digests != hashes.digests)
+    {
+        return Err(invalid(
+            "original changed during before/after metadata verification",
+        ));
     }
     let candidate_root = ScanRoot::open(candidate.path(), SymlinkPolicy::Skip)?;
     let candidate_file = inspect_copy(candidate_root, inspect_options, control.clone())?;
-    let candidate_hash = candidate_file.hashes.as_ref().filter(|h| h.stable)
-        .and_then(|h| h.digests.iter().find(|d| d.algorithm == DigestAlgorithm::Sha256))
+    let candidate_hash = candidate_file
+        .hashes
+        .as_ref()
+        .filter(|h| h.stable)
+        .and_then(|h| {
+            h.digests
+                .iter()
+                .find(|d| d.algorithm == DigestAlgorithm::Sha256)
+        })
         .ok_or_else(|| invalid("sanitized output verification lacks SHA-256"))?;
     if candidate_hash.bytes.as_slice() != &Sha256::digest(bytes)[..]
-        || candidate_file.records[0].source.detected_media_type != source_record.records[0].source.detected_media_type
+        || candidate_file.records[0].source.detected_media_type
+            != source_record.records[0].source.detected_media_type
     {
-        return Err(invalid("sanitized output bytes or detected format changed during verification"));
+        return Err(invalid(
+            "sanitized output bytes or detected format changed during verification",
+        ));
     }
     let verification = compare_metadata(&source_record.records[0], &candidate_file.records[0])?;
     let mut reopened = root.open_file(&file.task.relative, SymlinkPolicy::Skip)?;
@@ -234,12 +259,21 @@ pub fn create_copy(request: &SanitizeRequest, control: ScanControl) -> io::Resul
         verification,
     };
     let candidate_stamp = FileStamp::read(candidate.as_file())?;
-    let verified_stamp = candidate_file.hashes.as_ref().ok_or_else(|| invalid("missing candidate identity"))?.after.clone();
+    let verified_stamp = candidate_file
+        .hashes
+        .as_ref()
+        .ok_or_else(|| invalid("missing candidate identity"))?
+        .after
+        .clone();
     if candidate_stamp != verified_stamp {
-        return Err(invalid("sanitized output identity changed before publication"));
+        return Err(invalid(
+            "sanitized output identity changed before publication",
+        ));
     }
     control.checkpoint()?;
-    candidate.persist_noclobber(&request.output).map_err(|error| error.error)?;
+    candidate
+        .persist_noclobber(&request.output)
+        .map_err(|error| error.error)?;
     #[cfg(unix)]
     std::fs::File::open(parent)?.sync_all()?;
     Ok(receipt)
@@ -291,11 +325,17 @@ fn inspect_copy(
         Ok(())
     })?;
     let file = completed.ok_or_else(|| invalid("copy verification produced no result"))?;
-    if summary.stopped.is_some() || summary.failed != 0 || summary.unstable != 0
-        || file.unstable || file.error.is_some() || file.records.is_empty()
+    if summary.stopped.is_some()
+        || summary.failed != 0
+        || summary.unstable != 0
+        || file.unstable
+        || file.error.is_some()
+        || file.records.is_empty()
         || file.records[0].status != ExtractionStatus::Complete
     {
-        return Err(invalid("copy verification requires a complete stable root extraction"));
+        return Err(invalid(
+            "copy verification requires a complete stable root extraction",
+        ));
     }
     Ok(file)
 }
@@ -303,21 +343,44 @@ fn inspect_copy(
 fn metadata_facts(record: &ExtractionRecord) -> io::Result<BTreeMap<String, BTreeSet<String>>> {
     let mut facts: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for observation in &record.observations {
-        let key = format!("{} / {} / {}", observation.provenance.parser.id,
-            observation.tag.namespace, observation.tag.name.as_deref().unwrap_or("(numeric tag)"));
-        let bytes = serde_json::to_vec(observation.interpreted_value.as_ref().unwrap_or(&observation.raw_value))
-            .map_err(io::Error::other)?;
-        facts.entry(key).or_default().insert(hex(&Sha256::digest(bytes)));
+        let key = format!(
+            "{} / {} / {}",
+            observation.provenance.parser.id,
+            observation.tag.namespace,
+            observation.tag.name.as_deref().unwrap_or("(numeric tag)")
+        );
+        let bytes = serde_json::to_vec(
+            observation
+                .interpreted_value
+                .as_ref()
+                .unwrap_or(&observation.raw_value),
+        )
+        .map_err(io::Error::other)?;
+        facts
+            .entry(key)
+            .or_default()
+            .insert(hex(&Sha256::digest(bytes)));
     }
     Ok(facts)
 }
 
-fn compare_metadata(before: &ExtractionRecord, after: &ExtractionRecord) -> io::Result<CopyVerification> {
+fn compare_metadata(
+    before: &ExtractionRecord,
+    after: &ExtractionRecord,
+) -> io::Result<CopyVerification> {
     let old = metadata_facts(before)?;
     let new = metadata_facts(after)?;
-    let removed: Vec<_> = old.iter().filter(|(key, values)| new.get(*key) != Some(*values)).map(|(key, _)| key.clone()).collect();
+    let removed: Vec<_> = old
+        .iter()
+        .filter(|(key, values)| new.get(*key) != Some(*values))
+        .map(|(key, _)| key.clone())
+        .collect();
     let retained: Vec<_> = new.keys().cloned().collect();
-    let added: Vec<_> = new.iter().filter(|(key, values)| old.get(*key) != Some(*values)).map(|(key, _)| key.clone()).collect();
+    let added: Vec<_> = new
+        .iter()
+        .filter(|(key, values)| old.get(*key) != Some(*values))
+        .map(|(key, _)| key.clone())
+        .collect();
     let truncated = removed.len() > 256 || retained.len() > 256 || added.len() > 256;
     Ok(CopyVerification {
         before_observations: before.observations.len(),

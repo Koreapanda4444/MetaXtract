@@ -534,6 +534,26 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
                 if list(root.glob(".metaxtract-sanitize-*")):
                     raise ValueError("sanitized copy left temporary output")
                 completed += 1
+            incremental_root = root / "incremental"
+            incremental_root.mkdir()
+            tracked = incremental_root / "note.txt"
+            tracked.write_bytes(b"AAAA")
+            incremental_case = root / "incremental.mxcase"
+            baseline = invoke("scan", incremental_root, "--case", incremental_case, "--workers", 1)["scan_id"]
+            repeated = invoke("rescan", incremental_root, "--case", incremental_case, "--workers", 1, "--baseline", baseline)
+            if repeated["incremental"]["unchanged"] != 1 or repeated["incremental"]["cache_hits"] != 1:
+                raise ValueError("unchanged rescan did not verify and reuse its cached extraction")
+            stamp = tracked.stat()
+            tracked.write_bytes(b"BBBB")
+            os.utime(tracked, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+            changed = invoke("rescan", incremental_root, "--case", incremental_case, "--workers", 1, "--baseline", repeated["scan_id"])
+            if changed["incremental"]["changed"] != 1 or changed["incremental"]["cache_hits"] != 0:
+                raise ValueError("same-size/restored-mtime content change reused stale metadata")
+            tracked.unlink()
+            removed = invoke("rescan", incremental_root, "--case", incremental_case, "--workers", 1, "--baseline", changed["scan_id"])
+            if removed["incremental"]["removed"] != 1:
+                raise ValueError("complete incremental rescan lost removal")
+            completed += 3
             c2pa_sources = root / "content-credentials"
             c2pa_sources.mkdir()
             c2pa_cases = _read_json(ROOT / "conformance/corpus/native-c2pa.json")["cases"][:2]

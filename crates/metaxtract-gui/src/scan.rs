@@ -39,6 +39,7 @@ pub struct ScanUi {
     pub decode_previews: bool,
     pub include_hidden: bool,
     pub cache_enabled: bool,
+    pub next_baseline: Option<String>,
     pub pdf_trust_roots: Option<PathBuf>,
     pdf_password: app::Zeroizing<String>,
     pub max_files: u64,
@@ -67,6 +68,7 @@ impl Default for ScanUi {
             decode_previews: false,
             include_hidden: false,
             cache_enabled: true,
+            next_baseline: None,
             pdf_trust_roots: None,
             pdf_password: Default::default(),
             max_files: 1_000_000,
@@ -153,6 +155,9 @@ impl Desktop {
                     return;
                 }
             }
+        }
+        if resume.is_none() {
+            request.baseline = self.scan.next_baseline.take();
         }
         request.workers = self.scan.workers;
         request.options.recursive.preview = self.scan.decode_previews;
@@ -486,6 +491,11 @@ impl Desktop {
                 });
         });
         if let Some(outcome) = &self.scan.outcome {
+            if let Some(delta) = &outcome.incremental {
+                ui.label(format!("Incremental: {} added · {} changed · {} replaced · {} unchanged · {} removed · {} cache hits",
+                    delta.added, delta.changed, delta.replaced, delta.unchanged, delta.removed, delta.cache_hits));
+                if !delta.comparison_complete { ui.label("Comparison is incomplete; absent files are unverified, not confirmed removals."); }
+            }
             ui.collapsing(crate::i18n::tr("Scan failures"), |ui| {
                 for error in &outcome.errors {
                     ui.label(format!("{}: {}", error.path, error.message));
@@ -576,6 +586,21 @@ impl Desktop {
             }
         });
         ui.separator();
+        if ui.add_enabled(!self.scan.running() && !self.busy && !self.readonly && self.active_scan.is_some(),
+            egui::Button::new("Rescan selected scan")).clicked() {
+            let result = (|| -> io::Result<_> {
+                let id = self.active_scan.clone().ok_or_else(|| io::Error::other("Select a scan"))?;
+                let case = self.case.as_ref().ok_or_else(|| io::Error::other("Open a case"))?;
+                let receipt = case.scan_receipt(&id, "application.inventory")?
+                    .ok_or_else(|| io::Error::other("This scan has no inventory; create a new scan first"))?;
+                let inventory: app::core::scan::ScanInventory = serde_json::from_value(receipt).map_err(io::Error::other)?;
+                Ok((id, inventory.root.to_path()?))
+            })();
+            match result {
+                Ok((id, root)) => { self.scan.next_baseline = Some(id); self.start_scan(ui.ctx(), root, None); }
+                Err(error) => self.report_error(error),
+            }
+        }
         crate::components::heading(ui, crate::i18n::tr("Resume checkpoint"));
         ui.label(crate::i18n::tr(
             "Paused or interrupted scans keep their original journal and source.",

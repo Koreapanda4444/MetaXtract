@@ -18,6 +18,7 @@ pub struct ScanRequest {
     pub workers: usize,
     pub resume: Option<(u64, String)>,
     pub cache_enabled: bool,
+    pub baseline: Option<String>,
     pub pdf_password: Option<Arc<PdfPassword>>,
     pub options: ScanOptions,
 }
@@ -32,6 +33,7 @@ impl ScanRequest {
             workers: 2,
             resume: None,
             cache_enabled: true,
+            baseline: None,
             pdf_password: None,
             options: ScanOptions::default(),
         }
@@ -59,6 +61,8 @@ pub struct ScanOutcome {
     pub errors: Vec<ScanFailure>,
     #[serde(default)]
     pub engine_fingerprint: String,
+    #[serde(default)]
+    pub incremental: Option<IncrementalSummary>,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ScanFailure {
@@ -319,6 +323,9 @@ pub fn run(
     control: ScanControl,
     mut sink: impl FnMut(AppScanEvent) -> io::Result<()>,
 ) -> io::Result<ScanOutcome> {
+    if request.baseline.is_some() && (request.resume.is_some() || request.pdf_password.is_some()) {
+        return Err(invalid("incremental rescans require a new non-authenticated scan"));
+    }
     if request.options.sanitize_copy {
         return Err(invalid(
             "use the sanitized copy workflow outside case scans",
@@ -440,6 +447,23 @@ pub fn run(
             }
         }
     }
+    options.hash.sha256 = true;
+    let mut inventory = ScanInventory::new(&root, &options, engine_fingerprint())?;
+    let baseline: Option<ScanInventory> = request.baseline.as_ref().map(|id| {
+        let info = case.scan_info(id)?.ok_or_else(|| invalid("unknown incremental baseline"))?;
+        if info.status != ScanStatus::Completed {
+            return Err(invalid("incremental baseline must be completed"));
+        }
+        let receipt = case.scan_receipt(id, "application.inventory")?
+            .ok_or_else(|| invalid("baseline has no inventory; create a new scan first"))?;
+        serde_json::from_value(receipt).map_err(io::Error::other)
+    }).transpose()?;
+    if baseline.as_ref().is_some_and(|old| !old.same_root(&inventory)) {
+        return Err(invalid("incremental baseline belongs to another root or root identity"));
+    }
+    if resuming {
+        inventory.complete = false;
+    }
     let mut saved = resuming;
     let mut failures = Vec::new();
     let mut forward = |run, mut event: ScanEvent| -> io::Result<()> {
@@ -484,6 +508,7 @@ pub fn run(
             ScanEvent::Resumed(t) => ("resumed", Some(t.evidence_path.to_string())),
             ScanEvent::Started(t) => ("started", Some(t.evidence_path.to_string())),
             ScanEvent::Completed(file) => {
+                inventory.record(file)?;
                 let failed = file.failed();
                 ingest(&case, &scan, file)?;
                 progress.completed += 1;
@@ -493,6 +518,7 @@ pub fn run(
                 ("completed", Some(file.task.evidence_path.to_string()))
             }
             ScanEvent::Notice { path, .. } => {
+                inventory.complete = false;
                 progress.notices += 1;
                 (
                     "notice",
@@ -527,6 +553,11 @@ pub fn run(
     };
     match result {
         Ok((run, summary)) => {
+            inventory.complete &= summary.stopped.is_none() && summary.unstable == 0;
+            let incremental = baseline.as_ref().map(|old| {
+                old.compare(&inventory, request.baseline.as_deref().unwrap_or(""))
+            }).transpose()?;
+            case.append_records_with_receipt(&scan, &[], "application.inventory", &inventory)?;
             let status = match summary.stopped {
                 None => ScanStatus::Completed,
                 Some(StopReason::Cancelled) => ScanStatus::Cancelled,
@@ -538,6 +569,7 @@ pub fn run(
                 summary,
                 errors: failures,
                 engine_fingerprint: engine_fingerprint().into(),
+                incremental,
             };
             case.finish_scan_with_summary(&outcome.scan_id, status, &outcome)?;
             Ok(outcome)

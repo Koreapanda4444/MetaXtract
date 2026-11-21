@@ -191,7 +191,9 @@ impl NativeExtractor {
             .map_err(|e| io::Error::other(e.to_string()))?;
             let document = hashes.prefix.starts_with(b"%PDF-") || hashes.prefix.starts_with(b"PK");
             if !document && options.sanitize_property_mask != 63 {
-                return Err(invalid("image copies require the full non-rendering metadata policy"));
+                return Err(invalid(
+                    "image copies require the full non-rendering metadata policy",
+                ));
             }
             let parser = if document {
                 "documents.sanitize"

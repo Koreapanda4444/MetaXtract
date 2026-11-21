@@ -1,5 +1,7 @@
 //! Bounded, read-only evidence discovery and processing.
 mod cache;
+mod incremental;
+pub use incremental::{IncrementalSummary, InventoryEntry, ScanInventory};
 mod checkpoint;
 mod credentials;
 mod worker;

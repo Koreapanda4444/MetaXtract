@@ -463,3 +463,16 @@ per list; truncation is explicit), without copying private values into the recei
 Rust then checks the original's identity/full hashes again and atomically publishes
 with no-clobber semantics. Failure or cancellation drops the candidate. A successful
 receipt proves these checks, not that every possible identifying fact was found.
+
+Incremental rescanning (74)
+--------------------------
+`metaxtract rescan ROOT --case CASE --baseline SCAN_ID`, or Scan queue →
+Rescan selected scan, creates a new scan while retaining the baseline. Each selected
+file is reopened and fully hashed. The existing metadata cache independently checks
+engine/options/filename/content identity before reuse. Same-size changes with a
+restored modification time cannot use stale results. A bounded inventory (10,000
+files / 4 MiB) compares added, changed, replaced, unchanged and removed files and
+reports actual cache hits. Root identity must match. Removal is asserted only for
+complete compatible inventories; interrupted/limited/incompatible comparisons mark
+absent files unverified. Authenticated PDF sessions and checkpoint resume are separate
+from incremental rescans. Older scans without an inventory require a new baseline.
