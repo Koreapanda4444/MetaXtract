@@ -4,7 +4,7 @@
 #include <qpdf/Buffer.hh>
 #include <qpdf/QPDF.hh>
 #include <qpdf/QPDFWriter.hh>
-#include <qpdf/QPDFCryptoProvider.hh>
+#include "sanitized_digest.hpp"
 #include <map>
 #include <set>
 #include <sstream>
@@ -16,15 +16,14 @@ using namespace formats;
 using Bytes = std::vector<std::uint8_t>;
 constexpr std::uint32_t author = 1, title = 2, description = 4, dates = 8, custom = 16, application = 32;
 struct Digest {
-    decltype(QPDFCryptoProvider::getImpl()) hash = QPDFCryptoProvider::getImpl();
-    explicit Digest() { hash->SHA2_init(256); }
+    SanitizedSha256 hash;
     void bytes(std::span<const std::uint8_t> data, Reader& r) {
         std::uint8_t length[8]; for (unsigned i=0; i<8; ++i) { length[i]=static_cast<std::uint8_t>(data.size()>>(i*8U)); }
-        hash->SHA2_update(length,8);
-        for (std::size_t at=0; at<data.size();) { r.checkpoint(); const auto n=std::min<std::size_t>(65536,data.size()-at); hash->SHA2_update(data.data()+at,n); at+=n; }
+        hash.update(length,8);
+        for (std::size_t at=0; at<data.size();) { r.checkpoint(); const auto n=std::min<std::size_t>(65536,data.size()-at); hash.update(data.data()+at,n); at+=n; }
     }
     void text(const std::string& value, Reader& r) { bytes(std::span(reinterpret_cast<const std::uint8_t*>(value.data()),value.size()),r); }
-    std::string finish() { hash->SHA2_finalize(); constexpr char hex[]="0123456789abcdef"; std::string out; for (const unsigned char b:hash->SHA2_digest()) { out.push_back(hex[b>>4U]); out.push_back(hex[b&15U]); } return out; }
+    std::string finish() { return hash.finish(); }
 };
 std::string local(std::string name) { const auto p=name.rfind('}'); if(p!=std::string::npos){return name.substr(p+1);} const auto c=name.find(':');return name.substr(c==std::string::npos?0:c+1); }
 std::uint32_t group(const std::string& expanded) {
@@ -61,7 +60,8 @@ Bytes xml_properties(Reader& r, const Bytes& bytes, const std::string& kind, std
             const bool property=(kind=="xmp" && parent_name=="{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Description") ||
                 (kind=="odf" && parent_name=="{urn:oasis:names:tc:opendocument:xmlns:office:1.0}meta") ||
                 ((kind=="core"||kind=="app"||kind=="custom") && parent==doc.document_element());
-            const auto selected=kind=="app"?application:kind=="custom"?custom:group(expanded_xml_name(child,child.name()));
+            auto selected=kind=="custom"?custom:group(expanded_xml_name(child,child.name()));
+            if(kind=="app"&&selected==custom){selected=application;}
             if(child.type()==pugi::node_comment || child.type()==pugi::node_pi || (property && child.type()==pugi::node_element && (mask&selected)!=0)){
                 parent.remove_child(child);++removed;
             }else{self(self,child,level+1);}
@@ -139,6 +139,21 @@ Result package_copy(Reader& r,std::uint32_t mask){
     for(const auto& entry:entries){
         r.entry();r.checkpoint();if(!seen.insert(entry.name).second||unsafe_member_name(entry.name)||!valid_xml_string(entry.name)){throw Failure{ParseStatus::Malformed,"Ambiguous or invalid package member",entry.central_offset};}
         auto bytes=zip_payload(r,entry);
+        if(entry.name=="[Content_Types].xml"||entry.name.ends_with(".rels")||entry.name=="META-INF/manifest.xml"){
+            XmlBudgetScope scope(r.context.budget());pugi::xml_document inventory;
+            if(!inventory.load_buffer(bytes.data(),bytes.size(),pugi::parse_default|pugi::parse_doctype)||!inventory.document_element()){throw Failure{ParseStatus::Malformed,"Invalid package relationship/content-type XML",entry.data_offset};}
+            auto node=inventory.first_child();std::uint32_t depth=1;
+            while(node){
+                r.entry();r.checkpoint();if(depth>64||!r.context.budget().check_depth(depth)){throw Failure{ParseStatus::Internal,"Package inventory XML depth budget",entry.data_offset};}
+                if(node.type()==pugi::node_doctype){throw Failure{ParseStatus::Unsupported,"DTD package relationships cannot be sanitized safely",entry.data_offset};}
+                if(expanded_xml_name(node,node.name())=="{urn:oasis:names:tc:opendocument:xmlns:manifest:1.0}encryption-data"){throw Failure{ParseStatus::Unsupported,"Encrypted ODF sanitized copies are unsupported",entry.data_offset};}
+                for(const auto attribute:node.attributes()){
+                    r.entry();const std::string value=attribute.value();
+                    if(value.find("digital-signature")!=std::string::npos){result.signatures=true;}
+                }
+                if(node.first_child()){node=node.first_child();++depth;}else{while(node&&!node.next_sibling()){node=node.parent();if(depth>1){--depth;}}if(node){node=node.next_sibling();}}
+            }
+        }
         if(entry.name=="[Content_Types].xml"){ooxml=true;}
         if(entry.name=="mimetype"){const std::string type(bytes.begin(),bytes.end());odf=type.starts_with("application/vnd.oasis.opendocument.");if(odf&&(entry.index!=0||entry.compression!=0)){throw Failure{ParseStatus::Malformed,"ODF mimetype must be the first stored member",entry.local_offset};}}
         if(entry.name.starts_with("_xmlsignatures/")||entry.name=="META-INF/documentsignatures.xml"||entry.name=="META-INF/macrosignatures.xml"){result.signatures=true;}

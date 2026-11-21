@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include "../native/metaxtract-extract/src/sanitized_digest.hpp"
 #include "metaxtract/native/core.hpp"
 #include "metaxtract/native/registry.hpp"
 
@@ -48,6 +49,12 @@ int main() {
     bool ok = expect(info.api_revision == kApiRevision && info.schema_revision == kSchemaRevision, "native revisions");
     ok &= expect(std::strcmp(engine_name(), "metaxtract-native") == 0, "native engine identity");
     ok &= expect(default_registry().find("conformance.resource_limits") == nullptr, "no production fixture parser");
+    SanitizedSha256 fragmented;
+    const std::string unaligned = "X" + std::string(1000, 'a');
+    for (unsigned i = 0; i < 1000; ++i) {
+        fragmented.update(reinterpret_cast<const unsigned char*>(unaligned.data() + 1), 1000);
+    }
+    ok &= expect(fragmented.finish() == "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0", "SHA-256 million-a vector across unaligned fragments");
     ParserRegistry registry;
     ok &= expect(registry.add(std::make_unique<ConformanceParser>()), "parser registration");
     ok &= expect(!registry.add(std::make_unique<ConformanceParser>()) && !registry.add(nullptr), "duplicate/null parser rejection");

@@ -2,7 +2,7 @@
 #include <map>
 #include <optional>
 #include <set>
-#include <qpdf/QPDFCryptoProvider.hh>
+#include "sanitized_digest.hpp"
 #include <zlib.h>
 
 namespace metaxtract::native {
@@ -103,9 +103,9 @@ Plan plan(std::span<const std::uint8_t> bytes,Reader& r){
     throw Failure{ParseStatus::Unsupported,"Sanitized image copies support JPEG, PNG and WebP only",0};
 }
 std::string digest(const Plan& plan,Reader& r){
-    if(!r.context.budget().reserve_allocation(4096)){throw Failure{ParseStatus::Internal,"Image digest budget",0};}auto hash=QPDFCryptoProvider::getImpl();hash->SHA2_init(256);
-    for(const auto& bytes:plan.kept){for(std::size_t at=0;at<bytes.size();){r.checkpoint();const auto n=std::min<std::size_t>(65536,bytes.size()-at);hash->SHA2_update(bytes.data()+at,n);at+=n;}}
-    const auto exif=plan.exif.packet();if(!exif.empty()){hash->SHA2_update(exif.data(),exif.size());}if(!plan.jfif.empty()){hash->SHA2_update(plan.jfif.data(),plan.jfif.size());}hash->SHA2_finalize();const auto bytes=hash->SHA2_digest();constexpr char h[]="0123456789abcdef";std::string out;for(const auto c:bytes){const auto b=static_cast<unsigned char>(c);out.push_back(h[b>>4U]);out.push_back(h[b&15U]);}return out;
+    if(!r.context.budget().reserve_allocation(4096)){throw Failure{ParseStatus::Internal,"Image digest budget",0};}SanitizedSha256 hash;
+    for(const auto& bytes:plan.kept){for(std::size_t at=0;at<bytes.size();){r.checkpoint();const auto n=std::min<std::size_t>(65536,bytes.size()-at);hash.update(bytes.data()+at,n);at+=n;}}
+    const auto exif=plan.exif.packet();if(!exif.empty()){hash.update(exif.data(),exif.size());}if(!plan.jfif.empty()){hash.update(plan.jfif.data(),plan.jfif.size());}return hash.finish();
 }
 Bytes output(const Plan& plan){
     Bytes out;auto exif=plan.exif.packet();
