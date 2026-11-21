@@ -1,5 +1,13 @@
 # Conformance corpus
 
+`python conformance/differential.py --dist dist --mediainfo /usr/bin/mediainfo` compares the
+packaged CLI with separately installed ExifTool and MediaInfo. `--metaxtract PATH` can instead
+select a development CLI. The gate records reference versions/input hashes, compares common
+camera fields and audio sample rates/channels, checks that source bytes survive unchanged,
+and fails on unavailable tools, absent reference fields or mismatches. It normalizes padding
+and the schema's lossless numeric representations, not conflicting values. Linux installation
+CI runs this gate; these tools and this Python checker are never runtime dependencies.
+
 The camera capture corpus adds nine unchanged libexif device metadata samples, including Canon,
 Fujifilm, Nikon, Olympus, Sanyo, Pentax and Casio variants and both TIFF byte orders. Their
 independent upstream `.parsed` Make/Model expectations, exact Git blob identities and SHA-256

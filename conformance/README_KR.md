@@ -1,5 +1,12 @@
 # 언어 전환 검증 자료
 
+`python conformance/differential.py --dist dist --mediainfo /usr/bin/mediainfo`로 배포 CLI를
+별도로 설치한 ExifTool·MediaInfo와 비교합니다. `--metaxtract PATH`는 개발 CLI를 선택합니다.
+참조 도구 버전·입력 해시를 기록하고 카메라 필드와 오디오 샘플링 주파수·채널 수를 비교하며,
+원본 바이트 보존도 확인합니다. 도구 누락·기대 필드 누락·불일치는 실패합니다. 문자열 패딩과
+스키마의 숫자 표현만 정규화하며 충돌 값을 숨기지 않습니다. Linux 설치 CI에서 실행하고,
+외부 도구와 이 Python 검증기는 실제 앱의 실행 의존성에 포함하지 않습니다.
+
 카메라 검증 자료에 libexif의 원본 장치 메타데이터 샘플 9개를 추가했습니다. Canon,
 Fujifilm, Nikon, Olympus, Sanyo, Pentax, Casio 변형과 두 TIFF 바이트 순서를 포함하며,
 독립적인 상위 `.parsed` 보고서의 제조사·모델 기대값, Git blob 식별자와 SHA-256을 보존합니다.

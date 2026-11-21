@@ -226,7 +226,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: packaging
+          sparse-checkout: |
+            packaging
+            conformance
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -291,8 +293,11 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb fonts-noto-cjk libxkbcommon-x11-0 libegl1 libgl1-mesa-dri
+          sudo apt-get install -y xvfb fonts-noto-cjk libxkbcommon-x11-0 libegl1 libgl1-mesa-dri libimage-exiftool-perl mediainfo
           xvfb-run -a python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke --native-formats
+      - name: Compare independent development metadata references
+        if: runner.os == 'Linux'
+        run: python conformance/differential.py --dist package-current --mediainfo /usr/bin/mediainfo
       - name: Verify standalone installation (macOS)
         if: runner.os == 'macOS'
         run: python packaging/verify.py --dist package-current --previous-if-present previous-package --gui-smoke --native-formats
