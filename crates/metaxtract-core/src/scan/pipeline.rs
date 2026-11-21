@@ -6,7 +6,7 @@ use super::{
     walk::invalid,
 };
 use crate::{
-    RecursiveLimits, extract_file_recursive_controlled,
+    RecursiveLimits, extract_file_recursive_authenticated,
     schema::{
         Diagnostic, DiagnosticSeverity, DiagnosticStage, EvidencePath, ExtractionRecord,
         ExtractionStatus, SourceDescriptor, SourceKind,
@@ -150,17 +150,30 @@ impl ExtractionBackend for NativeExtractor {
         options: &ScanOptions,
         context: &ExecutionContext,
     ) -> io::Result<ExtractionBatch> {
+        self.extract_with_pdf_password(evidence, hashes, options, context, None)
+    }
+}
+impl NativeExtractor {
+    pub(crate) fn extract_with_pdf_password(
+        &self,
+        evidence: &OpenedEvidence,
+        hashes: &EvidenceHashes,
+        options: &ScanOptions,
+        context: &ExecutionContext,
+        password: Option<&[u8]>,
+    ) -> io::Result<ExtractionBatch> {
         context.checkpoint()?;
         let mut limits = options.recursive;
         limits.max_wall_time_ms = limits
             .max_wall_time_ms
             .min(context.remaining_ms().min(u64::from(u32::MAX)) as u32);
-        let tree = extract_file_recursive_controlled(
+        let tree = extract_file_recursive_authenticated(
             evidence.file.try_clone()?,
             hashes.prefix.clone(),
             evidence.relative.name_bytes()?,
             limits,
             || context.checkpoint(),
+            password,
         )
         .map_err(|e| io::Error::other(e.to_string()))?;
         let mut records = tree

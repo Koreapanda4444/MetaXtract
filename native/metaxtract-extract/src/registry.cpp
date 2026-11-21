@@ -91,8 +91,8 @@ ParserRun run_parser(
     const ParserRegistry& registry,
     const std::string_view parser_id,
     const RandomAccessInput& source,
-    const ResourceLimits limits) noexcept {
-    ParserContext context(source, limits);
+    const ResourceLimits limits, const std::string_view password) noexcept {
+    ParserContext context(source, limits, password);
     auto status = ParseStatus::Complete;
     if (limits.max_wall_time_ms == 0) {
         status = ParseStatus::InvalidRequest;

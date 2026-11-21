@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace metaxtract::native {
@@ -27,7 +28,8 @@ struct ParserCapability final {
 
 class ParserContext final {
 public:
-    ParserContext(const RandomAccessInput& source, ResourceLimits limits) noexcept;
+    ParserContext(const RandomAccessInput& source, ResourceLimits limits, std::string_view password = {}) noexcept;
+    [[nodiscard]] std::string_view password() const noexcept { return password_; }
 
     [[nodiscard]] std::uint64_t source_size() const noexcept;
     [[nodiscard]] ReadChunk read_at(std::uint64_t offset, std::uint32_t requested);
@@ -38,6 +40,7 @@ public:
 private:
     const RandomAccessInput& source_;
     ParserBudget budget_;
+    std::string_view password_;
     std::vector<Observation> values_;
 };
 

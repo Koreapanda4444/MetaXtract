@@ -30,6 +30,8 @@ struct Request {
     snapshot: FileStamp,
     hashes: EvidenceHashes,
     remaining_ms: u64,
+    #[serde(default)]
+    captured_path: Option<PathBuf>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Response {
@@ -41,15 +43,23 @@ struct Response {
 pub struct BundledWorker {
     path: PathBuf,
     snapshots: TempDir,
+    pdf_password: Option<Arc<super::PdfPassword>>,
 }
 impl BundledWorker {
     pub fn adjacent() -> io::Result<Arc<Self>> {
+        Self::adjacent_with_pdf_password(None)
+    }
+    pub fn adjacent_with_pdf_password(
+        password: Option<Arc<super::PdfPassword>>,
+    ) -> io::Result<Arc<Self>> {
         let exe = std::env::current_exe()?;
-        Self::from_path(
+        let mut worker = Self::from_path(
             exe.parent()
                 .ok_or_else(|| invalid("executable has no parent"))?
                 .join(worker_name()),
-        )
+        )?;
+        Arc::get_mut(&mut worker).expect("new worker").pdf_password = password;
+        Ok(worker)
     }
     pub fn from_path(path: impl AsRef<Path>) -> io::Result<Arc<Self>> {
         let path = path.as_ref();
@@ -64,6 +74,7 @@ impl BundledWorker {
         }
         Ok(Arc::new(Self {
             path: path.canonicalize()?,
+            pdf_password: None,
             snapshots: tempfile::Builder::new()
                 .prefix(".metaxtract-worker-")
                 .tempdir()?,
@@ -79,7 +90,15 @@ fn worker_name() -> &'static str {
 }
 impl ExtractionBackend for BundledWorker {
     fn fingerprint(&self) -> String {
-        engine_fingerprint().to_owned()
+        format!(
+            "{}{}",
+            engine_fingerprint(),
+            if self.pdf_password.is_some() {
+                "+pdf-authenticated"
+            } else {
+                ""
+            }
+        )
     }
     fn excluded_paths(&self) -> Vec<PathBuf> {
         vec![self.snapshots.path().to_owned()]
@@ -127,6 +146,10 @@ impl ExtractionBackend for BundledWorker {
             snapshot,
             hashes: hashes.clone(),
             remaining_ms: context.remaining_ms(),
+            captured_path: self
+                .pdf_password
+                .as_ref()
+                .map(|_| captured.path().to_owned()),
         };
         let mut control = NamedTempFile::new_in(self.snapshots.path())?;
         control
@@ -144,7 +167,11 @@ impl ExtractionBackend for BundledWorker {
             .arg("--protocol=1")
             .arg(control.path())
             .current_dir(self.snapshots.path())
-            .stdin(Stdio::from(input))
+            .stdin(if self.pdf_password.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::from(input)
+            })
             .stderr(Stdio::piped())
             .stdout(Stdio::piped());
         library_environment(&mut command, &self.path)?;
@@ -157,6 +184,22 @@ impl ExtractionBackend for BundledWorker {
         command.env("ASAN_OPTIONS", asan);
 
         let mut child = RunningChild(command.spawn()?);
+        // Only an anonymous pipe carries the credential: never argv, environment or a file.
+        let credential_writer = if let Some(password) = &self.pdf_password {
+            let password = password.clone();
+            let mut stdin = child
+                .0
+                .stdin
+                .take()
+                .ok_or_else(|| invalid("worker credential pipe missing"))?;
+            Some(thread::spawn(move || -> io::Result<()> {
+                stdin.write_all(&(password.bytes().len() as u32).to_le_bytes())?;
+                stdin.write_all(password.bytes())?;
+                stdin.flush()
+            }))
+        } else {
+            None
+        };
         let stdout = child
             .0
             .stdout
@@ -208,10 +251,13 @@ impl ExtractionBackend for BundledWorker {
             }
         })();
         drop(child);
+        if let Some(writer) = credential_writer {
+            let _ = writer.join();
+        }
         let _ = reader.join();
         let diagnostics = diagnostic_reader.join().unwrap_or_default();
         let response = result.map_err(|error| {
-            if diagnostics.is_empty() {
+            if diagnostics.is_empty() || self.pdf_password.is_some() {
                 error
             } else {
                 io::Error::new(
@@ -332,7 +378,25 @@ pub fn run_bundled_worker_stdio(request_path: &Path) -> io::Result<()> {
     let request: Request = codec::decode(&request_bytes, REQUEST_LIMIT)?;
     let max = (request.options.max_result_bytes.saturating_mul(4)).min(codec::MAX_BLOB_BYTES as u64)
         as usize;
-    let result = extract_request(&request);
+    let password = if request.captured_path.is_some() {
+        let mut input = std::io::stdin().lock();
+        let mut length = [0_u8; 4];
+        input.read_exact(&mut length)?;
+        let length = u32::from_le_bytes(length) as usize;
+        if length > 16384 {
+            return Err(invalid("worker credential exceeds limit"));
+        }
+        let mut bytes = zeroize::Zeroizing::new(vec![0; length]);
+        input.read_exact(&mut bytes)?;
+        let mut extra = [0_u8; 1];
+        if input.read(&mut extra)? != 0 {
+            return Err(invalid("worker credential has trailing data"));
+        }
+        Some(super::PdfPassword::new(bytes)?)
+    } else {
+        None
+    };
+    let result = extract_request(&request, password.as_ref());
     let response = match result {
         Ok(records) => Response {
             engine: engine_fingerprint().into(),
@@ -363,7 +427,10 @@ fn stdin_file() -> io::Result<File> {
         ))
     }
 }
-fn extract_request(request: &Request) -> io::Result<Vec<ExtractionRecord>> {
+fn extract_request(
+    request: &Request,
+    password: Option<&super::PdfPassword>,
+) -> io::Result<Vec<ExtractionRecord>> {
     if request.engine != engine_fingerprint() || request.remaining_ms == 0 {
         return Err(invalid("worker engine or deadline differs"));
     }
@@ -371,7 +438,15 @@ fn extract_request(request: &Request) -> io::Result<Vec<ExtractionRecord>> {
     if !metaxtract_native::configure_worker_memory_limit(request.options.max_memory_bytes) {
         return Err(io::Error::other("could not apply worker memory limit"));
     }
-    let file = stdin_file()?;
+    let file = if let Some(path) = &request.captured_path {
+        let metadata = fs::symlink_metadata(path)?;
+        if !metadata.is_file() || metadata.is_symlink() {
+            return Err(invalid("worker capture is not a regular file"));
+        }
+        File::open(path)?
+    } else {
+        stdin_file()?
+    };
     let stamp = FileStamp::read(&file)?;
     if stamp != request.snapshot {
         return Err(invalid("worker input identity differs"));
@@ -384,8 +459,13 @@ fn extract_request(request: &Request) -> io::Result<Vec<ExtractionRecord>> {
     };
     let control = ScanControl::new();
     let context = control.context(request.remaining_ms.min(request.options.file_wall_time_ms));
-    let result =
-        super::NativeExtractor.extract(&evidence, &request.hashes, &request.options, &context)?;
+    let result = super::NativeExtractor.extract_with_pdf_password(
+        &evidence,
+        &request.hashes,
+        &request.options,
+        &context,
+        password.map(super::PdfPassword::bytes),
+    )?;
     let verified = super::hash_evidence(&mut evidence, &request.options.hash, || {
         context.checkpoint()
     })?;

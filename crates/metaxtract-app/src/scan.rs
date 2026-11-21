@@ -18,6 +18,7 @@ pub struct ScanRequest {
     pub workers: usize,
     pub resume: Option<(u64, String)>,
     pub cache_enabled: bool,
+    pub pdf_password: Option<Arc<PdfPassword>>,
     pub options: ScanOptions,
 }
 impl ScanRequest {
@@ -31,6 +32,7 @@ impl ScanRequest {
             workers: 2,
             resume: None,
             cache_enabled: true,
+            pdf_password: None,
             options: ScanOptions::default(),
         }
     }
@@ -306,6 +308,11 @@ pub fn run(
     control: ScanControl,
     mut sink: impl FnMut(AppScanEvent) -> io::Result<()>,
 ) -> io::Result<ScanOutcome> {
+    if request.pdf_password.is_some() && request.resume.is_some() {
+        return Err(invalid(
+            "authenticated PDF scans require a new scan; re-enter the password",
+        ));
+    }
     if request.workers == 0 || request.workers > 32 {
         return Err(invalid("workers must be 1..32"));
     }
@@ -328,8 +335,9 @@ pub fn run(
     }
     let store = ScanStore::open(&request.journal_path)?;
     let journal = NativePath::from_path(&request.journal_path.canonicalize()?);
-    let mut backend: Arc<dyn ExtractionBackend> = BundledWorker::adjacent()?;
-    if request.cache_enabled {
+    let mut backend: Arc<dyn ExtractionBackend> =
+        BundledWorker::adjacent_with_pdf_password(request.pdf_password.clone())?;
+    if request.cache_enabled && request.pdf_password.is_none() {
         let cache_path = crate::workflows::cache_path(case.path());
         if cache_path.exists() {
             let cache = ScanRoot::open(&cache_path, SymlinkPolicy::Skip)?;

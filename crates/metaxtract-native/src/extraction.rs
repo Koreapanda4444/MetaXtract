@@ -159,12 +159,31 @@ pub fn extract_parser(
     parser_id: &str,
     limits: ParserLimits,
 ) -> Result<ExtractionResult, NativeError> {
+    extract_parser_authenticated(input, parser_id, limits, None)
+}
+
+/// The credential is borrowed for this call and is never included in observations.
+pub fn extract_parser_authenticated(
+    input: &BoundedInput,
+    parser_id: &str,
+    limits: ParserLimits,
+    password: Option<&[u8]>,
+) -> Result<ExtractionResult, NativeError> {
     build_info()?;
     if parser_id.is_empty() || limits.max_wall_time_ms == 0 {
         return Err(native_error(NativeErrorCode::InvalidRequest, false));
     }
     let session = input.source.parser_session(limits.max_read_bytes);
-    let result = ffi::bridge::ffi_extract(&session, parser_id, limits.ffi());
+    let result = if let Some(password) = password {
+        if password.len() > 16384 || password.contains(&0) {
+            return Err(native_error(NativeErrorCode::InvalidRequest, false));
+        }
+        let mut terminated = zeroize::Zeroizing::new(password.to_vec());
+        terminated.push(0);
+        ffi::bridge::ffi_extract_authenticated(&session, parser_id, limits.ffi(), &terminated)
+    } else {
+        ffi::bridge::ffi_extract(&session, parser_id, limits.ffi())
+    };
     let error = (result.run.status != 0).then(|| {
         native_error(
             NativeErrorCode::from(result.run.status),
@@ -213,4 +232,59 @@ pub fn extract_parser(
         error,
         observations,
     })
+}
+
+#[cfg(test)]
+mod authenticated_tests {
+    use super::*;
+    use base64::Engine;
+    #[test]
+    fn protected_qpdf_fixture_requires_correct_session_password() {
+        let corpus: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/corpus/native-pdf-security.json"
+        ))
+        .unwrap();
+        let fixture = corpus["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "pdf-locked-rc4-retains-raw-encryption")
+            .unwrap();
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(fixture["base64"].as_str().unwrap())
+            .unwrap();
+        let input = BoundedInput::from_bytes(bytes, crate::InputLimits::default()).unwrap();
+        for password in [None, Some(b"wrong-secret".as_slice())] {
+            let result = extract_parser_authenticated(
+                &input,
+                "pdf.metadata",
+                ParserLimits::default(),
+                password,
+            )
+            .unwrap();
+            assert_eq!(
+                result.error.unwrap().code,
+                NativeErrorCode::UnsupportedParser
+            );
+            assert!(!format!("{:?}", result.observations).contains("wrong-secret"));
+        }
+        for parser in ["pdf.metadata", "pdf.security"] {
+            let result =
+                extract_parser_authenticated(&input, parser, ParserLimits::default(), Some(b"623"))
+                    .unwrap();
+            assert!(result.error.is_none(), "{:?}", result.error);
+            assert!(
+                result
+                    .observations
+                    .iter()
+                    .any(|o| o.key == "password_required" && o.value == RawValue::Signed(0))
+            );
+            assert!(
+                !result
+                    .observations
+                    .iter()
+                    .any(|o| o.key.contains("recovered_password") || o.key == "password")
+            );
+        }
+    }
 }

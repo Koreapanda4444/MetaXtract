@@ -23,6 +23,16 @@ retains active checkpoints; preserve it while a scan is paused. Resume using the
 results are replayed with atomic receipts to close interruption gaps without duplicating records.
 The journal must differ from the case and output files are excluded from discovery.
 
+For a protected PDF, use `inspect FILE --pdf-password-stdin` or add
+`--pdf-password-stdin` to `scan`. Supply one UTF-8 password on stdin (one terminal newline
+is removed); there is no password argument or environment variable. In the desktop scan
+queue, enter **PDF password (next scan only)** before starting that scan. It is cleared on
+submission. The password travels through an anonymous pipe to the isolated parser and is
+never written to the request file, results, cache, settings or history. Authenticated scans
+bypass the metadata cache and require a new scan rather than checkpoint resume. Enter the
+password again for a later queued scan. Incorrect passwords retain the encryption evidence
+and report authentication failure; supported decryption does not remove PDF permissions.
+
 ## Analysis and delivery
 
 Scan media and `.xmp` sidecars together, then use `analyze CASE SCAN --view relationships`

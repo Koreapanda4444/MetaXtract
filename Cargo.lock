@@ -2050,6 +2050,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+ "zeroize",
 ]
 
 [[package]]
@@ -2073,11 +2074,14 @@ version = "0.2.0"
 name = "metaxtract-native"
 version = "0.2.0"
 dependencies = [
+ "base64",
  "cmake",
  "cxx",
  "cxx-build",
  "metaxtract-schema",
  "serde",
+ "serde_json",
+ "zeroize",
 ]
 
 [[package]]

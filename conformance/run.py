@@ -498,9 +498,11 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
     expected = _read_json(ROOT / "conformance/expected/python.json")
     completed = 0
 
-    def invoke(*args: object, code: int = 0) -> dict[str, Any]:
+    def invoke(*args: object, code: int = 0, input_text: str | None = None) -> dict[str, Any]:
         p = subprocess.run(command + list(map(str, args)), cwd=ROOT, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=180)
+                           encoding="utf-8", errors="replace", timeout=180, input=input_text)
+        if input_text and input_text.strip() not in ("623", "") and input_text.strip() in p.stdout + p.stderr:
+            raise ValueError("credential appeared in CLI output")
         if p.returncode != code:
             raise ValueError(f"acceptance {args[0]} exit {p.returncode}: {p.stderr[-1800:]} {p.stdout[:1000]}")
         envelope = json.loads(p.stdout or p.stderr.splitlines()[-1])
@@ -514,6 +516,19 @@ def _compare_application_parity(release: bool, executable: Path | None = None) -
             root = Path(temporary)
             sources = root / "evidence"
             sources.mkdir()
+            protected = root / "protected.pdf"
+            protected_case = next(c for c in _read_json(ROOT / "conformance/corpus/native-pdf-security.json")["cases"]
+                                  if c["name"] == "pdf-locked-rc4-retains-raw-encryption")
+            protected.write_bytes(base64.b64decode(protected_case["base64"]))
+            protected_hash = sha(protected)
+            for credential, unlocked in (("never-persist-acceptance-secret\n", False), ("623\n", True)):
+                inspected = invoke("inspect", protected, "--pdf-password-stdin", input_text=credential)
+                observations = [o for r in inspected["records"] for o in r["observations"]]
+                if any(o["tag"].get("name") == "page_count" for o in observations) != unlocked:
+                    raise ValueError("protected PDF credential outcome differs")
+                completed += 1
+            if sha(protected) != protected_hash:
+                raise ValueError("protected PDF changed during authenticated inspection")
             _materialize(sources, _read_json(ROOT / "conformance/corpus/files.json"))
             case = root / "acceptance.mxcase"
             scanned = invoke("scan", sources, "--case", case, "--workers", 1, "--decode-previews")

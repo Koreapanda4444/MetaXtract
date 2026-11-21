@@ -268,10 +268,17 @@ FfiDetection ffi_detect(const ReadSource& source, const FfiResourceLimits limits
 }
 
 FfiExtraction ffi_extract(const ReadSource& source, const rust::Str parser_id, const FfiResourceLimits limits) noexcept {
+    return ffi_extract_authenticated(source, parser_id, limits, rust::Slice<const std::uint8_t>());
+}
+FfiExtraction ffi_extract_authenticated(const ReadSource& source, const rust::Str parser_id, const FfiResourceLimits limits, rust::Slice<const std::uint8_t> password) noexcept {
     try {
         const RustInput input(source);
+        if (!password.empty() && (password.size() > 16385 || password[password.size()-1] != 0 || std::find(password.begin(), password.end()-1, 0) != password.end()-1)) {
+            return {.run = {.status = 2}, .values = {}};
+        }
         auto run = metaxtract::native::run_parser(metaxtract::native::default_registry(),
-            std::string_view(parser_id.data(), parser_id.size()), input, convert_limits(limits));
+            std::string_view(parser_id.data(), parser_id.size()), input, convert_limits(limits),
+            password.empty() ? std::string_view{} : std::string_view(reinterpret_cast<const char*>(password.data()), password.size() - 1));
         rust::Vec<FfiObservation> values;
         for (auto& value : run.values) {
             rust::Vec<std::uint8_t> encoded;

@@ -7,7 +7,7 @@ use metaxtract_app::{self as app, analysis, core::scan::ScanControl, storage};
 use serde_json::{Value, json};
 use std::io;
 
-const HELP: &str = "MetaXtract Rust CLI\n  scan ROOT --case CASE [--workers N] [--journal PATH] [--resume RUN --scan ID]\n    [--max-member-bytes N --max-decoded-bytes N --max-tree-bytes N --max-expansion-ratio N]\n    [--include-hidden --decode-previews --max-files N --cache on|off]\n  doctor [--case CASE]\n  cache purge CACHE_SQLITE\n  verify-originals CASE SCAN ROOT [--query TEXT]\n  export-evidence CASE SCAN ROOT OUTPUT [--query TEXT]\n  verify-evidence ZIP\n  inspect FILE [--max-member-bytes N --max-decoded-bytes N --max-tree-bytes N --max-expansion-ratio N]\n  compare CASE OLD_SCAN NEW_SCAN\n  preview CASE RECORD_ID FILE\n  verify CASE\n  case create CASE [TITLE]\n  case info|history CASE\n  case notes CASE TEXT\n  search CASE SCAN [--query TEXT --limit N --cursor JSON --save NAME]\n  export|redact CASE SCAN OUTPUT [--format csv|jsonl --profile JSON]\n  redact CASE SCAN --preview RECORD_ID\n  report CASE SCAN OUTPUT [--format html|json --title TEXT --analyst NAME]\n  analyze CASE SCAN [--view dashboard|timeline|locations|duplicates|similar|findings|relationships]\n    [--threshold N (similar)] [--format geojson|kml --output PATH (locations)]\n  import CASE INPUT [--kind jsonl|python|python-bundle]\n  keygen PRIVATE_PEM PUBLIC_PEM --name NAME --password-stdin\n  sign INPUT SIGNATURE --key PRIVATE_PEM --password-stdin\n  verify-signature INPUT SIGNATURE PUBLIC_PEM\n  verify-report REPORT RECEIPT PUBLIC_PEM\n  bundle export CASE OUTPUT [--key PRIVATE_PEM --password-stdin]\n  bundle verify INPUT [--public-key PEM]\n  bundle open INPUT CASE [--public-key PEM]\n\nBuild the bundled metaxtract-worker beside this executable. / 전용 파서 실행 파일을 함께 빌드하세요.";
+const HELP: &str = "MetaXtract Rust CLI\n  scan ROOT --case CASE [--workers N] [--journal PATH] [--resume RUN --scan ID]\n    [--max-member-bytes N --max-decoded-bytes N --max-tree-bytes N --max-expansion-ratio N]\n    [--include-hidden --decode-previews --max-files N --cache on|off --pdf-password-stdin]\n  doctor [--case CASE]\n  cache purge CACHE_SQLITE\n  verify-originals CASE SCAN ROOT [--query TEXT]\n  export-evidence CASE SCAN ROOT OUTPUT [--query TEXT]\n  verify-evidence ZIP\n  inspect FILE [--max-member-bytes N --max-decoded-bytes N --max-tree-bytes N --max-expansion-ratio N]\n  compare CASE OLD_SCAN NEW_SCAN\n  preview CASE RECORD_ID FILE\n  verify CASE\n  case create CASE [TITLE]\n  case info|history CASE\n  case notes CASE TEXT\n  search CASE SCAN [--query TEXT --limit N --cursor JSON --save NAME]\n  export|redact CASE SCAN OUTPUT [--format csv|jsonl --profile JSON]\n  redact CASE SCAN --preview RECORD_ID\n  report CASE SCAN OUTPUT [--format html|json --title TEXT --analyst NAME]\n  analyze CASE SCAN [--view dashboard|timeline|locations|duplicates|similar|findings|relationships]\n    [--threshold N (similar)] [--format geojson|kml --output PATH (locations)]\n  import CASE INPUT [--kind jsonl|python|python-bundle]\n  keygen PRIVATE_PEM PUBLIC_PEM --name NAME --password-stdin\n  sign INPUT SIGNATURE --key PRIVATE_PEM --password-stdin\n  verify-signature INPUT SIGNATURE PUBLIC_PEM\n  verify-report REPORT RECEIPT PUBLIC_PEM\n  bundle export CASE OUTPUT [--key PRIVATE_PEM --password-stdin]\n  bundle verify INPUT [--public-key PEM]\n  bundle open INPUT CASE [--public-key PEM]\n\nBuild the bundled metaxtract-worker beside this executable. / 전용 파서 실행 파일을 함께 빌드하세요.";
 fn run(a: &Args) -> io::Result<Value> {
     match a.word(0)?.as_str() {
         "scan" => {
@@ -16,6 +16,7 @@ fn run(a: &Args) -> io::Result<Value> {
             })?;
             let mut request = app::scan::ScanRequest::new(a.path(1)?, case);
             resource_policy(a, &mut request)?;
+            pdf_credential(a, &mut request)?;
             request.options.walk.include_hidden = a.flags.contains_key("include-hidden");
             request.options.recursive.preview = a.flags.contains_key("decode-previews");
             if let Some(value) = a.flag("max-files") {
@@ -94,6 +95,7 @@ fn run(a: &Args) -> io::Result<Value> {
             let path = temp.path().join("inspect.mxcase");
             let mut request = app::scan::ScanRequest::new(a.path(1)?, path.clone());
             resource_policy(a, &mut request)?;
+            pdf_credential(a, &mut request)?;
             let result = app::scan::run(&request, ScanControl::new(), |_| Ok(()))?;
             let case = app::open_case(&path, false)?;
             let q = analysis::search::parse(&result.scan_id, "")?;
@@ -216,4 +218,22 @@ fn main() {
             std::process::exit(code);
         }
     }
+}
+
+fn pdf_credential(a: &Args, request: &mut app::scan::ScanRequest) -> io::Result<()> {
+    use std::io::Read;
+    if a.flags.contains_key("pdf-password-stdin") {
+        let mut bytes = app::Zeroizing::new(Vec::new());
+        io::stdin().take(16387).read_to_end(&mut bytes)?;
+        if bytes.ends_with(b"\n") {
+            bytes.pop();
+            if bytes.ends_with(b"\r") {
+                bytes.pop();
+            }
+        }
+        request.pdf_password = Some(std::sync::Arc::new(app::core::scan::PdfPassword::new(
+            bytes,
+        )?));
+    }
+    Ok(())
 }

@@ -517,5 +517,6 @@
   "Workers": "작업자 ",
   "Working": "작업 중",
   "Zoom": "확대",
-  "counted during export": "내보내기 중 집계"
+  "counted during export": "내보내기 중 집계",
+  "PDF password (next scan only)": "PDF 암호 (다음 스캔에서만 사용)"
 }

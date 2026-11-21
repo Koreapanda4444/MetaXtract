@@ -39,6 +39,7 @@ pub struct ScanUi {
     pub decode_previews: bool,
     pub include_hidden: bool,
     pub cache_enabled: bool,
+    pdf_password: app::Zeroizing<String>,
     pub max_files: u64,
     pub queue: VecDeque<PathBuf>,
     pub selected_queue: std::collections::BTreeSet<PathBuf>,
@@ -65,6 +66,7 @@ impl Default for ScanUi {
             decode_previews: false,
             include_hidden: false,
             cache_enabled: true,
+            pdf_password: Default::default(),
             max_files: 1_000_000,
             queue: VecDeque::new(),
             selected_queue: Default::default(),
@@ -129,6 +131,18 @@ impl Desktop {
         };
         self.scan.active_source = Some(source.clone());
         let mut request = app::scan::ScanRequest::new(source, case.path().to_owned());
+        if !self.scan.pdf_password.is_empty() {
+            let password = std::mem::take(&mut self.scan.pdf_password);
+            match app::core::scan::PdfPassword::new(app::Zeroizing::new(
+                password.as_bytes().to_vec(),
+            )) {
+                Ok(password) => request.pdf_password = Some(std::sync::Arc::new(password)),
+                Err(error) => {
+                    self.status = error.to_string();
+                    return;
+                }
+            }
+        }
         request.workers = self.scan.workers;
         request.options.recursive.preview = self.scan.decode_previews;
         request.options.walk.include_hidden = self.scan.include_hidden;
@@ -299,6 +313,10 @@ impl Desktop {
                     .range(1..=1_000_000)
                     .prefix(crate::i18n::tr("File limit")),
             );
+        });
+        ui.horizontal(|ui| {
+            ui.label(crate::i18n::tr("PDF password (next scan only)"));
+            ui.add(egui::TextEdit::singleline(&mut *self.scan.pdf_password).password(true));
         });
         ui.checkbox(
             &mut self.scan.decode_previews,

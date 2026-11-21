@@ -12,7 +12,7 @@ pub use backend_claims::{
 };
 pub use containers::{
     NestedIdentity, RecursiveExtraction, RecursiveLimits, RecursiveNode, extract_file_recursive,
-    extract_file_recursive_controlled, extract_recursive,
+    extract_file_recursive_authenticated, extract_file_recursive_controlled, extract_recursive,
 };
 
 pub use detection::{ContentAssessment, TypeConflict, TypeConflictKind, assess_content};

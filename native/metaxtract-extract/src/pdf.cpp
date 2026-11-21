@@ -284,10 +284,11 @@ ParseStatus inspect(ParserContext& context, SecurityInspector security, bool pre
         QPDF raw; raw.setSuppressWarnings(true); raw.emptyPDF();
         const auto revisions = history(r, raw);
         QPDF document; document.setSuppressWarnings(true); document.setAttemptRecovery(false);
-        try { document.processInputSource(std::make_shared<Source>(r)); }
+        try { document.processInputSource(std::make_shared<Source>(r), context.password().empty() ? nullptr : context.password().data()); }
         catch (const QPDFExc& error) {
             if (error.getErrorCode() != qpdf_e_password) { throw; }
             number(r, "encrypted", 1, "pdf.container"); number(r, "password_required", 1, "pdf.container");
+            if (!context.password().empty()) { r.diagnostic("authentication_failed", "Supplied PDF password was not accepted", 0); }
             if (security) { security(nullptr, raw, r, revisions); }
             return ParseStatus::Unsupported;
         }
@@ -329,7 +330,7 @@ ParseStatus inspect(ParserContext& context, SecurityInspector security, bool pre
     } catch (const Failure& error) {
         r.diagnostic("failure", error.message, std::min(error.offset, r.size)); return error.status;
     } catch (const QPDFExc& error) {
-        const auto at = error.getFilePosition(); r.diagnostic("library_error", error.getMessageDetail(), at > 0 ? std::min<std::uint64_t>(static_cast<std::uint64_t>(at), r.size) : 0);
+        const auto at = error.getFilePosition(); r.diagnostic("library_error", context.password().empty() ? error.getMessageDetail() : "PDF parsing failed after password submission", at > 0 ? std::min<std::uint64_t>(static_cast<std::uint64_t>(at), r.size) : 0);
         return ParseStatus::Malformed;
     }
 }

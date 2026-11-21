@@ -231,7 +231,7 @@ pub fn extract_recursive(
     name: Vec<u8>,
     limits: RecursiveLimits,
 ) -> Result<RecursiveExtraction, NativeError> {
-    extract_input(WorkInput::Bytes(bytes), name, limits, &|| Ok(()))
+    extract_input(WorkInput::Bytes(bytes), name, limits, &|| Ok(()), None)
 }
 
 pub fn extract_file_recursive(
@@ -250,6 +250,17 @@ pub fn extract_file_recursive_controlled(
     limits: RecursiveLimits,
     checkpoint: impl Fn() -> io::Result<()>,
 ) -> Result<RecursiveExtraction, NativeError> {
+    extract_file_recursive_authenticated(file, prefix, name, limits, checkpoint, None)
+}
+
+pub fn extract_file_recursive_authenticated(
+    file: File,
+    prefix: Vec<u8>,
+    name: Vec<u8>,
+    limits: RecursiveLimits,
+    checkpoint: impl Fn() -> io::Result<()>,
+    password: Option<&[u8]>,
+) -> Result<RecursiveExtraction, NativeError> {
     let size = file
         .metadata()
         .map_err(|_| capacity_error(NativeErrorCode::ReadFailure))?
@@ -262,6 +273,7 @@ pub fn extract_file_recursive_controlled(
         name,
         limits,
         &checkpoint,
+        password,
     )
 }
 
@@ -288,6 +300,7 @@ fn extract_input(
     name: Vec<u8>,
     limits: RecursiveLimits,
     checkpoint: &impl Fn() -> io::Result<()>,
+    password: Option<&[u8]>,
 ) -> Result<RecursiveExtraction, NativeError> {
     if limits.max_nodes == 0
         || limits.max_wall_time_ms == 0
@@ -448,7 +461,11 @@ fn extract_input(
                     .max_wall_time_ms
                     .min(remaining_ms.min(u128::from(u32::MAX)) as u32),
             };
-            let mut result = extract_parser(&input, id, available)?;
+            let mut result = if file_root && id.starts_with("pdf.") {
+                metaxtract_native::extract_parser_authenticated(&input, id, available, password)?
+            } else {
+                extract_parser(&input, id, available)?
+            };
             if let Some(error) = &mut result.error {
                 if error.code == NativeErrorCode::DecodeBudgetExceeded
                     && root_expansion_limit < limits.parser.max_decoded_bytes

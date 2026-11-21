@@ -28,6 +28,7 @@ impl Args {
                     "max-decoded-bytes",
                     "max-tree-bytes",
                     "max-expansion-ratio",
+                    "pdf-password-stdin",
                 ],
             ),
             "inspect" => (
@@ -38,6 +39,7 @@ impl Args {
                     "max-decoded-bytes",
                     "max-tree-bytes",
                     "max-expansion-ratio",
+                    "pdf-password-stdin",
                 ],
             ),
             "verify" => (2, 2, &[]),
@@ -110,6 +112,7 @@ impl Args {
                 "pretty",
                 "progress",
                 "password-stdin",
+                "pdf-password-stdin",
                 "include-hidden",
                 "decode-previews",
             ]
@@ -172,6 +175,7 @@ impl Args {
                         "progress",
                         "pretty",
                         "password-stdin",
+                        "pdf-password-stdin",
                         "include-hidden",
                         "decode-previews",
                     ]

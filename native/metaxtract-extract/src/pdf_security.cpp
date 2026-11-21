@@ -233,8 +233,8 @@ void encryption(QPDF* document, QPDF& raw, Reader& source, const History& revisi
     value(r, "stream_encryption", ValueKind::Text, method(streams), "pdf.encryption");
     value(r, "string_encryption", ValueKind::Text, method(strings), "pdf.encryption");
     value(r, "attachment_encryption", ValueKind::Text, method(files), "pdf.encryption");
-    number(r, "empty_user_password_matched", document->userPasswordMatched() ? 1 : 0, "pdf.encryption");
-    number(r, "empty_owner_password_matched", document->ownerPasswordMatched() ? 1 : 0, "pdf.encryption");
+    number(r, source.context.password().empty() ? "empty_user_password_matched" : "user_password_matched", document->userPasswordMatched() ? 1 : 0, "pdf.encryption");
+    number(r, source.context.password().empty() ? "empty_owner_password_matched" : "owner_password_matched", document->ownerPasswordMatched() ? 1 : 0, "pdf.encryption");
     for (const auto& [key, allowed] : std::initializer_list<std::pair<const char*, bool>>{
         {"permission.accessibility", document->allowAccessibility()}, {"permission.extract", document->allowExtractAll()},
         {"permission.print_low", document->allowPrintLowRes()}, {"permission.print_high", document->allowPrintHighRes()},

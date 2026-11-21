@@ -1,7 +1,9 @@
 //! Bounded, read-only evidence discovery and processing.
 mod cache;
 mod checkpoint;
+mod credentials;
 mod worker;
+pub use credentials::PdfPassword;
 pub use worker::{BundledWorker, run_bundled_worker_stdio, scan_local};
 mod storage;
 pub use storage::{ScanCheckpoint, ScanStore, TaskRow, TaskState};
