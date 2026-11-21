@@ -173,6 +173,7 @@ void inspect_gif(Reader& reader, bool metadata = false);
 void inspect_bmp(Reader& reader);
 void inspect_ico(Reader& reader, bool metadata = false);
 void inspect_xmp(Reader& reader);
+void inspect_extended_xmp(Reader& reader, const std::vector<std::pair<std::uint64_t, std::uint64_t>>& packets);
 void inspect_xmp_data(Reader& reader, std::span<const std::uint8_t> bytes, const std::string& packet);
 void inspect_icc(Reader& reader);
 void inspect_icc_data(Reader& reader, std::span<const std::uint8_t> bytes);

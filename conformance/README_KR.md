@@ -1,5 +1,9 @@
 # 언어 전환 검증 자료
 
+JPEG Extended XMP는 참조된 조각의 순서 독립 조립과 MD5 식별자, 누락·중복·해시 불일치,
+연결되지 않은 조각, 크기 제한을 검사합니다. 실패해도 원본 조각과 일반 XMP 근거를 보존합니다.
+MD5 식별자는 포맷 일관성 검사이며 촬영자나 파일의 진위를 인증하지 않습니다.
+
 `python conformance/differential.py --dist dist --mediainfo /usr/bin/mediainfo`로 배포 CLI를
 별도로 설치한 ExifTool·MediaInfo와 비교합니다. `--metaxtract PATH`는 개발 CLI를 선택합니다.
 참조 도구 버전·입력 해시를 기록하고 카메라 필드와 오디오 샘플링 주파수·채널 수를 비교하며,

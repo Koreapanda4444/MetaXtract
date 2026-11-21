@@ -1,5 +1,10 @@
 # Conformance corpus
 
+Extended JPEG XMP cases now verify linked, out-of-order fragment assembly and its MD5 packet
+identifier, missing/overlapping fragments, invalid digests, orphan packets and the member-size
+ceiling. Original fragment bytes and ordinary XMP observations remain available on failure.
+An MD5 identifier is a format consistency check and does not authenticate a photographer or file.
+
 `python conformance/differential.py --dist dist --mediainfo /usr/bin/mediainfo` compares the
 packaged CLI with separately installed ExifTool and MediaInfo. `--metaxtract PATH` can instead
 select a development CLI. The gate records reference versions/input hashes, compares common

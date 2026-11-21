@@ -182,7 +182,6 @@ void jpeg_metadata(Reader& reader, const std::uint8_t code, const std::uint64_t 
         Reader xmp(body.context, body.base + 29, length - 29, body.group + ".xmp"); inspect_xmp(xmp);
     } else if (code == 0xe1 && starts(prefix, std::string_view("http://ns.adobe.com/xmp/extension/\0", 35))) {
         body.put("extended_xmp", ValueKind::Bytes, "", 0, body.read(0, length));
-        body.diagnostic("fragmented_xmp", "Extended XMP fragment retained; assembly is not yet supported", 0);
     } else if (code == 0xe2 && starts(prefix, std::string_view("ICC_PROFILE\0", 12))) {
         if (length < 14 || prefix[12] == 0 || prefix[13] == 0 || prefix[12] > prefix[13]) { throw Failure{ParseStatus::Malformed, "Invalid JPEG ICC sequence", body.base}; }
         body.number("icc_sequence", 12, 1); body.number("icc_part_count", 13, 1);

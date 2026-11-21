@@ -223,6 +223,7 @@ void inspect_jpeg(Reader& reader, const bool metadata) {
     bool dimensions = false, ended = false;
     std::vector<std::pair<std::uint8_t, std::vector<std::uint8_t>>> icc_parts;
     std::uint8_t icc_count = 0;
+    std::vector<std::pair<std::uint64_t, std::uint64_t>> xmp_packets;
     while (at < reader.size) {
         reader.entry();
         auto marker = reader.read(at, 2);
@@ -241,6 +242,10 @@ void inspect_jpeg(Reader& reader, const bool metadata) {
         if (length < 2) { throw Failure{ParseStatus::Malformed, "Invalid JPEG segment length", reader.base + at}; }
         reader.require(at, length);
         const auto payload = at + 2;
+        if (metadata && code == 0xe1) {
+            if (!reader.context.budget().reserve_allocation(512)) { throw Failure{ParseStatus::Internal, "JPEG metadata packet index budget", reader.base + payload}; }
+            xmp_packets.emplace_back(payload, length - 2);
+        }
         if (metadata && ((code >= 0xe0 && code <= 0xef) || code == 0xfe)) { jpeg_metadata(segment, code, payload, length - 2); }
         if (metadata && code == 0xe2 && length >= 16) {
             const auto prefix = reader.read(payload, 14);
@@ -275,6 +280,7 @@ void inspect_jpeg(Reader& reader, const bool metadata) {
     }
     if (!ended || !dimensions || scans == 0) { throw Failure{ParseStatus::Malformed, "JPEG is missing frame, scan, or EOI", reader.base + at}; }
     if (at != reader.size) { reader.diagnostic("trailing_data", "Bytes remain after JPEG EOI", at); }
+    if (!xmp_packets.empty()) { inspect_extended_xmp(reader, xmp_packets); }
     if (icc_count != 0) {
         std::sort(icc_parts.begin(), icc_parts.end(), [](const auto& first, const auto& second) { return first.first < second.first; });
         if (icc_parts.size() != icc_count) { throw Failure{ParseStatus::Malformed, "Incomplete multipart ICC profile", reader.base}; }
